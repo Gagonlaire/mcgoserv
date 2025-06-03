@@ -36,7 +36,6 @@ func ReadVarInt(r io.Reader) (int32, error) {
 func WriteVarInt(w io.Writer, value int32) error {
 	for {
 		temp := byte(value & 0x7F)
-
 		value >>= 7
 		if value != 0 {
 			temp |= 0x80
@@ -100,7 +99,10 @@ func ReadInt(r io.Reader) (int32, error) {
 }
 
 func WriteInt(w io.Writer, v int32) error {
-	return binary.Write(w, binary.BigEndian, v)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], uint32(v))
+	_, err := w.Write(buf[:])
+	return err
 }
 
 func ReadUInt16(r io.Reader) (uint16, error) {
@@ -110,7 +112,10 @@ func ReadUInt16(r io.Reader) (uint16, error) {
 }
 
 func WriteUInt16(w io.Writer, v uint16) error {
-	return binary.Write(w, binary.BigEndian, v)
+	var buf [2]byte
+	binary.BigEndian.PutUint16(buf[:], v)
+	_, err := w.Write(buf[:])
+	return err
 }
 
 func ReadLong(r io.Reader) (int64, error) {
@@ -120,7 +125,10 @@ func ReadLong(r io.Reader) (int64, error) {
 }
 
 func WriteLong(w io.Writer, v int64) error {
-	return binary.Write(w, binary.BigEndian, v)
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(v))
+	_, err := w.Write(buf[:])
+	return err
 }
 
 func ReadString(r io.Reader) (string, error) {
