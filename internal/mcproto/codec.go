@@ -3,6 +3,7 @@ package mcproto
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 )
 
@@ -151,5 +152,18 @@ func WriteString(w io.Writer, s string) error {
 		return err
 	}
 	_, err := w.Write([]byte(s))
+	return err
+}
+
+func ReadUUID(r io.Reader) (uuid.UUID, error) {
+	var u uuid.UUID
+	if _, err := io.ReadFull(r, u[:]); err != nil {
+		return uuid.Nil, err
+	}
+	return u, nil
+}
+
+func WriteUUID(w io.Writer, u uuid.UUID) error {
+	_, err := w.Write(u[:])
 	return err
 }

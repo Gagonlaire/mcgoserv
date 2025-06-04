@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/Gagonlaire/mcgoserv/internal/mcproto"
+	"github.com/google/uuid"
 	"io"
 	"net"
 	"reflect"
@@ -102,35 +103,28 @@ func (p *Packet) Send(conn net.Conn) error {
 }
 
 func readFieldByTag(r io.Reader, field reflect.Value, tag string) error {
+	var err error = nil
+	var v any
+
 	switch tag {
 	case "varint":
-		v, err := mcproto.ReadVarInt(r)
-		if err != nil {
-			return err
-		}
-		field.SetInt(int64(v))
+		v, err = mcproto.ReadVarInt(r)
+
+		field.SetInt(int64(v.(int32)))
 	case "string":
-		v, err := mcproto.ReadString(r)
-		if err != nil {
-			return err
-		}
-		field.SetString(v)
+		v, err = mcproto.ReadString(r)
+		field.SetString(v.(string))
 	case "u16":
-		v, err := mcproto.ReadUInt16(r)
-		if err != nil {
-			return err
-		}
-		field.SetUint(uint64(v))
+		v, err = mcproto.ReadUInt16(r)
+		field.SetUint(uint64(v.(uint16)))
 	case "long":
-		v, err := mcproto.ReadLong(r)
-		if err != nil {
-			return err
-		}
-		field.SetInt(v)
-	default:
-		return fmt.Errorf("tag inconnu: %s", tag)
+		v, err = mcproto.ReadLong(r)
+		field.SetInt(v.(int64))
+	case "uuid":
+		v, err = mcproto.ReadUUID(r)
+		field.Set(reflect.ValueOf(v.(uuid.UUID)))
 	}
-	return nil
+	return err
 }
 
 func writeFieldByTag(w *bytes.Buffer, field reflect.Value, tag string) error {
@@ -143,6 +137,8 @@ func writeFieldByTag(w *bytes.Buffer, field reflect.Value, tag string) error {
 		return mcproto.WriteUInt16(w, uint16(field.Uint()))
 	case "long":
 		return mcproto.WriteLong(w, field.Int())
+	case "uuid":
+		return mcproto.WriteUUID(w, field.Interface().(uuid.UUID))
 	default:
 		panic(fmt.Sprintf("tag inconnu: %s", tag))
 	}

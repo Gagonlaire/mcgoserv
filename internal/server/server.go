@@ -13,6 +13,7 @@ type ConnState int32
 const (
 	Status ConnState = iota + 1
 	Login
+	Configuration
 	Transfer
 	Handshake
 )
@@ -131,6 +132,13 @@ func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 			// todo: close connection, we don't need to re-read the packet to get the EOF error
 		}
 	case Login:
+		switch pkt.ID {
+		case 0x0:
+			HandleLoginStartPacket(conn, pkt)
+		case 0x3:
+			HandleLoginAckPacket(conn)
+		}
+	case Configuration:
 		context.TODO()
 	case Transfer:
 		context.TODO()
