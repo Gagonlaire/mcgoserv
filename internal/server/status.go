@@ -1,59 +1,29 @@
 package server
 
 import (
-	"encoding/json"
+	"fmt"
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-type StatusResponsePacket struct {
-	JSONResponse string `mc:"string"`
-}
-
-type PingPacket struct {
-	Timestamp int64 `mc:"long"`
-}
-
-type StatusResponse struct {
-	Version struct {
-		Name     string `json:"name"`
-		Protocol int    `json:"protocol"`
-	} `json:"version"`
-	Players struct {
-		Max    int `json:"max"`
-		Online int `json:"online"`
-	} `json:"players"`
-	Description struct {
-		Text string `json:"text"`
-	} `json:"description"`
-}
-
 func HandleStatusPacket(conn *Connection, pkt *packet.Packet) {
-	status := StatusResponse{}
-	status.Version.Name = "1.21.5"
-	status.Version.Protocol = 770
-	status.Players.Max = 100
-	status.Players.Online = 0
-	status.Description.Text = "Server Go Minecraft"
+	data := mc.String(fmt.Sprintf(`{"version":{"name":"%s","protocol":%d},"players":{"max":%d,"online":%d},"description":{"text":"%s"}}`,
+		"1.21.5", 770, 100, 0, "Server Go Minecraft"))
 
-	jsonData, err := json.Marshal(status)
-	if err != nil {
-		return
-	}
-
-	if err := pkt.Encode(0x0, &StatusResponsePacket{
-		JSONResponse: string(jsonData),
-	}); err != nil {
-		return
-	}
+	_ = pkt.ResetWith(0x0, &data)
 	_ = pkt.Send(conn.Conn)
 }
 
 func HandlePingPacket(conn *Connection, pkt *packet.Packet) {
-	var ping PingPacket
+	var timestamp mc.Long
 
-	pkt.Decode(&ping)
-	if err := pkt.Encode(0x1, &ping); err != nil {
+	if err := pkt.Decode(&timestamp); err != nil {
+		fmt.Println("Error decoding ping packet:", err)
 		return
 	}
+
+	_ = pkt.ResetWith(0x1, &timestamp)
 	_ = pkt.Send(conn.Conn)
+	// todo: we should gracefully close the connection, but for now it cause 'use of closed network connection' error in main loop
+	// _ = conn.Conn.Close()
 }

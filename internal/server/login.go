@@ -1,30 +1,32 @@
 package server
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mcproto"
+	"fmt"
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/google/uuid"
 )
 
-type LoginStartPacket struct {
-	Name       string    `mc:"string"`
-	PlayerUUID uuid.UUID `mc:"uuid"`
-}
-
 func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
-	var loginStart LoginStartPacket
+	var (
+		Name       mc.String
+		PlayerUUID mc.UUID
+		// Properties todo: should fetch user data from mc api (array of properties for capes, skins, etc.)
+		Properties = mc.VarInt(0)
+	)
 
-	pkt.Decode(&loginStart)
-	pkt.Buffer.Reset()
-	_ = mcproto.WriteVarInt(pkt.Buffer, 0x2)
-	_ = mcproto.WriteUUID(pkt.Buffer, loginStart.PlayerUUID)
-	_ = mcproto.WriteString(pkt.Buffer, loginStart.Name)
-	// todo: replace with a actual array func
-	// this is supposed to handle player skin/cape data
-	_ = mcproto.WriteVarInt(pkt.Buffer, 0)
-	_ = pkt.Send(conn.Conn)
+	if err := pkt.Decode(&Name, &PlayerUUID); err != nil {
+		fmt.Println("Error decoding loginStart packet:", err)
+		return
+	}
+
+	_ = pkt.ResetWith(0x2, &PlayerUUID, &Name, &Properties)
+
+	if err := pkt.Send(conn.Conn); err != nil {
+		fmt.Println("Error sending loginStart packet:", err)
+		return
+	}
 }
 
-func HandleLoginAckPacket(conn *Connection) {
-	conn.State = Configuration
+func HandleLoginAckPacket(conn *Connection, _ *packet.Packet) {
+	conn.State = StateConfiguration
 }

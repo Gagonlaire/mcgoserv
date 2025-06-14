@@ -2,33 +2,22 @@ package server
 
 import (
 	"context"
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"log"
 	"net"
 	"sync"
 )
 
-type ConnState int32
+type State int32
 
 const (
-	Status ConnState = iota + 1
-	Login
-	Configuration
-	Transfer
-	Handshake
+	StateStatus State = iota + 1
+	StateLogin
+	StateConfiguration
+	StateTransfer
+	StateHandshake
 )
-
-type Connection struct {
-	Conn         net.Conn
-	State        ConnState
-	LastPacketID int32
-	Player       *Player
-}
-
-type Player struct {
-	UUID     string
-	Username string
-}
 
 type Server struct {
 	Addr        string
@@ -36,6 +25,18 @@ type Server struct {
 	Players     map[string]*Player
 	muConn      sync.RWMutex
 	muPlayers   sync.RWMutex
+}
+
+type Connection struct {
+	Conn         net.Conn
+	State        State
+	LastPacketID mc.VarInt
+	Player       *Player
+}
+
+type Player struct {
+	UUID     string
+	Username string
 }
 
 func New() *Server {
@@ -49,7 +50,7 @@ func New() *Server {
 func (s *Server) createConnection(conn net.Conn) *Connection {
 	newConnection := &Connection{
 		Conn:         conn,
-		State:        Handshake,
+		State:        StateHandshake,
 		LastPacketID: -1,
 		Player:       nil,
 	}
@@ -101,46 +102,45 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	wrappedConn := s.createConnection(conn)
-	defer s.closeConnection(wrappedConn)
+	wrpConn := s.createConnection(conn)
+	defer s.closeConnection(wrpConn)
 
 	for {
-		pkt, err := packet.Receive(wrappedConn.Conn)
+		pkt, err := packet.Receive(wrpConn.Conn)
 		if err != nil {
-			// todo: check if the error is due to a closed wrappedConn or a read error
+			// todo: check if the error is due to a closed wrpConn or a read error
 			log.Printf("error reading packet from %s: %v", conn.RemoteAddr(), err)
 			return
 		}
 
-		s.handlePacket(wrappedConn, pkt)
-		wrappedConn.LastPacketID = pkt.ID
+		s.handlePacket(wrpConn, pkt)
+		wrpConn.LastPacketID = pkt.ID
 	}
 }
 
 func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 	switch conn.State {
-	case Handshake:
+	case StateHandshake:
 		if pkt.ID == 0x0 {
 			HandleHandshakePacket(conn, pkt)
 		}
-	case Status:
+	case StateStatus:
 		switch pkt.ID {
 		case 0x0:
 			HandleStatusPacket(conn, pkt)
 		case 0x1:
 			HandlePingPacket(conn, pkt)
-			// todo: close connection, we don't need to re-read the packet to get the EOF error
 		}
-	case Login:
+	case StateLogin:
 		switch pkt.ID {
 		case 0x0:
 			HandleLoginStartPacket(conn, pkt)
 		case 0x3:
-			HandleLoginAckPacket(conn)
+			HandleLoginAckPacket(conn, pkt)
 		}
-	case Configuration:
+	case StateConfiguration:
 		context.TODO()
-	case Transfer:
+	case StateTransfer:
 		context.TODO()
 	}
 }
