@@ -14,7 +14,7 @@ var (
 	field4           = mc.String("Another string field")
 	field5           = mc.UnsignedShort(10)
 	testPacketID     = mc.VarInt(0x03)
-	testPacketFields = []Field{
+	testPacketFields = []mc.Field{
 		&field1,
 		&field2,
 		&field3,
