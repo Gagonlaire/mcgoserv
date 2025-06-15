@@ -16,25 +16,23 @@ type Packet struct {
 func Receive(conn net.Conn) (*Packet, error) {
 	var packetLength, packetID mc.VarInt
 
-	_, err := packetLength.ReadFrom(conn)
-	if err != nil {
+	if _, err := packetLength.ReadFrom(conn); err != nil {
 		return nil, fmt.Errorf("error reading packet length: %w", err)
 	}
 
-	n, err := packetID.ReadFrom(conn)
+	packetData := make([]byte, int(packetLength))
+	if _, err := io.ReadFull(conn, packetData); err != nil {
+		return nil, fmt.Errorf("error reading packet data (expected %d bytes): %w", packetLength, err)
+	}
+
+	n, err := packetID.ReadFrom(bytes.NewBuffer(packetData))
 	if err != nil {
 		return nil, fmt.Errorf("error reading packet ID: %w", err)
 	}
 
-	packetData := make([]byte, int(packetLength)-int(n))
-	_, err = io.ReadFull(conn, packetData)
-	if err != nil {
-		return nil, fmt.Errorf("error reading packet data (expected %d bytes): %w", packetLength, err)
-	}
-
 	return &Packet{
 		ID:     packetID,
-		Buffer: bytes.NewBuffer(packetData),
+		Buffer: bytes.NewBuffer(packetData[n:]),
 	}, nil
 }
 
@@ -47,13 +45,6 @@ func (p *Packet) Decode(fields ...mc.Field) error {
 	return nil
 }
 
-func (p *Packet) ResetWith(ID mc.VarInt, fields ...mc.Field) error {
-	p.ID = ID
-	p.Buffer.Reset()
-
-	return p.Encode(fields...)
-}
-
 func (p *Packet) Encode(fields ...mc.Field) error {
 	for i, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
@@ -63,18 +54,23 @@ func (p *Packet) Encode(fields ...mc.Field) error {
 	return nil
 }
 
+func (p *Packet) ResetWith(ID mc.VarInt, fields ...mc.Field) error {
+	p.ID = ID
+	p.Buffer.Reset()
+
+	return p.Encode(fields...)
+}
+
 func (p *Packet) Send(conn net.Conn) error {
-	packetLength := p.ID.Len() + len(p.Buffer.Bytes())
+	packetLength := p.ID.Len() + p.Buffer.Len()
 	buffer := bytes.NewBuffer(make([]byte, 0, packetLength+mc.VarInt(packetLength).Len()))
 
 	_, _ = mc.VarInt(packetLength).WriteTo(buffer)
 	_, _ = p.ID.WriteTo(buffer)
 	_, _ = buffer.Write(p.Buffer.Bytes())
 
-	_, err := conn.Write(buffer.Bytes())
-	if err != nil {
+	if _, err := conn.Write(buffer.Bytes()); err != nil {
 		return fmt.Errorf("error sending packet: %w", err)
 	}
-
 	return nil
 }

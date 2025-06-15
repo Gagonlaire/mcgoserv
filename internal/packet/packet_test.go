@@ -3,6 +3,7 @@ package packet
 import (
 	"bytes"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"io"
 	"net"
 	"testing"
 )
@@ -25,24 +26,32 @@ var (
 
 func BenchmarkPacket_Receive(b *testing.B) {
 	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+	defer clientConn.Close()
+
 	clientPkt := Packet{
 		ID:     testPacketID,
 		Buffer: new(bytes.Buffer),
 	}
 
-	defer serverConn.Close()
-	defer clientConn.Close()
 	_ = clientPkt.Encode(testPacketFields...)
+	packetLen := mc.VarInt(clientPkt.ID.Len() + clientPkt.Buffer.Len())
+	buf := bytes.NewBuffer(make([]byte, 0, packetLen.Len()+packetLen.Len()))
+	_, _ = packetLen.WriteTo(buf)
+	_, _ = clientPkt.ID.WriteTo(buf)
+	_, _ = clientPkt.Buffer.WriteTo(buf)
 
 	go func() {
+
 		for {
-			err := clientPkt.Send(clientConn)
+			_, err := clientConn.Write(buf.Bytes())
 			if err != nil {
 				return
 			}
 		}
 	}()
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -57,6 +66,7 @@ func BenchmarkPacket_Decode(b *testing.B) {
 	}
 	_ = pkt.Encode(testPacketFields...)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -66,6 +76,9 @@ func BenchmarkPacket_Decode(b *testing.B) {
 }
 
 func BenchmarkPacket_Encode(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		p := &Packet{
 			ID:     testPacketID,
@@ -78,27 +91,31 @@ func BenchmarkPacket_Encode(b *testing.B) {
 
 func BenchmarkPacket_Send(b *testing.B) {
 	serverConn, clientConn := net.Pipe()
-	serverPkt := &Packet{
+	defer serverConn.Close()
+	defer clientConn.Close()
+
+	go func() {
+		_, _ = io.Copy(io.Discard, clientConn)
+	}()
+
+	templatePacket := &Packet{
+		ID:     testPacketID,
+		Buffer: new(bytes.Buffer),
+	}
+	_ = templatePacket.Encode(testPacketFields...)
+	initialEncodedData := templatePacket.Buffer.Bytes()
+	packetToSend := &Packet{
 		ID:     testPacketID,
 		Buffer: new(bytes.Buffer),
 	}
 
-	defer serverConn.Close()
-	defer clientConn.Close()
-	_ = serverPkt.Encode(testPacketFields...)
-
-	go func() {
-		for {
-			_, err := Receive(clientConn)
-			if err != nil {
-				return
-			}
-		}
-	}()
-
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = serverPkt.Send(serverConn)
+		packetToSend.Buffer.Reset()
+		packetToSend.Buffer.Write(initialEncodedData)
+
+		_ = packetToSend.Send(serverConn)
 	}
 }

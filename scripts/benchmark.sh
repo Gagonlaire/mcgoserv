@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BENCH_DIR=".benchmark"
-BENCH_CMD=(go test -run='^$' -bench=. -count=5 ./...)
+BENCH_CMD=(go test -run='^$' -bench=. -count=6 ./...)
 
 # Ensure the benchmark directory exists
 mkdir -p $BENCH_DIR
@@ -16,9 +16,10 @@ CURRENT_BENCH_FILE="$BENCH_DIR/$TIMESTAMP.bench"
 # Running benchmark tests
 echo "Running benchmark tests..."
 "${BENCH_CMD[@]}" > "$CURRENT_BENCH_FILE"
+echo "Done, benchmark results saved to $TIMESTAMP.bench"
 
 if [ -z "$LAST_BENCH_FILE" ]; then
-    echo "No previous benchmark file found. Saving current benchmark results to $CURRENT_BENCH_FILE"
+    echo "No previous benchmark file found, Stopping here."
 else
     echo "Found older benchmark file: $LAST_BENCH_FILE, running benchstat..."
 
