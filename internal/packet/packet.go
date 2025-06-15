@@ -13,11 +13,6 @@ type Packet struct {
 	Buffer *bytes.Buffer
 }
 
-type Field interface {
-	io.WriterTo
-	io.ReaderFrom
-}
-
 func Receive(conn net.Conn) (*Packet, error) {
 	var packetLength, packetID mc.VarInt
 
@@ -43,7 +38,7 @@ func Receive(conn net.Conn) (*Packet, error) {
 	}, nil
 }
 
-func (p *Packet) Decode(fields ...Field) error {
+func (p *Packet) Decode(fields ...mc.Field) error {
 	for i, f := range fields {
 		if _, err := f.ReadFrom(p.Buffer); err != nil {
 			return fmt.Errorf("error decoding field %d: %w", i, err)
@@ -52,14 +47,14 @@ func (p *Packet) Decode(fields ...Field) error {
 	return nil
 }
 
-func (p *Packet) ResetWith(ID mc.VarInt, fields ...Field) error {
+func (p *Packet) ResetWith(ID mc.VarInt, fields ...mc.Field) error {
 	p.ID = ID
 	p.Buffer.Reset()
 
 	return p.Encode(fields...)
 }
 
-func (p *Packet) Encode(fields ...Field) error {
+func (p *Packet) Encode(fields ...mc.Field) error {
 	for i, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
 			return fmt.Errorf("error encoding field %d: %w", i, err)

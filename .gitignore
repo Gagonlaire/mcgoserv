@@ -1,3 +1,6 @@
+### Benchmark files
+.benchmark/
+
 ### IDE files
 .vscode
 .idea

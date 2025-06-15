@@ -39,7 +39,7 @@ type Player struct {
 	Username string
 }
 
-func New() *Server {
+func NewServer() *Server {
 	return &Server{
 		Addr:        ":8080",
 		Connections: make(map[net.Conn]*Connection),
@@ -82,7 +82,7 @@ func (s *Server) closeConnection(conn *Connection) {
 	log.Printf("connection from %s closed", conn.Conn.RemoteAddr())
 }
 
-func (s *Server) Serve() {
+func (s *Server) Start() {
 	listener, err := net.Listen("tcp", s.Addr)
 
 	if err != nil {
