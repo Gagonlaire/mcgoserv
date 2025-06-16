@@ -139,7 +139,10 @@ func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 			HandleLoginAckPacket(conn, pkt)
 		}
 	case StateConfiguration:
-		context.TODO()
+		switch pkt.ID {
+		case 0x7:
+			HandleClientKnownPacksPacket(conn, pkt)
+		}
 	case StateTransfer:
 		context.TODO()
 	}

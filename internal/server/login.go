@@ -27,6 +27,23 @@ func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
 	}
 }
 
-func HandleLoginAckPacket(conn *Connection, _ *packet.Packet) {
+func HandleLoginAckPacket(conn *Connection, pkt *packet.Packet) {
 	conn.State = StateConfiguration
+
+	_ = pkt.ResetWith(0x0E, mc.NewPrefixedArray(&mc.ServerDataPacks))
+	if err := pkt.Send(conn.Conn); err != nil {
+		fmt.Println("Error sending loginAck packet:", err)
+		return
+	}
+}
+
+func HandleClientKnownPacksPacket(_ *Connection, pkt *packet.Packet) {
+	var KnownPacks []mc.DataPack
+
+	if err := pkt.Decode(mc.NewPrefixedArray(&KnownPacks)); err != nil {
+		fmt.Println("Error decoding clientKnownPacks packet:", err)
+		return
+	}
+
+	fmt.Println("Received known packs from client:", KnownPacks)
 }

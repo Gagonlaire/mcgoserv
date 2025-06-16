@@ -6,8 +6,8 @@ import (
 )
 
 type Field interface {
-	io.WriterTo
 	io.ReaderFrom
+	io.WriterTo
 }
 
 type (
@@ -16,4 +16,19 @@ type (
 	UnsignedShort uint16
 	UUID          uuid.UUID
 	Long          int64
+	DataPack      struct {
+		Namespace String
+		ID        String
+		Version   String
+	}
 )
+
+type PrefixedArray[E any] struct {
+	Slice *[]E
+}
+
+func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
+	return &PrefixedArray[E]{
+		Slice: slice,
+	}
+}

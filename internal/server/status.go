@@ -8,7 +8,7 @@ import (
 
 func HandleStatusPacket(conn *Connection, pkt *packet.Packet) {
 	data := mc.String(fmt.Sprintf(`{"version":{"name":"%s","protocol":%d},"players":{"max":%d,"online":%d},"description":{"text":"%s"}}`,
-		"1.21.5", 770, 100, 0, "Server Go Minecraft"))
+		mc.GameVersion, mc.ProtocolVersion, 100, 0, "Server Go Minecraft"))
 
 	_ = pkt.ResetWith(0x0, &data)
 	_ = pkt.Send(conn.Conn)

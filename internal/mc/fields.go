@@ -3,6 +3,7 @@ package mc
 import (
 	"fmt"
 	"io"
+	"reflect"
 )
 
 // ReadFrom reads a Long from the provided io.Reader.
@@ -194,4 +195,105 @@ func (v VarInt) Len() int {
 	}
 
 	return n
+}
+
+func (k *DataPack) WriteTo(w io.Writer) (n int64, err error) {
+	nn, err := k.Namespace.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+	nn, err = k.ID.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+	nn, err = k.Version.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+
+	return n, nil
+}
+
+func (k *DataPack) ReadFrom(r io.Reader) (n int64, err error) {
+	nn, err := k.Namespace.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+	nn, err = k.ID.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+	nn, err = k.Version.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	n += nn
+
+	return n, nil
+}
+
+func (p *PrefixedArray[E]) ReadFrom(r io.Reader) (n int64, err error) {
+	var length VarInt
+
+	nn, err := length.ReadFrom(r)
+	if err != nil {
+		return n, fmt.Errorf("error reading prefixed array length: %w", err)
+	}
+	n += nn
+
+	if cap(*p.Slice) < int(length) {
+		*p.Slice = make([]E, length)
+	} else {
+		*p.Slice = (*p.Slice)[:length]
+	}
+
+	for i := 0; i < int(length); i++ {
+		elemAddr := &(*p.Slice)[i]
+
+		fieldInstance, ok := interface{}(elemAddr).(Field)
+		if !ok {
+			typeName := reflect.TypeOf(elemAddr).String()
+			return n, fmt.Errorf("element of type %s does not implement mc.Field required for reading", typeName)
+		}
+
+		nn, err := fieldInstance.ReadFrom(r)
+		if err != nil {
+			return n, fmt.Errorf("error reading element %d of prefixed array: %w", i, err)
+		}
+		n += nn
+	}
+	return n, nil
+}
+
+func (p *PrefixedArray[E]) WriteTo(w io.Writer) (n int64, err error) {
+	currentSlice := *p.Slice
+	length := VarInt(len(currentSlice))
+
+	nn, err := length.WriteTo(w)
+	if err != nil {
+		return n, fmt.Errorf("error writing prefixed array length: %w", err)
+	}
+	n += nn
+
+	for i := range currentSlice {
+		elemAddr := &currentSlice[i]
+
+		fieldInstance, ok := interface{}(elemAddr).(Field)
+		if !ok {
+			typeName := reflect.TypeOf(elemAddr).String()
+			return n, fmt.Errorf("element of type %s does not implement mc.Field required for writing", typeName)
+		}
+
+		nn, err := fieldInstance.WriteTo(w)
+		if err != nil {
+			return n, fmt.Errorf("error writing element %d of prefixed array: %w", i, err)
+		}
+		n += nn
+	}
+	return n, nil
 }
