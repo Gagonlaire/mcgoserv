@@ -168,6 +168,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
 	for {
 		temp := byte(v & 0x7F)
+
 		v >>= 7
 		if v != 0 {
 			temp |= 0x80
@@ -197,47 +198,41 @@ func (v VarInt) Len() int {
 	return n
 }
 
-func (k *DataPack) WriteTo(w io.Writer) (n int64, err error) {
-	nn, err := k.Namespace.WriteTo(w)
-	if err != nil {
-		return n, err
-	}
-	n += nn
-	nn, err = k.ID.WriteTo(w)
-	if err != nil {
-		return n, err
-	}
-	n += nn
-	nn, err = k.Version.WriteTo(w)
-	if err != nil {
-		return n, err
-	}
-	n += nn
+func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
+	var buf [1]byte
 
-	return n, nil
+	if _, err = io.ReadFull(r, buf[:]); err != nil {
+		return 0, fmt.Errorf("error reading Boolean: %w", err)
+	}
+	switch buf[0] {
+	case 0x00:
+		*b = false
+	case 0x01:
+		*b = true
+	default:
+		return 1, fmt.Errorf("invalid value for Boolean: %x", buf[0])
+	}
+
+	return 1, nil
 }
 
-func (k *DataPack) ReadFrom(r io.Reader) (n int64, err error) {
-	nn, err := k.Namespace.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-	n += nn
-	nn, err = k.ID.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-	n += nn
-	nn, err = k.Version.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-	n += nn
+func (b *Boolean) WriteTo(w io.Writer) (n int64, err error) {
+	var buf [1]byte
 
-	return n, nil
+	if *b {
+		buf[0] = 0x01
+	} else {
+		buf[0] = 0x00
+	}
+	written, err := w.Write(buf[:])
+	if err != nil {
+		return int64(written), fmt.Errorf("error writing Boolean: %w", err)
+	}
+
+	return int64(written), nil
 }
 
-func (p *PrefixedArray[E]) ReadFrom(r io.Reader) (n int64, err error) {
+func (p *PArray[E]) ReadFrom(r io.Reader) (n int64, err error) {
 	var length VarInt
 
 	nn, err := length.ReadFrom(r)
@@ -255,7 +250,7 @@ func (p *PrefixedArray[E]) ReadFrom(r io.Reader) (n int64, err error) {
 	for i := 0; i < int(length); i++ {
 		elemAddr := &(*p.Slice)[i]
 
-		fieldInstance, ok := interface{}(elemAddr).(Field)
+		fieldInstance, ok := any(elemAddr).(Field)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
 			return n, fmt.Errorf("element of type %s does not implement mc.Field required for reading", typeName)
@@ -267,10 +262,11 @@ func (p *PrefixedArray[E]) ReadFrom(r io.Reader) (n int64, err error) {
 		}
 		n += nn
 	}
+
 	return n, nil
 }
 
-func (p *PrefixedArray[E]) WriteTo(w io.Writer) (n int64, err error) {
+func (p *PArray[E]) WriteTo(w io.Writer) (n int64, err error) {
 	currentSlice := *p.Slice
 	length := VarInt(len(currentSlice))
 
@@ -283,7 +279,7 @@ func (p *PrefixedArray[E]) WriteTo(w io.Writer) (n int64, err error) {
 	for i := range currentSlice {
 		elemAddr := &currentSlice[i]
 
-		fieldInstance, ok := interface{}(elemAddr).(Field)
+		fieldInstance, ok := any(elemAddr).(Field)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
 			return n, fmt.Errorf("element of type %s does not implement mc.Field required for writing", typeName)
@@ -295,5 +291,47 @@ func (p *PrefixedArray[E]) WriteTo(w io.Writer) (n int64, err error) {
 		}
 		n += nn
 	}
+
+	return n, nil
+}
+
+func (P *POptional[E]) ReadFrom(r io.Reader) (n int64, err error) {
+	if _, err := P.Has.ReadFrom(r); err != nil {
+		return n, err
+	}
+	n += 1
+
+	if P.Has {
+		if fieldInstance, ok := any(&P.Value).(Field); ok {
+			nn, err := fieldInstance.ReadFrom(r)
+			if err != nil {
+				return n, err
+			}
+			n += nn
+		} else {
+			return n, nil
+		}
+	}
+
+	return n, nil
+}
+
+func (P *POptional[E]) WriteTo(w io.Writer) (n int64, err error) {
+	if nn, err := P.Has.WriteTo(w); err != nil {
+		return n, err
+	} else {
+		n += nn
+	}
+
+	if P.Has {
+		if fieldInstance, ok := any(&P.Value).(Field); ok {
+			if nn, err := fieldInstance.WriteTo(w); err != nil {
+				return n, err
+			} else {
+				n += nn
+			}
+		}
+	}
+
 	return n, nil
 }

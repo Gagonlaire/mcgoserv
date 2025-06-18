@@ -1,3 +1,8 @@
+### Genertors related
+/internal/generators/data/*
+!/internal/generators/data/.gitkeep
+/internal/mc/*_generated.go
+
 ### Benchmark files
 .benchmark/
 

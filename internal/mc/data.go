@@ -5,7 +5,7 @@ const (
 	GameVersion     = "1.21.5"
 )
 
-var ServerDataPacks = []DataPack{
+var ServerDataPacks = []DataPackIdentifier{
 	{
 		Namespace: String("minecraft"),
 		ID:        String("core"),

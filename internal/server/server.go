@@ -17,6 +17,7 @@ const (
 	StateConfiguration
 	StateTransfer
 	StateHandshake
+	StatePlay
 )
 
 type Server struct {
@@ -142,6 +143,8 @@ func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 		switch pkt.ID {
 		case 0x7:
 			HandleClientKnownPacksPacket(conn, pkt)
+		case 0x3:
+			HandleFinishConfigurationAckPacket(conn, pkt)
 		}
 	case StateTransfer:
 		context.TODO()
