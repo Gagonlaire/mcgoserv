@@ -46,6 +46,7 @@ func (p *Packet) Decode(fields ...mc.Field) error {
 }
 
 func (p *Packet) Encode(fields ...mc.Field) error {
+	// todo: try to change to a any fields with casts, so it can accept local varibales (to use like: p.Encode(mc.String("example"), mc.Int(42))
 	for i, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
 			return fmt.Errorf("error encoding field %d: %w", i, err)
@@ -62,10 +63,10 @@ func (p *Packet) ResetWith(ID mc.VarInt, fields ...mc.Field) error {
 }
 
 func (p *Packet) Send(conn net.Conn) error {
-	packetLength := p.ID.Len() + p.Buffer.Len()
-	buffer := bytes.NewBuffer(make([]byte, 0, packetLength+mc.VarInt(packetLength).Len()))
+	packetLength := mc.VarInt(p.ID.Len() + p.Buffer.Len())
+	buffer := bytes.NewBuffer(make([]byte, 0, int(packetLength)+packetLength.Len()))
 
-	_, _ = mc.VarInt(packetLength).WriteTo(buffer)
+	_, _ = packetLength.WriteTo(buffer)
 	_, _ = p.ID.WriteTo(buffer)
 	_, _ = buffer.Write(p.Buffer.Bytes())
 

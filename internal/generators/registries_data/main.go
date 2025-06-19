@@ -49,7 +49,7 @@ var RegistriesData = []RegistryData{
 {{- range .Entries }}
                 {
                     ID:   String("minecraft:{{.}}"),
-                    Data: POptional[*types.Nil]{Has: false},
+                    Data: POptional[types.Nil]{Has: false},
                 },
 {{- end }}
             },
@@ -75,6 +75,7 @@ func main() {
 			if f.IsDir() || !strings.HasSuffix(f.Name(), ".json") {
 				continue
 			}
+			// todo: load the actual nbt data
 			entry := strings.TrimSuffix(f.Name(), ".json")
 			entries = append(entries, entry)
 		}

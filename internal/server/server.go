@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"log"
 	"net"
@@ -29,10 +28,9 @@ type Server struct {
 }
 
 type Connection struct {
-	Conn         net.Conn
-	State        State
-	LastPacketID mc.VarInt
-	Player       *Player
+	Conn   net.Conn
+	State  State
+	Player *Player
 }
 
 type Player struct {
@@ -50,10 +48,9 @@ func NewServer() *Server {
 
 func (s *Server) createConnection(conn net.Conn) *Connection {
 	newConnection := &Connection{
-		Conn:         conn,
-		State:        StateHandshake,
-		LastPacketID: -1,
-		Player:       nil,
+		Conn:   conn,
+		State:  StateHandshake,
+		Player: nil,
 	}
 	s.muConn.Lock()
 	s.Connections[conn] = newConnection
@@ -115,12 +112,16 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 
 		s.handlePacket(wrpConn, pkt)
-		wrpConn.LastPacketID = pkt.ID
 	}
 }
 
 func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 	switch conn.State {
+	case StatePlay:
+		switch pkt.ID {
+		case 0x00:
+			HandleConfirmTeleportationPacket(conn, pkt)
+		}
 	case StateHandshake:
 		if pkt.ID == 0x0 {
 			HandleHandshakePacket(conn, pkt)

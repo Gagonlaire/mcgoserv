@@ -7,27 +7,118 @@ import (
 )
 
 func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
-	// todo: find why i need to call NewPArray and can't just set a var instead
-	// example: var knownPacks mc.PArray[mc.DataPackIdentifier]
+	// todo: find why i need to call NewPrefixedArray and can't just set a var instead
+	// example: var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
 	var knownPacks []mc.DataPackIdentifier
 
-	if err := pkt.Decode(mc.NewPArray(&knownPacks)); err != nil {
+	if err := pkt.Decode(mc.NewPrefixedArray(&knownPacks)); err != nil {
 		fmt.Println("Error decoding clientKnownPacks packet:", err)
 		return
 	}
 
-	// Server should compute the difference to know if it needs to send packs data
-	// For now, we ignore this information
 	for _, registryData := range mc.RegistriesData {
 		_ = pkt.ResetWith(0x07, &registryData)
 		_ = pkt.Send(conn.Conn)
 	}
 
+	// todo: send the update tags (optional but cause enchantment registry to not work)
+
 	_ = pkt.ResetWith(0x03)
 	_ = pkt.Send(conn.Conn)
 }
 
-func HandleFinishConfigurationAckPacket(conn *Connection, _ *packet.Packet) {
+func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 	conn.State = StatePlay
-	fmt.Println("Received finishConfigurationAckPacket")
+	// todo: check for entity id generation
+	// todo: dimensionType should automatically send the good id
+	// todo: create the optional type that should take a pointer to a value and is evaluated during the packet send/receive
+	var (
+		eID                 = mc.Int(0)
+		isHardcore          = mc.Boolean(false)
+		dimensionNames      = []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
+		maxPlayers          = mc.VarInt(20)
+		viewDistance        = mc.VarInt(32)
+		simulationDistance  = mc.VarInt(32)
+		reduceDebugInfo     = mc.Boolean(false)
+		enableRespawnScreen = mc.Boolean(true)
+		doLimitedCrafting   = mc.Boolean(false)
+		dimensionType       = mc.VarInt(0)
+		dimensionName       = mc.String("minecraft:overworld")
+		hashedSeed          = mc.Long(1)
+		gameMode            = mc.UnsignedByte(1)
+		previousGameMode    = mc.Byte(-1)
+		isDebug             = mc.Boolean(false)
+		isFlat              = mc.Boolean(false)
+		hasDeathLocation    = mc.Boolean(false)
+		portalCooldown      = mc.VarInt(100)
+		seaLevel            = mc.VarInt(64)
+		enforceSecureChat   = mc.Boolean(false)
+	)
+
+	// todo: implement the teleport flags type, try to understand the byte error when sending a 4byte value (as said in the doc)
+	var (
+		teleportId = mc.VarInt(0)
+		x          = mc.Double(0.0)
+		y          = mc.Double(64.0)
+		z          = mc.Double(0.0)
+		velocityX  = mc.Double(0.0)
+		velocityY  = mc.Double(0.0)
+		velocityZ  = mc.Double(0.0)
+		yaw        = mc.Float(0.0)
+		pitch      = mc.Float(0.0)
+		flags      = mc.Byte(0)
+	)
+
+	var (
+		event = mc.UnsignedByte(13)
+		value = mc.Float(0.0)
+	)
+
+	_ = pkt.ResetWith(
+		0x2B,
+		&eID,
+		&isHardcore,
+		mc.NewPrefixedArray(&dimensionNames),
+		&maxPlayers,
+		&viewDistance,
+		&simulationDistance,
+		&reduceDebugInfo,
+		&enableRespawnScreen,
+		&doLimitedCrafting,
+		&dimensionType,
+		&dimensionName,
+		&hashedSeed,
+		&gameMode,
+		&previousGameMode,
+		&isDebug,
+		&isFlat,
+		&hasDeathLocation,
+		&portalCooldown,
+		&seaLevel,
+		&enforceSecureChat,
+	)
+	_ = pkt.Send(conn.Conn)
+	// todo: for some reason, i get a too large packet error (1byte), for now we use 3 bytes instead of 4 for the flags
+	_ = pkt.ResetWith(
+		0x41,
+		&teleportId,
+		&x,
+		&y,
+		&z,
+		&velocityX,
+		&velocityY,
+		&velocityZ,
+		&yaw,
+		&pitch,
+		&flags,
+		&flags,
+		&flags,
+	)
+	_ = pkt.Send(conn.Conn)
+	_ = pkt.ResetWith(
+		0x22,
+		&event,
+		&value,
+	)
+	_ = pkt.Send(conn.Conn)
 }
