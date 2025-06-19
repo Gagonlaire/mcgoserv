@@ -45,7 +45,7 @@ const readFromTpl = `func (s *{{.StructName}}) ReadFrom(r io.Reader) (n int64, e
 
 `
 
-const writeToTpl = `func (s {{.StructName}}) WriteTo(w io.Writer) (n int64, err error) {
+const writeToTpl = `func (s *{{.StructName}}) WriteTo(w io.Writer) (n int64, err error) {
 {{- $first := true }}
 {{- range .Fields }}
     {{- if $first }}
