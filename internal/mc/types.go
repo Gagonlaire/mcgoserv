@@ -92,13 +92,21 @@ type (
 	// Notes:
 	//  - Encoded as an unsigned 128-bit integer (or two unsigned 64-bit integers: the most significant 64 bits and then the least significant 64 bits).
 	UUID uuid.UUID
+	// BitSet Encodes:
+	//  - A BitSet; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#BitSet.
+	// Size:
+	//  - Varies
+	// Notes:
+	//  - A length-prefixed bit set.
+	BitSet struct {
+		PrefixedArray[Long]
+	}
 	// PrefixedOptional of X Encodes:
 	//  - A boolean and if present, a field of type X.
 	// Size:
 	//  - size of Boolean + (is present ? Size of X : 0) bytes
 	// Notes:
 	//  - The boolean is true if the field is present.
-	// todo: look if we can modify any with a list of mc types, to be less error-prone
 	PrefixedOptional[X any] struct {
 		Has   Boolean
 		Value *X
@@ -109,41 +117,10 @@ type (
 	//  - size of VarInt + size of X * length bytes
 	// Notes:
 	//  - A length-prefixed array.
-	// todo: same as above
 	PrefixedArray[X any] struct {
 		Slice *[]X
 	}
 )
-
-func (v *VarInt) Len() int {
-	val := uint32((*v << 1) ^ (*v >> 31))
-	n := 1
-	for val >= 0x80 {
-		val >>= 7
-		n++
-	}
-	return n
-}
-
-func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
-	return &PrefixedArray[E]{
-		Slice: slice,
-	}
-}
-
-func NewPrefixedOptional[E any](value *E) *PrefixedOptional[E] {
-	return &PrefixedOptional[E]{
-		Has:   value != nil,
-		Value: value,
-	}
-}
-
-func (P *PrefixedOptional[X]) Set(value *X) {
-	P.Value = value
-	P.Has = value != nil
-}
-
-// Following types use auto-generated code to implement the Field interface.
 
 //go:generate-field-impl
 type DataPackIdentifier struct {

@@ -7,11 +7,9 @@ import (
 )
 
 func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
-	// todo: find why i need to call NewPrefixedArray and can't just set a var instead
-	// example: var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
-	var knownPacks []mc.DataPackIdentifier
+	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
 
-	if err := pkt.Decode(mc.NewPrefixedArray(&knownPacks)); err != nil {
+	if err := pkt.Decode(&knownPacks); err != nil {
 		fmt.Println("Error decoding clientKnownPacks packet:", err)
 		return
 	}
@@ -22,7 +20,6 @@ func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
 	}
 
 	// todo: send the update tags (optional but cause enchantment registry to not work)
-
 	_ = pkt.ResetWith(0x03)
 	_ = pkt.Send(conn.Conn)
 }
@@ -66,7 +63,7 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		velocityZ  = mc.Double(0.0)
 		yaw        = mc.Float(0.0)
 		pitch      = mc.Float(0.0)
-		flags      = mc.Byte(0)
+		flags      = mc.Int(0)
 	)
 
 	var (
@@ -98,7 +95,6 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		&enforceSecureChat,
 	)
 	_ = pkt.Send(conn.Conn)
-	// todo: for some reason, i get a too large packet error (1byte), for now we use 3 bytes instead of 4 for the flags
 	_ = pkt.ResetWith(
 		0x41,
 		&teleportId,
@@ -110,8 +106,6 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		&velocityZ,
 		&yaw,
 		&pitch,
-		&flags,
-		&flags,
 		&flags,
 	)
 	_ = pkt.Send(conn.Conn)

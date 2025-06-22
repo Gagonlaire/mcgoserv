@@ -318,6 +318,9 @@ func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 		return n, fmt.Errorf("error reading PrefixedArray length: %w", err)
 	}
 	n += nn
+	if p.Slice == nil {
+		p.Slice = &[]X{}
+	}
 	if cap(*p.Slice) < int(length) {
 		*p.Slice = make([]X, length)
 	} else {
@@ -340,6 +343,9 @@ func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
+	if p.Slice == nil {
+		p.Slice = &[]X{}
+	}
 	currentSlice := *p.Slice
 	length := VarInt(len(currentSlice))
 	nn, err := length.WriteTo(w)

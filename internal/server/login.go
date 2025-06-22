@@ -30,7 +30,7 @@ func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
 func HandleLoginAckPacket(conn *Connection, pkt *packet.Packet) {
 	conn.State = StateConfiguration
 
-	_ = pkt.ResetWith(0x0E, mc.NewPrefixedArray(&mc.ServerDataPacks))
+	_ = pkt.ResetWith(0x0E, &mc.ServerDataPacks)
 	if err := pkt.Send(conn.Conn); err != nil {
 		fmt.Println("Error sending loginAck packet:", err)
 		return
