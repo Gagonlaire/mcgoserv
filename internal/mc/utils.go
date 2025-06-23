@@ -1,8 +1,8 @@
 package mc
 
 const (
-	ProtocolVersion = 770
-	GameVersion     = "1.21.5"
+	ProtocolVersion = 771
+	GameVersion     = "1.21.6"
 )
 
 var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
