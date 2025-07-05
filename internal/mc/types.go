@@ -111,6 +111,15 @@ type (
 		Has   Boolean
 		Value *X
 	}
+	// Array of X Encodes:
+	//  - Zero or more fields of type X.
+	// Size:
+	//  - Length times size of X bytes
+	// Notes:
+	//  - The length must be known from the context.
+	Array[X any] struct {
+		Slice *[]X
+	}
 	// PrefixedArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Prefixed_Array.
 	// Size:

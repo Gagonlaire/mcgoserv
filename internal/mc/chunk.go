@@ -1,0 +1,72 @@
+package mc
+
+//go:generate-field-impl
+type Chunk struct {
+	X                   Int
+	Z                   Int
+	HeightMaps          PrefixedArray[HeightMap]
+	Size                VarInt // todo: Size of data in bytes, need to be fixed !!
+	Data                Array[ChunkSection]
+	BlockEntities       PrefixedArray[BlockEntity]
+	SkyLightMask        BitSet
+	BlockLightMask      BitSet
+	EmptySkyLightMask   BitSet
+	EmptyBlockLightMask BitSet
+	SkyLightArrays      PrefixedArray[PrefixedArray[Byte]]
+	BlockLightArrays    PrefixedArray[PrefixedArray[Byte]]
+}
+
+//go:generate-field-impl
+type HeightMap struct {
+	Type VarInt
+	Data PrefixedArray[Long]
+}
+
+//go:generate-field-impl
+type ChunkSection struct {
+	BlockCount  Short
+	BlockStates PalettedContainer
+	Biomes      PalettedContainer
+}
+
+//go:generate-field-impl
+type BlockEntity struct {
+	PackedXZ UnsignedByte
+	Y        Short
+	Type     VarInt
+	//Data     pkt.NBTField todo: implement NBTField
+}
+
+func CreateChunk(x int, z int) *Chunk {
+	emptyPalette := NewPalettedContainer(0)
+	air := ChunkSection{
+		BlockCount:  0,
+		BlockStates: *emptyPalette,
+		Biomes:      *emptyPalette,
+	}
+	dirt := ChunkSection{
+		BlockCount:  4096,
+		BlockStates: *NewPalettedContainer(9),
+		Biomes:      *emptyPalette,
+	}
+	sections := make([]ChunkSection, 24)
+	dataSize := 0
+	i := 0
+	for ; i < 9; i++ {
+		sections[i] = dirt
+		dataSize += 2 + sections[i].BlockStates.Size() + sections[i].Biomes.Size()
+	}
+	for ; i < 24; i++ {
+		sections[i] = air
+		dataSize += 2 + sections[i].BlockStates.Size() + sections[i].Biomes.Size()
+	}
+
+	return &Chunk{
+		X:    Int(x),
+		Z:    Int(z),
+		Size: VarInt(dataSize),
+		Data: Array[ChunkSection]{
+			Slice: &sections,
+		},
+	}
+}

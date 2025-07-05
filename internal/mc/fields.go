@@ -311,6 +311,32 @@ func (P *PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
+func (a *Array[X]) ReadFrom(r io.Reader) (n int64, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (a *Array[X]) WriteTo(w io.Writer) (n int64, err error) {
+	if a.Slice == nil {
+		return 0, nil
+	}
+	currentSlice := *a.Slice
+	for i := range currentSlice {
+		elemAddr := &currentSlice[i]
+		fieldInstance, ok := any(elemAddr).(Field)
+		if !ok {
+			typeName := reflect.TypeOf(elemAddr).String()
+			return n, fmt.Errorf("element of type %s does not implement mc.Field required for writing", typeName)
+		}
+		nn, err := fieldInstance.WriteTo(w)
+		if err != nil {
+			return n, fmt.Errorf("error writing element %d of Array: %w", i, err)
+		}
+		n += nn
+	}
+	return n, nil
+}
+
 func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	var length VarInt
 	nn, err := length.ReadFrom(r)
@@ -353,7 +379,7 @@ func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
 		return n, fmt.Errorf("error writing PrefixedArray length: %w", err)
 	}
 	n += nn
-	for i := range currentSlice {
+	for i := range length {
 		elemAddr := &currentSlice[i]
 		fieldInstance, ok := any(elemAddr).(Field)
 		if !ok {

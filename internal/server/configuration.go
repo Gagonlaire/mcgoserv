@@ -42,7 +42,7 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		dimensionType       = mc.VarInt(0)
 		dimensionName       = mc.String("minecraft:overworld")
 		hashedSeed          = mc.Long(1)
-		gameMode            = mc.UnsignedByte(1)
+		gameMode            = mc.UnsignedByte(0)
 		previousGameMode    = mc.Byte(-1)
 		isDebug             = mc.Boolean(false)
 		isFlat              = mc.Boolean(false)
@@ -52,11 +52,10 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		enforceSecureChat   = mc.Boolean(false)
 	)
 
-	// todo: implement the teleport flags type, try to understand the byte error when sending a 4byte value (as said in the doc)
 	var (
 		teleportId = mc.VarInt(0)
 		x          = mc.Double(0.0)
-		y          = mc.Double(64.0)
+		y          = mc.Double(80)
 		z          = mc.Double(0.0)
 		velocityX  = mc.Double(0.0)
 		velocityY  = mc.Double(0.0)
@@ -115,4 +114,13 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		&value,
 	)
 	_ = pkt.Send(conn.Conn)
+
+	for x := -10; x <= 10; x++ {
+		for z := -10; z <= 10; z++ {
+			// Create a chunk with random data for now
+			chunk := mc.CreateChunk(x, z)
+			_ = pkt.ResetWith(0x27, chunk)
+			_ = pkt.Send(conn.Conn)
+		}
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type packetFilter struct {
@@ -98,7 +99,7 @@ func transferMinecraftPackets(src, dst net.Conn, direction Direction) {
 		if shouldSample(direction, int(pkt.ID)) {
 			key := fmt.Sprintf("%02x-%s", pkt.ID, direction)
 			if !sampledPackets[key] {
-				filename := fmt.Sprintf("0x%02x-%s-sample.bin", pkt.ID, direction)
+				filename := fmt.Sprintf("0x%02x-%s-sample.bin", pkt.ID, strings.ToLower(string(direction)))
 				filePath := filepath.Join(outputDir, filename)
 				if err := os.WriteFile(filePath, pkt.Buffer.Bytes(), 0644); err != nil {
 					panic("Failed to write sample file: " + err.Error())

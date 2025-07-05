@@ -22,9 +22,7 @@ const (
 type Server struct {
 	Addr        string
 	Connections map[net.Conn]*Connection
-	Players     map[string]*Player
 	muConn      sync.RWMutex
-	muPlayers   sync.RWMutex
 }
 
 type Connection struct {
@@ -42,7 +40,6 @@ func NewServer() *Server {
 	return &Server{
 		Addr:        ":8080",
 		Connections: make(map[net.Conn]*Connection),
-		Players:     make(map[string]*Player),
 	}
 }
 
@@ -60,13 +57,6 @@ func (s *Server) createConnection(conn net.Conn) *Connection {
 }
 
 func (s *Server) closeConnection(conn *Connection) {
-	if conn.Player != nil {
-		// todo: additional logic like notifying other players, saving player state, etc.
-		s.muPlayers.Lock()
-		delete(s.Players, conn.Player.UUID)
-		s.muPlayers.Unlock()
-	}
-
 	s.muConn.Lock()
 	delete(s.Connections, conn.Conn)
 	s.muConn.Unlock()
