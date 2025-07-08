@@ -131,6 +131,8 @@ type (
 	}
 )
 
+type State int32
+
 //go:generate-field-impl
 type DataPackIdentifier struct {
 	Namespace String

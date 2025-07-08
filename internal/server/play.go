@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"time"
 )
 
 func HandleConfirmTeleportationPacket(_ *Connection, pkt *packet.Packet) {
@@ -11,4 +12,15 @@ func HandleConfirmTeleportationPacket(_ *Connection, pkt *packet.Packet) {
 	if err := pkt.Decode(&teleportId); err != nil {
 		return
 	}
+}
+
+func HandleKeepAlivePacket(conn *Connection, pkt *packet.Packet) {
+	var keepAliveId mc.Long
+
+	if err := pkt.Decode(&keepAliveId); err != nil {
+		return
+	}
+
+	conn.LastKeepAliveID = int64(keepAliveId)
+	conn.LastKeepAlive = time.Now()
 }

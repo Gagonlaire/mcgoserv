@@ -13,6 +13,21 @@ type Packet struct {
 	Buffer *bytes.Buffer
 }
 
+func NewPacket(ID int, fields ...mc.Field) (*Packet, error) {
+	// todo: use a pool
+	buffer := bytes.NewBuffer(make([]byte, 0, 256))
+	packet := &Packet{
+		ID:     mc.VarInt(ID),
+		Buffer: buffer,
+	}
+
+	if err := packet.Encode(fields...); err != nil {
+		return nil, fmt.Errorf("error encoding packet: %w", err)
+	}
+
+	return packet, nil
+}
+
 func Receive(conn net.Conn) (*Packet, error) {
 	var packetLength, packetID mc.VarInt
 

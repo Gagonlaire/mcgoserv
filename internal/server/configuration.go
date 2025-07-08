@@ -25,7 +25,7 @@ func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
 }
 
 func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
-	conn.State = StatePlay
+	conn.State = mc.StatePlay
 	// todo: check for entity id generation
 	// todo: dimensionType should automatically send the good id
 	// todo: create the optional type that should take a pointer to a value and is evaluated during the packet send/receive

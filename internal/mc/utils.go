@@ -5,6 +5,14 @@ const (
 	GameVersion     = "1.21.7"
 )
 
+const (
+	StateStatus State = iota + 1
+	StateLogin
+	StateConfiguration
+	StateHandshake
+	StatePlay
+)
+
 var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
 	Slice: &[]DataPackIdentifier{
 		{

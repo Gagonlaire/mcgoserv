@@ -19,7 +19,7 @@ func HandleHandshakePacket(conn *Connection, pkt *packet.Packet) {
 		return
 	}
 
-	if Intent == mc.VarInt(StateStatus) || Intent == mc.VarInt(StateLogin) {
-		conn.State = State(Intent)
+	if Intent == mc.VarInt(mc.StateStatus) || Intent == mc.VarInt(mc.StateLogin) {
+		conn.State = mc.State(Intent)
 	}
 }

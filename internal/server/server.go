@@ -2,142 +2,250 @@ package server
 
 import (
 	"context"
+	"errors"
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"io"
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
-type State int32
-
 const (
-	StateStatus State = iota + 1
-	StateLogin
-	StateConfiguration
-	StateTransfer
-	StateHandshake
-	StatePlay
+	ChannelSize       = 32
+	TickerInterval    = 50 * time.Millisecond // 20 TPS
+	KeepAliveInterval = 5 * time.Second       // 5 seconds
+	KeepAliveTimeout  = 15 * time.Second      // 15 seconds
 )
 
 type Server struct {
 	Addr        string
-	Connections map[net.Conn]*Connection
-	muConn      sync.RWMutex
+	Connections sync.Map
+	Ticker      *time.Ticker
+	Broadcast   chan BroadcastMessage
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+}
+
+type BroadcastMessage struct {
+	Packet *packet.Packet
+	Sender *Connection
 }
 
 type Connection struct {
-	Conn   net.Conn
-	State  State
-	Player *Player
-}
-
-type Player struct {
-	UUID     string
-	Username string
+	server          *Server
+	Conn            net.Conn
+	State           mc.State
+	InboundPackets  chan *packet.Packet
+	OutboundPackets chan *packet.Packet
+	LastKeepAlive   time.Time
+	LastKeepAliveID int64
+	ctx             context.Context
+	cancel          context.CancelFunc
+	closeOnce       sync.Once
 }
 
 func NewServer() *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Addr:        ":8080",
-		Connections: make(map[net.Conn]*Connection),
+		Addr:      ":8080",
+		Ticker:    time.NewTicker(TickerInterval),
+		Broadcast: make(chan BroadcastMessage, ChannelSize),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
-func (s *Server) createConnection(conn net.Conn) *Connection {
+func (s *Server) NewConnection(conn net.Conn) *Connection {
+	ctx, cancel := context.WithCancel(s.ctx)
 	newConnection := &Connection{
-		Conn:   conn,
-		State:  StateHandshake,
-		Player: nil,
+		server:          s,
+		Conn:            conn,
+		State:           mc.StateHandshake,
+		InboundPackets:  make(chan *packet.Packet, ChannelSize),
+		OutboundPackets: make(chan *packet.Packet, ChannelSize),
+		LastKeepAlive:   time.Now(),
+		ctx:             ctx,
+		cancel:          cancel,
 	}
-	s.muConn.Lock()
-	s.Connections[conn] = newConnection
-	s.muConn.Unlock()
 
+	s.Connections.Store(newConnection, struct{}{})
 	return newConnection
-}
-
-func (s *Server) closeConnection(conn *Connection) {
-	s.muConn.Lock()
-	delete(s.Connections, conn.Conn)
-	s.muConn.Unlock()
-
-	// todo: check if we need to send a packet before closing
-	err := conn.Conn.Close()
-	if err != nil {
-		log.Printf("error closing connection from %s: %v", conn.Conn.RemoteAddr(), err)
-		return
-	}
-	log.Printf("connection from %s closed", conn.Conn.RemoteAddr())
 }
 
 func (s *Server) Start() {
 	listener, err := net.Listen("tcp", s.Addr)
-
 	if err != nil {
 		log.Fatalf("failed to listen on %s: %v", s.Addr, err)
 	}
+	defer listener.Close()
+
+	go s.runBroadcaster()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			if s.ctx.Err() != nil {
+				return
+			}
 			log.Printf("failed to accept connection: %v", err)
 			continue
 		}
-
 		log.Printf("accepted connection from %s", conn.RemoteAddr())
+
+		s.wg.Add(1)
 		go s.handleConnection(conn)
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
-	wrpConn := s.createConnection(conn)
-	defer s.closeConnection(wrpConn)
+func (s *Server) runBroadcaster() {
+	for _ = range s.Broadcast {
+		context.TODO()
+	}
+}
 
+func (s *Server) handleConnection(conn net.Conn) {
+	defer s.wg.Done()
+
+	c := s.NewConnection(conn)
+
+	go c.ReadLoop()
+	go c.WriteLoop()
+	c.ProcessLoop()
+}
+
+func (s *Server) Stop() {
+	s.cancel()
+	s.wg.Wait()
+	s.Ticker.Stop()
+	close(s.Broadcast)
+}
+
+func (c *Connection) ReadLoop() {
+	defer c.close()
 	for {
-		pkt, err := packet.Receive(wrpConn.Conn)
-		if err != nil {
-			// todo: check if the error is due to a closed wrpConn or a read error
-			log.Printf("error reading packet from %s: %v", conn.RemoteAddr(), err)
+		select {
+		case <-c.ctx.Done():
 			return
+		default:
 		}
 
-		s.handlePacket(wrpConn, pkt)
+		pkt, err := packet.Receive(c.Conn)
+		if err != nil {
+			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
+				log.Printf("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
+			}
+			return
+		}
+		c.InboundPackets <- pkt
 	}
+}
+
+func (c *Connection) WriteLoop() {
+	defer c.close()
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case pkt := <-c.OutboundPackets:
+			if err := pkt.Send(c.Conn); err != nil {
+				if err != io.EOF && !errors.Is(err, net.ErrClosed) {
+					log.Printf("error sending packet from %s: %v", c.Conn.RemoteAddr(), err)
+				}
+				return
+			}
+		}
+	}
+}
+
+func (c *Connection) ProcessLoop() {
+	defer c.close()
+	keepAliveTicker := time.NewTicker(KeepAliveInterval)
+	defer keepAliveTicker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+
+		case <-c.server.Ticker.C:
+		processPacketBuffer:
+			for {
+				select {
+				case pkt := <-c.InboundPackets:
+					c.server.handlePacket(c, pkt)
+				default:
+					break processPacketBuffer
+				}
+			}
+
+		case <-keepAliveTicker.C:
+			if time.Since(c.LastKeepAlive) > KeepAliveTimeout {
+				log.Printf("keep-alive timeout for %s", c.Conn.RemoteAddr())
+				return
+			}
+			keepAliveID := mc.Long(time.Now().Unix())
+			if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
+				var packetID int
+				if c.State == mc.StatePlay {
+					packetID = 0x26
+				} else {
+					packetID = 0x4
+				}
+
+				pkt, _ := packet.NewPacket(packetID, &keepAliveID)
+				c.LastKeepAliveID = int64(keepAliveID)
+				c.OutboundPackets <- pkt
+			}
+		}
+	}
+}
+
+func (c *Connection) close() {
+	c.closeOnce.Do(func() {
+		c.cancel()
+		c.server.Connections.Delete(c)
+		_ = c.Conn.Close()
+	})
 }
 
 func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
 	switch conn.State {
-	case StatePlay:
+	case mc.StatePlay:
 		switch pkt.ID {
 		case 0x00:
 			HandleConfirmTeleportationPacket(conn, pkt)
+		case 0x1B:
+			HandleKeepAlivePacket(conn, pkt)
 		}
-	case StateHandshake:
+	case mc.StateHandshake:
 		if pkt.ID == 0x0 {
 			HandleHandshakePacket(conn, pkt)
 		}
-	case StateStatus:
+	case mc.StateStatus:
 		switch pkt.ID {
 		case 0x0:
 			HandleStatusPacket(conn, pkt)
 		case 0x1:
 			HandlePingPacket(conn, pkt)
 		}
-	case StateLogin:
+	case mc.StateLogin:
 		switch pkt.ID {
 		case 0x0:
 			HandleLoginStartPacket(conn, pkt)
 		case 0x3:
 			HandleLoginAckPacket(conn, pkt)
 		}
-	case StateConfiguration:
+	case mc.StateConfiguration:
 		switch pkt.ID {
 		case 0x7:
 			HandleClientKnownPacksPacket(conn, pkt)
 		case 0x3:
 			HandleFinishConfigurationAckPacket(conn, pkt)
+		case 0x4:
+			HandleKeepAlivePacket(conn, pkt)
 		}
-	case StateTransfer:
-		context.TODO()
 	}
 }

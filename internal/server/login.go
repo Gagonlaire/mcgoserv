@@ -28,7 +28,7 @@ func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
 }
 
 func HandleLoginAckPacket(conn *Connection, pkt *packet.Packet) {
-	conn.State = StateConfiguration
+	conn.State = mc.StateConfiguration
 
 	_ = pkt.ResetWith(0x0E, &mc.ServerDataPacks)
 	if err := pkt.Send(conn.Conn); err != nil {
