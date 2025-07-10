@@ -6,11 +6,12 @@ const (
 )
 
 const (
-	StateStatus State = iota + 1
+	StateHandshake State = iota
+	StateStatus
 	StateLogin
 	StateConfiguration
-	StateHandshake
 	StatePlay
+	StateMax
 )
 
 var ServerDataPacks = PrefixedArray[DataPackIdentifier]{

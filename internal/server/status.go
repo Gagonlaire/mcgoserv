@@ -6,15 +6,15 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-func HandleStatusPacket(conn *Connection, pkt *packet.Packet) {
+func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
 	data := mc.String(fmt.Sprintf(`{"version":{"name":"%s","protocol":%d},"players":{"max":%d,"online":%d},"description":{"text":"%s"}}`,
 		mc.GameVersion, mc.ProtocolVersion, 100, 0, "Server Go Minecraft"))
 
-	_ = pkt.ResetWith(0x0, &data)
-	_ = pkt.Send(conn.Conn)
+	_ = pkt.ResetWith(packet.StatusClientboundStatusResponse, &data)
+	_ = pkt.Send(c.Conn)
 }
 
-func HandlePingPacket(conn *Connection, pkt *packet.Packet) {
+func (c *Connection) HandlePingPacket(pkt *packet.Packet) {
 	var timestamp mc.Long
 
 	if err := pkt.Decode(&timestamp); err != nil {
@@ -22,8 +22,7 @@ func HandlePingPacket(conn *Connection, pkt *packet.Packet) {
 		return
 	}
 
-	_ = pkt.ResetWith(0x1, &timestamp)
-	_ = pkt.Send(conn.Conn)
-	// todo: we should gracefully close the connection, but for now it cause 'use of closed network connection' error in main loop
-	// _ = conn.Conn.Close()
+	_ = pkt.ResetWith(packet.StatusClientboundPongResponse, &timestamp)
+	_ = pkt.Send(c.Conn)
+	c.close()
 }

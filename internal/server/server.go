@@ -24,14 +24,10 @@ type Server struct {
 	Connections sync.Map
 	Ticker      *time.Ticker
 	Broadcast   chan BroadcastMessage
+	Router      *PacketRouter
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
-}
-
-type BroadcastMessage struct {
-	Packet *packet.Packet
-	Sender *Connection
 }
 
 type Connection struct {
@@ -47,12 +43,18 @@ type Connection struct {
 	closeOnce       sync.Once
 }
 
+type BroadcastMessage struct {
+	Packet *packet.Packet
+	Sender *Connection
+}
+
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		Addr:      ":8080",
 		Ticker:    time.NewTicker(TickerInterval),
 		Broadcast: make(chan BroadcastMessage, ChannelSize),
+		Router:    NewPacketRouter(),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -175,7 +177,7 @@ func (c *Connection) ProcessLoop() {
 			for {
 				select {
 				case pkt := <-c.InboundPackets:
-					c.server.handlePacket(c, pkt)
+					c.server.Router.Handle(c, pkt)
 				default:
 					break processPacketBuffer
 				}
@@ -209,43 +211,4 @@ func (c *Connection) close() {
 		c.server.Connections.Delete(c)
 		_ = c.Conn.Close()
 	})
-}
-
-func (s *Server) handlePacket(conn *Connection, pkt *packet.Packet) {
-	switch conn.State {
-	case mc.StatePlay:
-		switch pkt.ID {
-		case 0x00:
-			HandleConfirmTeleportationPacket(conn, pkt)
-		case 0x1B:
-			HandleKeepAlivePacket(conn, pkt)
-		}
-	case mc.StateHandshake:
-		if pkt.ID == 0x0 {
-			HandleHandshakePacket(conn, pkt)
-		}
-	case mc.StateStatus:
-		switch pkt.ID {
-		case 0x0:
-			HandleStatusPacket(conn, pkt)
-		case 0x1:
-			HandlePingPacket(conn, pkt)
-		}
-	case mc.StateLogin:
-		switch pkt.ID {
-		case 0x0:
-			HandleLoginStartPacket(conn, pkt)
-		case 0x3:
-			HandleLoginAckPacket(conn, pkt)
-		}
-	case mc.StateConfiguration:
-		switch pkt.ID {
-		case 0x7:
-			HandleClientKnownPacksPacket(conn, pkt)
-		case 0x3:
-			HandleFinishConfigurationAckPacket(conn, pkt)
-		case 0x4:
-			HandleKeepAlivePacket(conn, pkt)
-		}
-	}
 }

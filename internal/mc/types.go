@@ -131,7 +131,7 @@ type (
 	}
 )
 
-type State int32
+type State int
 
 //go:generate-field-impl
 type DataPackIdentifier struct {

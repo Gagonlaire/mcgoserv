@@ -70,8 +70,8 @@ func (p *Packet) Encode(fields ...mc.Field) error {
 	return nil
 }
 
-func (p *Packet) ResetWith(ID mc.VarInt, fields ...mc.Field) error {
-	p.ID = ID
+func (p *Packet) ResetWith(ID int, fields ...mc.Field) error {
+	p.ID = mc.VarInt(ID)
 	p.Buffer.Reset()
 
 	return p.Encode(fields...)

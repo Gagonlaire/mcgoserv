@@ -6,7 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
+func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	var (
 		Name       mc.String
 		PlayerUUID mc.UUID
@@ -19,19 +19,19 @@ func HandleLoginStartPacket(conn *Connection, pkt *packet.Packet) {
 		return
 	}
 
-	_ = pkt.ResetWith(0x2, &PlayerUUID, &Name, &Properties)
+	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
 
-	if err := pkt.Send(conn.Conn); err != nil {
+	if err := pkt.Send(c.Conn); err != nil {
 		fmt.Println("Error sending loginStart packet:", err)
 		return
 	}
 }
 
-func HandleLoginAckPacket(conn *Connection, pkt *packet.Packet) {
-	conn.State = mc.StateConfiguration
+func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
+	c.State = mc.StateConfiguration
 
-	_ = pkt.ResetWith(0x0E, &mc.ServerDataPacks)
-	if err := pkt.Send(conn.Conn); err != nil {
+	_ = pkt.ResetWith(packet.ConfigurationClientboundKnownPacks, &mc.ServerDataPacks)
+	if err := pkt.Send(c.Conn); err != nil {
 		fmt.Println("Error sending loginAck packet:", err)
 		return
 	}

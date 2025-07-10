@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func HandleConfirmTeleportationPacket(_ *Connection, pkt *packet.Packet) {
+func (c *Connection) HandleConfirmTeleportationPacket(pkt *packet.Packet) {
 	var teleportId mc.VarInt
 
 	if err := pkt.Decode(&teleportId); err != nil {
@@ -14,13 +14,13 @@ func HandleConfirmTeleportationPacket(_ *Connection, pkt *packet.Packet) {
 	}
 }
 
-func HandleKeepAlivePacket(conn *Connection, pkt *packet.Packet) {
+func (c *Connection) HandleKeepAlivePacket(pkt *packet.Packet) {
 	var keepAliveId mc.Long
 
 	if err := pkt.Decode(&keepAliveId); err != nil {
 		return
 	}
 
-	conn.LastKeepAliveID = int64(keepAliveId)
-	conn.LastKeepAlive = time.Now()
+	c.LastKeepAliveID = int64(keepAliveId)
+	c.LastKeepAlive = time.Now()
 }

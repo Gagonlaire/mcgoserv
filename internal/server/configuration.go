@@ -6,7 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
+func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
 
 	if err := pkt.Decode(&knownPacks); err != nil {
@@ -15,17 +15,17 @@ func HandleClientKnownPacksPacket(conn *Connection, pkt *packet.Packet) {
 	}
 
 	for _, registryData := range mc.RegistriesData {
-		_ = pkt.ResetWith(0x07, &registryData)
-		_ = pkt.Send(conn.Conn)
+		_ = pkt.ResetWith(packet.ConfigurationClientboundRegistryData, &registryData)
+		_ = pkt.Send(c.Conn)
 	}
 
 	// todo: send the update tags (optional but cause enchantment registry to not work)
-	_ = pkt.ResetWith(0x03)
-	_ = pkt.Send(conn.Conn)
+	_ = pkt.ResetWith(packet.ConfigurationClientboundFinishConfiguration)
+	_ = pkt.Send(c.Conn)
 }
 
-func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
-	conn.State = mc.StatePlay
+func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
+	c.State = mc.StatePlay
 	// todo: check for entity id generation
 	// todo: dimensionType should automatically send the good id
 	// todo: create the optional type that should take a pointer to a value and is evaluated during the packet send/receive
@@ -71,7 +71,7 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 	)
 
 	_ = pkt.ResetWith(
-		0x2B,
+		packet.PlayClientboundLogin,
 		&eID,
 		&isHardcore,
 		mc.NewPrefixedArray(&dimensionNames),
@@ -93,9 +93,9 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		&seaLevel,
 		&enforceSecureChat,
 	)
-	_ = pkt.Send(conn.Conn)
+	_ = pkt.Send(c.Conn)
 	_ = pkt.ResetWith(
-		0x41,
+		packet.PlayClientboundSynchronizePlayerPosition,
 		&teleportId,
 		&x,
 		&y,
@@ -107,20 +107,20 @@ func HandleFinishConfigurationAckPacket(conn *Connection, pkt *packet.Packet) {
 		&pitch,
 		&flags,
 	)
-	_ = pkt.Send(conn.Conn)
+	_ = pkt.Send(c.Conn)
 	_ = pkt.ResetWith(
-		0x22,
+		packet.PlayClientboundGameEvent,
 		&event,
 		&value,
 	)
-	_ = pkt.Send(conn.Conn)
+	_ = pkt.Send(c.Conn)
 
 	for x := -10; x <= 10; x++ {
 		for z := -10; z <= 10; z++ {
 			// Create a chunk with random data for now
 			chunk := mc.CreateChunk(x, z)
-			_ = pkt.ResetWith(0x27, chunk)
-			_ = pkt.Send(conn.Conn)
+			_ = pkt.ResetWith(packet.PlayClientboundChunkDataAndUpdateLight, chunk)
+			_ = pkt.Send(c.Conn)
 		}
 	}
 }
