@@ -1,8 +1,8 @@
 package mc
 
 const (
-	ProtocolVersion = 772
-	GameVersion     = "1.21.7"
+	ProtocolVersion = 773
+	GameVersion     = "1.21.10"
 )
 
 const (

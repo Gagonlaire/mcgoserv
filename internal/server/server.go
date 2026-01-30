@@ -3,13 +3,14 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
 const (
@@ -51,7 +52,7 @@ type BroadcastMessage struct {
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Addr:      ":8080",
+		Addr:      ":25565",
 		Ticker:    time.NewTicker(TickerInterval),
 		Broadcast: make(chan BroadcastMessage, ChannelSize),
 		Router:    NewPacketRouter(),

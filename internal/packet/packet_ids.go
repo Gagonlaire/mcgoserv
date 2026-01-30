@@ -27,10 +27,10 @@ const (
 )
 
 const (
-	PlayClientboundGameEvent                 = 0x22
-	PlayClientboundChunkDataAndUpdateLight   = 0x27
-	PlayClientboundLogin                     = 0x2B
-	PlayClientboundSynchronizePlayerPosition = 0x41
+	PlayClientboundGameEvent                 = 0x26
+	PlayClientboundChunkDataAndUpdateLight   = 0x2C
+	PlayClientboundLogin                     = 0x30
+	PlayClientboundSynchronizePlayerPosition = 0x46
 	PlayServerboundConfirmTeleportation      = 0x00
 	PlayServerboundKeepAlive                 = 0x1B
 )
