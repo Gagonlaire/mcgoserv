@@ -1,7 +1,10 @@
-### Genertors related
-/internal/generators/data/*
-!/internal/generators/data/.gitkeep
-/internal/mc/*_generated.go
+### Generators related
+/internal/mc/*_gen.go
+/internal/mcdata
+logs/
+versions/
+libraries/
+server*
 
 ### Benchmark files
 .benchmark/

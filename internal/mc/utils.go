@@ -1,11 +1,6 @@
 package mc
 
 const (
-	ProtocolVersion = 773
-	GameVersion     = "1.21.10"
-)
-
-const (
 	StateHandshake State = iota
 	StateStatus
 	StateLogin

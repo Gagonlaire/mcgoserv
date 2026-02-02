@@ -1,5 +1,6 @@
-//go:generate go run internal/generators/registries_data/main.go
-//go:generate go run internal/generators/fields/main.go
+//go:generate go run cmd/gen-registries-data/main.go
+//go:generate go run cmd/gen-fields/main.go
+//go:generate go run cmd/gen-version/main.go
 
 package main
 

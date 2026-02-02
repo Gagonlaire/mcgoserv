@@ -1,0 +1,60 @@
+name: 'Release to GitHub'
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Set up Java & Deps
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - run: sudo apt-get install -y jq
+
+      - name: Cache Jar
+        uses: actions/cache@v3
+        with:
+          path: server.jar
+          key: mc-server-jar-1.21.4
+
+      - name: Read Game Version
+        id: config
+        run: |
+          VERSION=$(jq -r '.game_version' version.json)
+          
+          echo "MC_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "JAR_FILENAME=server-$VERSION.jar" >> $GITHUB_ENV
+          
+          echo "Detected Game Version: $VERSION"
+          echo "Target Jar: server-$VERSION.jar"
+
+      - name: Run Makefile
+        run: make
+
+      - name: Upload to n8n and Get URL
+        id: n8n
+        env:
+          WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+        run: |
+          echo "Uploading binary..."
+        
+          RESPONSE=$(curl -s -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@./server" \
+            -F "tag=${{ github.ref_name }}")

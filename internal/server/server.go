@@ -193,7 +193,7 @@ func (c *Connection) ProcessLoop() {
 			if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
 				var packetID int
 				if c.State == mc.StatePlay {
-					packetID = 0x26
+					packetID = 0x2B
 				} else {
 					packetID = 0x4
 				}
