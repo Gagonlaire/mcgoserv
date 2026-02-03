@@ -2,6 +2,7 @@ package tick
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // PhaseHandler is a function that handles a specific phase of the tick.
@@ -15,16 +16,17 @@ type Scheduler struct {
 	// mu protects concurrent access to handlers.
 	mu sync.RWMutex
 
-	// currentPhase tracks the phase currently being executed.
-	currentPhase Phase
+	// currentPhase tracks the phase currently being executed (accessed atomically).
+	currentPhase atomic.Int32
 }
 
 // NewScheduler creates a new tick scheduler.
 func NewScheduler() *Scheduler {
-	return &Scheduler{
-		handlers:     [PhaseCount][]PhaseHandler{},
-		currentPhase: PhaseStart,
+	s := &Scheduler{
+		handlers: [PhaseCount][]PhaseHandler{},
 	}
+	s.currentPhase.Store(int32(PhaseStart))
+	return s
 }
 
 // RegisterHandler registers a handler for a specific phase.
@@ -49,7 +51,7 @@ func (s *Scheduler) ExecutePhase(phase Phase) {
 	handlers := s.handlers[phase]
 	s.mu.RUnlock()
 
-	s.currentPhase = phase
+	s.currentPhase.Store(int32(phase))
 
 	for _, handler := range handlers {
 		handler()
@@ -65,7 +67,7 @@ func (s *Scheduler) ExecuteAllPhases() {
 
 // CurrentPhase returns the phase currently being executed.
 func (s *Scheduler) CurrentPhase() Phase {
-	return s.currentPhase
+	return Phase(s.currentPhase.Load())
 }
 
 // HandlerCount returns the number of handlers registered for a phase.

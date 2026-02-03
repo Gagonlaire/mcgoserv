@@ -231,11 +231,14 @@ func TestTicker(t *testing.T) {
 		if ticker.Scheduler() == nil {
 			t.Error("Scheduler() returned nil")
 		}
-		if ticker.GameTime() == nil {
-			t.Error("GameTime() returned nil")
+		// GameTime and Metrics now return values (snapshots), not pointers
+		gt := ticker.GameTime()
+		if gt.TotalTicks < 0 {
+			t.Error("GameTime() returned invalid state")
 		}
-		if ticker.Metrics() == nil {
-			t.Error("Metrics() returned nil")
+		m := ticker.Metrics()
+		if m.SampleCount < 0 {
+			t.Error("Metrics() returned invalid state")
 		}
 	})
 

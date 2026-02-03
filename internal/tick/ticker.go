@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,14 +29,14 @@ type Ticker struct {
 	// cancel cancels the context.
 	cancel context.CancelFunc
 
-	// mu protects running state.
-	mu sync.Mutex
+	// mu protects running state and gameTime/metrics access.
+	mu sync.RWMutex
 
 	// wg waits for the tick loop to finish.
 	wg sync.WaitGroup
 
 	// onTick is called after each tick completes (for external hooks).
-	onTick func(tickNumber int64)
+	onTick atomic.Pointer[func(tickNumber int64)]
 }
 
 // NewTicker creates a new Ticker with default settings.
@@ -89,21 +90,20 @@ func (t *Ticker) executeTick(tickTime time.Time) {
 	// Execute all phases in order
 	t.scheduler.ExecuteAllPhases()
 
-	// Advance game time
+	// Advance game time and record metrics (protected by mutex)
+	t.mu.Lock()
 	t.gameTime.Advance()
-
-	// Record metrics
 	duration := time.Since(startTime)
 	t.metrics.Record(duration)
-
-	// Track if we're falling behind
 	if duration > TickDuration {
 		t.metrics.TicksBehind++
 	}
+	totalTicks := t.gameTime.TotalTicks
+	t.mu.Unlock()
 
 	// Call tick callback if set
-	if t.onTick != nil {
-		t.onTick(t.gameTime.TotalTicks)
+	if callback := t.onTick.Load(); callback != nil {
+		(*callback)(totalTicks)
 	}
 }
 
@@ -115,8 +115,8 @@ func (t *Ticker) Stop() {
 
 // IsRunning returns whether the ticker is currently running.
 func (t *Ticker) IsRunning() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.running
 }
 
@@ -125,27 +125,37 @@ func (t *Ticker) Scheduler() *Scheduler {
 	return t.scheduler
 }
 
-// GameTime returns the current game time.
-func (t *Ticker) GameTime() *GameTime {
-	return t.gameTime
+// GameTime returns a copy of the current game time.
+// Note: Returns a snapshot; the actual time continues advancing.
+func (t *Ticker) GameTime() GameTime {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return *t.gameTime
 }
 
-// Metrics returns the tick metrics.
-func (t *Ticker) Metrics() *TickMetrics {
-	return t.metrics
+// Metrics returns a copy of the current tick metrics.
+// Note: Returns a snapshot; metrics continue updating.
+func (t *Ticker) Metrics() TickMetrics {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return *t.metrics
 }
 
 // SetOnTick sets a callback function to be called after each tick.
 func (t *Ticker) SetOnTick(callback func(tickNumber int64)) {
-	t.onTick = callback
+	t.onTick.Store(&callback)
 }
 
 // CurrentTick returns the current tick number.
 func (t *Ticker) CurrentTick() int64 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.gameTime.TotalTicks
 }
 
 // TPS returns the current ticks per second.
 func (t *Ticker) TPS() float64 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.metrics.TPS()
 }
