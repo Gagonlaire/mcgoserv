@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '^1.25'
 
       - name: Set up Java & Deps
         uses: actions/setup-java@v3
@@ -25,24 +25,24 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - name: Read Game Version
+        id: config
+        run: |
+          VERSION=$(jq -r '.game_version' version.json)
+
+          echo "MC_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "JAR_FILENAME=server-$VERSION.jar" >> $GITHUB_ENV
+
+          echo "Detected Game Version: $VERSION"
+          echo "Target Jar: server-$VERSION.jar"
+
       - run: sudo apt-get install -y jq
 
       - name: Cache Jar
         uses: actions/cache@v3
         with:
-          path: server.jar
-          key: mc-server-jar-1.21.4
-
-      - name: Read Game Version
-        id: config
-        run: |
-          VERSION=$(jq -r '.game_version' version.json)
-          
-          echo "MC_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "JAR_FILENAME=server-$VERSION.jar" >> $GITHUB_ENV
-          
-          echo "Detected Game Version: $VERSION"
-          echo "Target Jar: server-$VERSION.jar"
+          path: ${{ env.JAR_FILENAME }}
+          key: mc-server-jar-${{ env.MC_VERSION }}
 
       - name: Run Makefile
         run: make
@@ -58,3 +58,16 @@ jobs:
             -H "Content-Type: multipart/form-data" \
             -F "file=@./server" \
             -F "tag=${{ github.ref_name }}")
+          
+          TEST_URL=$(echo "$RESPONSE" | jq -r '.testUrl')
+          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: server
+          draft: true
+          name: Release ${{ github.ref_name }}
+          body: |
+            **Game Version:** `${{ env.MC_VERSION }}`
+            **Test URL:** `${{ env.TEST_URL }}`
