@@ -20,8 +20,8 @@ type Scheduler struct {
 	// currentPhase tracks the phase currently being executed (accessed atomically).
 	currentPhase atomic.Int32
 
-	// context is passed to all phase handlers during execution.
-	context any
+	// context is passed to all phase handlers during execution (accessed atomically).
+	context atomic.Value
 }
 
 // NewScheduler creates a new tick scheduler.
@@ -36,16 +36,12 @@ func NewScheduler() *Scheduler {
 // SetContext sets the context that will be passed to all phase handlers.
 // This is typically called once during initialization with the server instance.
 func (s *Scheduler) SetContext(ctx any) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.context = ctx
+	s.context.Store(ctx)
 }
 
 // Context returns the current context.
 func (s *Scheduler) Context() any {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.context
+	return s.context.Load()
 }
 
 // RegisterHandler registers a handler for a specific phase.
@@ -68,9 +64,9 @@ func (s *Scheduler) UnregisterAllHandlers(phase Phase) {
 func (s *Scheduler) ExecutePhase(phase Phase) {
 	s.mu.RLock()
 	handlers := s.handlers[phase]
-	ctx := s.context
 	s.mu.RUnlock()
 
+	ctx := s.context.Load()
 	s.currentPhase.Store(int32(phase))
 
 	for _, handler := range handlers {
