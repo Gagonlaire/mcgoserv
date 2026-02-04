@@ -159,10 +159,19 @@ func TestScheduler(t *testing.T) {
 		}
 	})
 
+	t.Run("SetContext", func(t *testing.T) {
+		s := NewScheduler()
+		testCtx := "test context"
+		s.SetContext(testCtx)
+		if s.Context() != testCtx {
+			t.Errorf("Context() = %v, want %v", s.Context(), testCtx)
+		}
+	})
+
 	t.Run("RegisterHandler", func(t *testing.T) {
 		s := NewScheduler()
 		var called bool
-		s.RegisterHandler(PhaseEntities, func() { called = true })
+		s.RegisterHandler(PhaseEntities, func(ctx any) { called = true })
 
 		if s.HandlerCount(PhaseEntities) != 1 {
 			t.Errorf("HandlerCount = %d, want 1", s.HandlerCount(PhaseEntities))
@@ -174,12 +183,26 @@ func TestScheduler(t *testing.T) {
 		}
 	})
 
+	t.Run("HandlerReceivesContext", func(t *testing.T) {
+		s := NewScheduler()
+		testCtx := "test context"
+		s.SetContext(testCtx)
+
+		var receivedCtx any
+		s.RegisterHandler(PhaseEntities, func(ctx any) { receivedCtx = ctx })
+		s.ExecutePhase(PhaseEntities)
+
+		if receivedCtx != testCtx {
+			t.Errorf("handler received ctx = %v, want %v", receivedCtx, testCtx)
+		}
+	})
+
 	t.Run("MultipleHandlers", func(t *testing.T) {
 		s := NewScheduler()
 		var order []int
-		s.RegisterHandler(PhaseEntities, func() { order = append(order, 1) })
-		s.RegisterHandler(PhaseEntities, func() { order = append(order, 2) })
-		s.RegisterHandler(PhaseEntities, func() { order = append(order, 3) })
+		s.RegisterHandler(PhaseEntities, func(ctx any) { order = append(order, 1) })
+		s.RegisterHandler(PhaseEntities, func(ctx any) { order = append(order, 2) })
+		s.RegisterHandler(PhaseEntities, func(ctx any) { order = append(order, 3) })
 
 		s.ExecutePhase(PhaseEntities)
 
@@ -190,8 +213,8 @@ func TestScheduler(t *testing.T) {
 
 	t.Run("UnregisterAllHandlers", func(t *testing.T) {
 		s := NewScheduler()
-		s.RegisterHandler(PhaseEntities, func() {})
-		s.RegisterHandler(PhaseEntities, func() {})
+		s.RegisterHandler(PhaseEntities, func(ctx any) {})
+		s.RegisterHandler(PhaseEntities, func(ctx any) {})
 		s.UnregisterAllHandlers(PhaseEntities)
 
 		if s.HandlerCount(PhaseEntities) != 0 {
@@ -204,7 +227,7 @@ func TestScheduler(t *testing.T) {
 		var phases []Phase
 		for p := PhaseStart; p <= PhaseEnd; p++ {
 			phase := p // capture
-			s.RegisterHandler(p, func() { phases = append(phases, phase) })
+			s.RegisterHandler(p, func(ctx any) { phases = append(phases, phase) })
 		}
 
 		s.ExecuteAllPhases()
@@ -294,10 +317,10 @@ func TestTicker(t *testing.T) {
 		var entitiesCalled int64
 		var chunksCalled int64
 
-		ticker.Scheduler().RegisterHandler(PhaseEntities, func() {
+		ticker.Scheduler().RegisterHandler(PhaseEntities, func(ctx any) {
 			atomic.AddInt64(&entitiesCalled, 1)
 		})
-		ticker.Scheduler().RegisterHandler(PhaseChunks, func() {
+		ticker.Scheduler().RegisterHandler(PhaseChunks, func(ctx any) {
 			atomic.AddInt64(&chunksCalled, 1)
 		})
 

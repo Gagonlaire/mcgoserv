@@ -6,7 +6,8 @@ import (
 )
 
 // PhaseHandler is a function that handles a specific phase of the tick.
-type PhaseHandler func()
+// It receives a context parameter that can be used to pass server or other state.
+type PhaseHandler func(ctx any)
 
 // Scheduler manages the execution order of tick phases and their handlers.
 type Scheduler struct {
@@ -18,6 +19,9 @@ type Scheduler struct {
 
 	// currentPhase tracks the phase currently being executed (accessed atomically).
 	currentPhase atomic.Int32
+
+	// context is passed to all phase handlers during execution.
+	context any
 }
 
 // NewScheduler creates a new tick scheduler.
@@ -27,6 +31,21 @@ func NewScheduler() *Scheduler {
 	}
 	s.currentPhase.Store(int32(PhaseStart))
 	return s
+}
+
+// SetContext sets the context that will be passed to all phase handlers.
+// This is typically called once during initialization with the server instance.
+func (s *Scheduler) SetContext(ctx any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.context = ctx
+}
+
+// Context returns the current context.
+func (s *Scheduler) Context() any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.context
 }
 
 // RegisterHandler registers a handler for a specific phase.
@@ -49,12 +68,13 @@ func (s *Scheduler) UnregisterAllHandlers(phase Phase) {
 func (s *Scheduler) ExecutePhase(phase Phase) {
 	s.mu.RLock()
 	handlers := s.handlers[phase]
+	ctx := s.context
 	s.mu.RUnlock()
 
 	s.currentPhase.Store(int32(phase))
 
 	for _, handler := range handlers {
-		handler()
+		handler(ctx)
 	}
 }
 

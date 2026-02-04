@@ -135,8 +135,11 @@ func NewServer() *Server {
 		cancel:    cancel,
 	}
 
+	// Set the server as the context for all phase handlers
+	s.Ticker.Scheduler().SetContext(s)
+
 	// Register network phase handler to process any per-tick network operations
-	s.Ticker.Scheduler().RegisterHandler(tick.PhaseNetwork, s.processNetworkPhase)
+	s.Ticker.Scheduler().RegisterHandler(tick.PhaseNetwork, processNetworkPhase)
 
 	return s
 }
@@ -210,7 +213,8 @@ func (s *Server) runBroadcaster() {
 
 // processNetworkPhase is called during each tick's network phase.
 // This processes all inbound packets from all connections and handles keep-alive.
-func (s *Server) processNetworkPhase() {
+func processNetworkPhase(ctx any) {
+	s := ctx.(*Server)
 	currentTick := s.Ticker.CurrentTick()
 
 	s.Connections.Range(func(key, value any) bool {
