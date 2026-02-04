@@ -44,9 +44,14 @@ type Connection struct {
 	closeOnce       sync.Once
 }
 
+// BroadcastFilter is a function that determines whether a connection should receive a broadcast message.
+// Return true to include the connection, false to exclude it.
+type BroadcastFilter func(c *Connection) bool
+
+// BroadcastMessage represents a message to be broadcast to multiple connections.
 type BroadcastMessage struct {
 	Packet *packet.Packet
-	Sender *Connection
+	Filter BroadcastFilter
 }
 
 func NewServer() *Server {
@@ -104,8 +109,61 @@ func (s *Server) Start() {
 }
 
 func (s *Server) runBroadcaster() {
-	for _ = range s.Broadcast {
-		context.TODO()
+	for msg := range s.Broadcast {
+		s.Connections.Range(func(key, _ any) bool {
+			conn := key.(*Connection)
+			if msg.Filter == nil || msg.Filter(conn) {
+				select {
+				case conn.OutboundPackets <- msg.Packet:
+				default:
+					// Channel full, skip this connection
+				}
+			}
+			return true
+		})
+	}
+}
+
+// BroadcastPacket sends a packet to all connections that pass the filter.
+// If filter is nil, the packet is sent to all connections.
+func (s *Server) BroadcastPacket(pkt *packet.Packet, filter BroadcastFilter) {
+	s.Broadcast <- BroadcastMessage{
+		Packet: pkt,
+		Filter: filter,
+	}
+}
+
+// FilterAll returns a filter that includes all connections.
+func FilterAll() BroadcastFilter {
+	return func(c *Connection) bool {
+		return true
+	}
+}
+
+// FilterExclude returns a filter that excludes the specified connection.
+func FilterExclude(exclude *Connection) BroadcastFilter {
+	return func(c *Connection) bool {
+		return c != exclude
+	}
+}
+
+// FilterByState returns a filter that only includes connections in the specified state.
+func FilterByState(state mc.State) BroadcastFilter {
+	return func(c *Connection) bool {
+		return c.State == state
+	}
+}
+
+// FilterCombine combines multiple filters with AND logic.
+// A connection must pass all filters to be included.
+func FilterCombine(filters ...BroadcastFilter) BroadcastFilter {
+	return func(c *Connection) bool {
+		for _, f := range filters {
+			if f != nil && !f(c) {
+				return false
+			}
+		}
+		return true
 	}
 }
 
