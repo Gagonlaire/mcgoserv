@@ -11,19 +11,19 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/tick"
 )
 
 const (
 	ChannelSize       = 32
-	TickerInterval    = 50 * time.Millisecond // 20 TPS
-	KeepAliveInterval = 5 * time.Second       // 5 seconds
-	KeepAliveTimeout  = 15 * time.Second      // 15 seconds
+	KeepAliveInterval = 5 * time.Second  // 5 seconds
+	KeepAliveTimeout  = 15 * time.Second // 15 seconds
 )
 
 type Server struct {
 	Addr        string
 	Connections sync.Map
-	Ticker      *time.Ticker
+	Ticker      *tick.Ticker
 	Broadcast   chan BroadcastMessage
 	Router      *PacketRouter
 	ctx         context.Context
@@ -51,14 +51,19 @@ type BroadcastMessage struct {
 
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	s := &Server{
 		Addr:      ":25565",
-		Ticker:    time.NewTicker(TickerInterval),
+		Ticker:    tick.NewTicker(),
 		Broadcast: make(chan BroadcastMessage, ChannelSize),
 		Router:    NewPacketRouter(),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+
+	// Register network phase handler to process any per-tick network operations
+	s.Ticker.Scheduler().RegisterHandler(tick.PhaseNetwork, s.processNetworkPhase)
+
+	return s
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
@@ -85,6 +90,9 @@ func (s *Server) Start() {
 	}
 	defer listener.Close()
 
+	// Start the tick loop in a goroutine
+	go s.Ticker.Start()
+
 	go s.runBroadcaster()
 
 	for {
@@ -107,6 +115,17 @@ func (s *Server) runBroadcaster() {
 	for _ = range s.Broadcast {
 		context.TODO()
 	}
+}
+
+// processNetworkPhase is called during each tick's network phase.
+// This is where per-tick network operations should be performed,
+// such as flushing batched updates to all connected players.
+func (s *Server) processNetworkPhase() {
+	// Placeholder for per-tick network operations
+	// Examples of what could be done here:
+	// - Flush entity position updates to all players
+	// - Send time synchronization packets
+	// - Process queued broadcast messages
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
@@ -173,16 +192,9 @@ func (c *Connection) ProcessLoop() {
 		case <-c.ctx.Done():
 			return
 
-		case <-c.server.Ticker.C:
-		processPacketBuffer:
-			for {
-				select {
-				case pkt := <-c.InboundPackets:
-					c.server.Router.Handle(c, pkt)
-				default:
-					break processPacketBuffer
-				}
-			}
+		case pkt := <-c.InboundPackets:
+			// Process packets immediately for better responsiveness
+			c.server.Router.Handle(c, pkt)
 
 		case <-keepAliveTicker.C:
 			if time.Since(c.LastKeepAlive) > KeepAliveTimeout {
