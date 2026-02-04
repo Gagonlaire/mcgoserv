@@ -34,7 +34,9 @@ func NewScheduler[T any]() *Scheduler[T] {
 }
 
 // SetContext sets the context that will be passed to all phase handlers.
-// This is typically called once during initialization with the server instance.
+// This must be called before starting the ticker and should not be called
+// while the ticker is running, as it may cause race conditions.
+// This is typically called once during server initialization.
 func (s *Scheduler[T]) SetContext(ctx T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -42,6 +44,7 @@ func (s *Scheduler[T]) SetContext(ctx T) {
 }
 
 // Context returns the current context.
+// This should only be called after SetContext has been called.
 func (s *Scheduler[T]) Context() T {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -65,6 +68,7 @@ func (s *Scheduler[T]) UnregisterAllHandlers(phase Phase) {
 }
 
 // ExecutePhase executes all handlers for a specific phase.
+// Note: The context should be set via SetContext before starting the ticker.
 func (s *Scheduler[T]) ExecutePhase(phase Phase) {
 	s.mu.RLock()
 	handlers := s.handlers[phase]
