@@ -97,7 +97,7 @@ func FilterCombineOr(filters ...BroadcastFilter) BroadcastFilter {
 type Server struct {
 	Addr        string
 	Connections sync.Map
-	Ticker      *tick.Ticker
+	Ticker      *tick.Ticker[*Server]
 	Broadcast   chan BroadcastMessage
 	Router      *PacketRouter
 	ctx         context.Context
@@ -128,7 +128,7 @@ func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		Addr:      ":25565",
-		Ticker:    tick.NewTicker(),
+		Ticker:    tick.NewTicker[*Server](),
 		Broadcast: make(chan BroadcastMessage, ChannelSize),
 		Router:    NewPacketRouter(),
 		ctx:       ctx,
@@ -213,8 +213,7 @@ func (s *Server) runBroadcaster() {
 
 // processNetworkPhase is called during each tick's network phase.
 // This processes all inbound packets from all connections and handles keep-alive.
-func processNetworkPhase(ctx any) {
-	s := ctx.(*Server)
+func processNetworkPhase(s *Server) {
 	currentTick := s.Ticker.CurrentTick()
 
 	s.Connections.Range(func(key, value any) bool {

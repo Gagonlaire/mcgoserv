@@ -10,9 +10,10 @@ import (
 // Ticker manages the game tick loop.
 // It ensures ticks run at a consistent rate (20 TPS) and provides
 // mechanisms for starting, stopping, and monitoring the tick loop.
-type Ticker struct {
+// The type parameter T is the context type passed to phase handlers (typically *Server).
+type Ticker[T any] struct {
 	// scheduler handles phase execution order.
-	scheduler *Scheduler
+	scheduler *Scheduler[T]
 
 	// gameTime tracks the current game time.
 	gameTime *GameTime
@@ -40,10 +41,10 @@ type Ticker struct {
 }
 
 // NewTicker creates a new Ticker with default settings.
-func NewTicker() *Ticker {
+func NewTicker[T any]() *Ticker[T] {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Ticker{
-		scheduler: NewScheduler(),
+	return &Ticker[T]{
+		scheduler: NewScheduler[T](),
 		gameTime:  NewGameTime(),
 		metrics:   NewTickMetrics(),
 		ctx:       ctx,
@@ -54,7 +55,7 @@ func NewTicker() *Ticker {
 // Start begins the tick loop.
 // This method blocks until Stop is called or the context is cancelled.
 // For non-blocking operation, call this in a goroutine.
-func (t *Ticker) Start() {
+func (t *Ticker[T]) Start() {
 	t.mu.Lock()
 	if t.running {
 		t.mu.Unlock()
@@ -84,7 +85,7 @@ func (t *Ticker) Start() {
 }
 
 // executeTick performs a single game tick.
-func (t *Ticker) executeTick(tickTime time.Time) {
+func (t *Ticker[T]) executeTick(tickTime time.Time) {
 	startTime := time.Now()
 
 	// Execute all phases in order
@@ -108,26 +109,26 @@ func (t *Ticker) executeTick(tickTime time.Time) {
 }
 
 // Stop gracefully stops the tick loop.
-func (t *Ticker) Stop() {
+func (t *Ticker[T]) Stop() {
 	t.cancel()
 	t.wg.Wait()
 }
 
 // IsRunning returns whether the ticker is currently running.
-func (t *Ticker) IsRunning() bool {
+func (t *Ticker[T]) IsRunning() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.running
 }
 
 // Scheduler returns the tick scheduler.
-func (t *Ticker) Scheduler() *Scheduler {
+func (t *Ticker[T]) Scheduler() *Scheduler[T] {
 	return t.scheduler
 }
 
 // GameTime returns a copy of the current game time.
 // Note: Returns a snapshot; the actual time continues advancing.
-func (t *Ticker) GameTime() GameTime {
+func (t *Ticker[T]) GameTime() GameTime {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return *t.gameTime
@@ -135,26 +136,26 @@ func (t *Ticker) GameTime() GameTime {
 
 // Metrics returns a copy of the current tick metrics.
 // Note: Returns a snapshot; metrics continue updating.
-func (t *Ticker) Metrics() TickMetrics {
+func (t *Ticker[T]) Metrics() TickMetrics {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return *t.metrics
 }
 
 // SetOnTick sets a callback function to be called after each tick.
-func (t *Ticker) SetOnTick(callback func(tickNumber int64)) {
+func (t *Ticker[T]) SetOnTick(callback func(tickNumber int64)) {
 	t.onTick.Store(&callback)
 }
 
 // CurrentTick returns the current tick number.
-func (t *Ticker) CurrentTick() int64 {
+func (t *Ticker[T]) CurrentTick() int64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.gameTime.TotalTicks
 }
 
 // TPS returns the current ticks per second.
-func (t *Ticker) TPS() float64 {
+func (t *Ticker[T]) TPS() float64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.metrics.TPS()

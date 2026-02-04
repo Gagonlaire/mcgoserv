@@ -6,13 +6,13 @@ import (
 )
 
 // PhaseHandler is a function that handles a specific phase of the tick.
-// It receives a context parameter that can be used to pass server or other state.
-type PhaseHandler func(ctx any)
+// It receives the context (typically the server) as a parameter.
+type PhaseHandler[T any] func(ctx T)
 
 // Scheduler manages the execution order of tick phases and their handlers.
-type Scheduler struct {
+type Scheduler[T any] struct {
 	// handlers maps phases to their handler functions.
-	handlers [PhaseCount][]PhaseHandler
+	handlers [PhaseCount][]PhaseHandler[T]
 
 	// mu protects concurrent access to handlers.
 	mu sync.RWMutex
@@ -20,14 +20,14 @@ type Scheduler struct {
 	// currentPhase tracks the phase currently being executed (accessed atomically).
 	currentPhase atomic.Int32
 
-	// context is passed to all phase handlers during execution (accessed atomically).
-	context atomic.Value
+	// context is passed to all phase handlers during execution.
+	context T
 }
 
 // NewScheduler creates a new tick scheduler.
-func NewScheduler() *Scheduler {
-	s := &Scheduler{
-		handlers: [PhaseCount][]PhaseHandler{},
+func NewScheduler[T any]() *Scheduler[T] {
+	s := &Scheduler[T]{
+		handlers: [PhaseCount][]PhaseHandler[T]{},
 	}
 	s.currentPhase.Store(int32(PhaseStart))
 	return s
@@ -35,38 +35,42 @@ func NewScheduler() *Scheduler {
 
 // SetContext sets the context that will be passed to all phase handlers.
 // This is typically called once during initialization with the server instance.
-func (s *Scheduler) SetContext(ctx any) {
-	s.context.Store(ctx)
+func (s *Scheduler[T]) SetContext(ctx T) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.context = ctx
 }
 
 // Context returns the current context.
-func (s *Scheduler) Context() any {
-	return s.context.Load()
+func (s *Scheduler[T]) Context() T {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.context
 }
 
 // RegisterHandler registers a handler for a specific phase.
 // Multiple handlers can be registered for the same phase and will be
 // executed in the order they were registered.
-func (s *Scheduler) RegisterHandler(phase Phase, handler PhaseHandler) {
+func (s *Scheduler[T]) RegisterHandler(phase Phase, handler PhaseHandler[T]) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[phase] = append(s.handlers[phase], handler)
 }
 
 // UnregisterAllHandlers removes all handlers for a specific phase.
-func (s *Scheduler) UnregisterAllHandlers(phase Phase) {
+func (s *Scheduler[T]) UnregisterAllHandlers(phase Phase) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[phase] = nil
 }
 
 // ExecutePhase executes all handlers for a specific phase.
-func (s *Scheduler) ExecutePhase(phase Phase) {
+func (s *Scheduler[T]) ExecutePhase(phase Phase) {
 	s.mu.RLock()
 	handlers := s.handlers[phase]
+	ctx := s.context
 	s.mu.RUnlock()
 
-	ctx := s.context.Load()
 	s.currentPhase.Store(int32(phase))
 
 	for _, handler := range handlers {
@@ -75,19 +79,19 @@ func (s *Scheduler) ExecutePhase(phase Phase) {
 }
 
 // ExecuteAllPhases executes all phases in order from PhaseStart to PhaseEnd.
-func (s *Scheduler) ExecuteAllPhases() {
+func (s *Scheduler[T]) ExecuteAllPhases() {
 	for phase := PhaseStart; phase <= PhaseEnd; phase++ {
 		s.ExecutePhase(phase)
 	}
 }
 
 // CurrentPhase returns the phase currently being executed.
-func (s *Scheduler) CurrentPhase() Phase {
+func (s *Scheduler[T]) CurrentPhase() Phase {
 	return Phase(s.currentPhase.Load())
 }
 
 // HandlerCount returns the number of handlers registered for a phase.
-func (s *Scheduler) HandlerCount(phase Phase) int {
+func (s *Scheduler[T]) HandlerCount(phase Phase) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.handlers[phase])
