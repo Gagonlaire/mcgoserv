@@ -7,23 +7,22 @@ import (
 	"log"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
 const (
 	ChannelSize       = 32
-	TickerInterval    = 50 * time.Millisecond // 20 TPS
-	KeepAliveInterval = 5 * time.Second       // 5 seconds
-	KeepAliveTimeout  = 15 * time.Second      // 15 seconds
+	KeepAliveInterval = 100
+	KeepAliveTimeout  = 300
 )
 
 type Server struct {
 	Addr        string
 	Connections sync.Map
-	Ticker      *time.Ticker
+	Ticker      *systems.Ticker[*Server]
 	Broadcast   chan BroadcastMessage
 	Router      *PacketRouter
 	ctx         context.Context
@@ -37,7 +36,7 @@ type Connection struct {
 	State           mc.State
 	InboundPackets  chan *packet.Packet
 	OutboundPackets chan *packet.Packet
-	LastKeepAlive   time.Time
+	LastKeepAlive   int64
 	LastKeepAliveID int64
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -51,14 +50,62 @@ type BroadcastMessage struct {
 
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	server := &Server{
 		Addr:      ":25565",
-		Ticker:    time.NewTicker(TickerInterval),
 		Broadcast: make(chan BroadcastMessage, ChannelSize),
 		Router:    NewPacketRouter(),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+
+	server.Ticker = systems.NewTicker(server)
+	server.Ticker.RegisterHandler(processNetworkPhase)
+	return server
+}
+
+func processNetworkPhase(s *Server) {
+	currentTick := s.Ticker.TotalTicks
+
+	s.Connections.Range(func(key, value any) bool {
+		conn := key.(*Connection)
+
+		for {
+			select {
+			case pkt := <-conn.InboundPackets:
+				s.Router.Handle(conn, pkt)
+			default:
+				goto keepAlive
+			}
+		}
+
+	keepAlive:
+		if conn.State == mc.StatePlay || conn.State == mc.StateConfiguration {
+			if currentTick-conn.LastKeepAlive > KeepAliveTimeout {
+				log.Printf("keep-alive timeout for %s", conn.Conn.RemoteAddr())
+				conn.close()
+				return true
+			}
+
+			if currentTick%KeepAliveInterval == 0 {
+				keepAliveID := mc.Long(currentTick)
+				var packetID int
+				// todo: replace with packet constants
+				if conn.State == mc.StatePlay {
+					packetID = 0x2B
+				} else {
+					packetID = 0x4
+				}
+
+				pkt, _ := packet.NewPacket(packetID, &keepAliveID)
+				conn.LastKeepAliveID = int64(keepAliveID)
+				select {
+				case conn.OutboundPackets <- pkt:
+				}
+			}
+		}
+
+		return true
+	})
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
@@ -69,7 +116,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		State:           mc.StateHandshake,
 		InboundPackets:  make(chan *packet.Packet, ChannelSize),
 		OutboundPackets: make(chan *packet.Packet, ChannelSize),
-		LastKeepAlive:   time.Now(),
+		LastKeepAlive:   s.Ticker.TotalTicks,
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -85,6 +132,7 @@ func (s *Server) Start() {
 	}
 	defer listener.Close()
 
+	go s.Ticker.Start()
 	go s.runBroadcaster()
 
 	for {
@@ -115,8 +163,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	c := s.NewConnection(conn)
 
 	go c.ReadLoop()
-	go c.WriteLoop()
-	c.ProcessLoop()
+	c.WriteLoop()
 }
 
 func (s *Server) Stop() {
@@ -158,49 +205,6 @@ func (c *Connection) WriteLoop() {
 					log.Printf("error sending packet from %s: %v", c.Conn.RemoteAddr(), err)
 				}
 				return
-			}
-		}
-	}
-}
-
-func (c *Connection) ProcessLoop() {
-	defer c.close()
-	keepAliveTicker := time.NewTicker(KeepAliveInterval)
-	defer keepAliveTicker.Stop()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-
-		case <-c.server.Ticker.C:
-		processPacketBuffer:
-			for {
-				select {
-				case pkt := <-c.InboundPackets:
-					c.server.Router.Handle(c, pkt)
-				default:
-					break processPacketBuffer
-				}
-			}
-
-		case <-keepAliveTicker.C:
-			if time.Since(c.LastKeepAlive) > KeepAliveTimeout {
-				log.Printf("keep-alive timeout for %s", c.Conn.RemoteAddr())
-				return
-			}
-			keepAliveID := mc.Long(time.Now().Unix())
-			if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
-				var packetID int
-				if c.State == mc.StatePlay {
-					packetID = 0x2B
-				} else {
-					packetID = 0x4
-				}
-
-				pkt, _ := packet.NewPacket(packetID, &keepAliveID)
-				c.LastKeepAliveID = int64(keepAliveID)
-				c.OutboundPackets <- pkt
 			}
 		}
 	}

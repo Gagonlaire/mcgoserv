@@ -1,9 +1,10 @@
 package server
 
 import (
+	"log"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"log"
 )
 
 type PacketHandler func(c *Connection, pkt *packet.Packet)
@@ -52,4 +53,5 @@ func (r *PacketRouter) registerHandlers() {
 	// State Play
 	r.handlers[mc.StatePlay][packet.PlayServerboundConfirmTeleportation] = (*Connection).HandleConfirmTeleportationPacket
 	r.handlers[mc.StatePlay][packet.PlayServerboundKeepAlive] = (*Connection).HandleKeepAlivePacket
+	r.handlers[mc.StatePlay][packet.PlayServerboundClientTickEnd] = (*Connection).HandleClientTickEnd
 }

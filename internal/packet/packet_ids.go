@@ -33,4 +33,5 @@ const (
 	PlayClientboundSynchronizePlayerPosition = 0x46
 	PlayServerboundConfirmTeleportation      = 0x00
 	PlayServerboundKeepAlive                 = 0x1B
+	PlayServerboundClientTickEnd             = 0x0C
 )

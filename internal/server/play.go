@@ -3,7 +3,6 @@ package server
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"time"
 )
 
 func (c *Connection) HandleConfirmTeleportationPacket(pkt *packet.Packet) {
@@ -22,5 +21,9 @@ func (c *Connection) HandleKeepAlivePacket(pkt *packet.Packet) {
 	}
 
 	c.LastKeepAliveID = int64(keepAliveId)
-	c.LastKeepAlive = time.Now()
+	c.LastKeepAlive = c.server.Ticker.TotalTicks
+}
+
+func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
+	// Used for some specific logic
 }
