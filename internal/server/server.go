@@ -11,6 +11,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 const (
@@ -20,11 +21,12 @@ const (
 )
 
 type Server struct {
+	World       *world.World
+	Ticker      *systems.Ticker[*Server]
+	Router      *PacketRouter
 	Addr        string
 	Connections sync.Map
-	Ticker      *systems.Ticker[*Server]
 	Broadcast   chan BroadcastMessage
-	Router      *PacketRouter
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -58,13 +60,42 @@ func NewServer() *Server {
 		cancel:    cancel,
 	}
 
+	server.World = world.NewWorld()
 	server.Ticker = systems.NewTicker(server)
-	server.Ticker.RegisterHandler(processNetworkPhase)
+	server.Ticker.RegisterHandler(updateTime)
+	server.Ticker.RegisterHandler(processIncomingPackets)
 	return server
 }
 
-func processNetworkPhase(s *Server) {
-	currentTick := s.Ticker.TotalTicks
+func updateTime(s *Server) {
+	s.World.Time++
+	s.World.DayTime = (s.World.DayTime + 1) % 24000
+
+	if s.World.DayTime == 0 {
+		s.World.Day++
+	}
+
+	if s.World.Time >= s.World.NextTimeUpdate {
+		worldAge := mc.Long(s.World.Time)
+		timeOfDay := mc.Long(s.World.DayTime)
+		timeOfDayIncreasing := mc.Boolean(true)
+		timePacket, _ := packet.NewPacket(packet.PlayClientboundSetTime, &worldAge, &timeOfDay, &timeOfDayIncreasing)
+
+		s.World.NextTimeUpdate = s.World.Time + 20
+		s.Connections.Range(func(key, value any) bool {
+			conn := key.(*Connection)
+
+			if conn.State == mc.StatePlay {
+				conn.OutboundPackets <- timePacket
+			}
+
+			return true
+		})
+	}
+}
+
+func processIncomingPackets(s *Server) {
+	currentTick := s.World.Time
 
 	s.Connections.Range(func(key, value any) bool {
 		conn := key.(*Connection)
@@ -116,7 +147,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		State:           mc.StateHandshake,
 		InboundPackets:  make(chan *packet.Packet, ChannelSize),
 		OutboundPackets: make(chan *packet.Packet, ChannelSize),
-		LastKeepAlive:   s.Ticker.TotalTicks,
+		LastKeepAlive:   s.World.Time,
 		ctx:             ctx,
 		cancel:          cancel,
 	}

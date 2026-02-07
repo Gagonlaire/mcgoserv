@@ -31,6 +31,7 @@ const (
 	PlayClientboundChunkDataAndUpdateLight   = 0x2C
 	PlayClientboundLogin                     = 0x30
 	PlayClientboundSynchronizePlayerPosition = 0x46
+	PlayClientboundSetTime                   = 0x6F
 	PlayServerboundConfirmTeleportation      = 0x00
 	PlayServerboundKeepAlive                 = 0x1B
 	PlayServerboundClientTickEnd             = 0x0C

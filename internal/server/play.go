@@ -21,7 +21,7 @@ func (c *Connection) HandleKeepAlivePacket(pkt *packet.Packet) {
 	}
 
 	c.LastKeepAliveID = int64(keepAliveId)
-	c.LastKeepAlive = c.server.Ticker.TotalTicks
+	c.LastKeepAlive = c.server.World.Time
 }
 
 func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {

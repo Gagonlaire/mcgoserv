@@ -28,4 +28,4 @@ else
     echo "server.jar already exists, skipping download."
 fi
 
-java -DbundlerMainClass=net.minecraft.data.Main -jar "$JAR_FILE" --server --output "$OUTPUT_DIR"
+java -DbundlerMainClass=net.minecraft.data.Main -jar "$JAR_FILE" --all --output "$OUTPUT_DIR"

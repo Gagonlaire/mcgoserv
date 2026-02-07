@@ -18,11 +18,6 @@ type Ticker[T any] struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	ContextVal T
-
-	// todo: move to a handler
-	TotalTicks int64
-	DayTime    int64
-	Day        int64
 }
 
 func NewTicker[T any](ctxVal T) *Ticker[T] {
@@ -31,7 +26,6 @@ func NewTicker[T any](ctxVal T) *Ticker[T] {
 		ctx:        ctx,
 		cancel:     cancel,
 		ContextVal: ctxVal,
-		Day:        1,
 	}
 }
 
@@ -40,13 +34,6 @@ func (t *Ticker[T]) RegisterHandler(handler Handler[T]) {
 }
 
 func (t *Ticker[T]) executeTick() {
-	// move this in a handler and create a world struct (for dimensions too)
-	t.TotalTicks++
-	t.DayTime = (t.DayTime + 1) % TicksPerDay
-	if t.DayTime == 0 {
-		t.Day++
-	}
-
 	for _, handler := range t.handlers {
 		handler(t.ContextVal)
 	}
