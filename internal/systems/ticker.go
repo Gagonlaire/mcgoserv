@@ -5,41 +5,35 @@ import (
 	"time"
 )
 
-const (
-	TicksPerSecond = 20
-	TickDuration   = time.Second / TicksPerSecond
-	TicksPerDay    = 24000
-)
-
-type Handler[T any] func(ctx T)
-
-type Ticker[T any] struct {
-	handlers   []Handler[T]
-	ctx        context.Context
-	cancel     context.CancelFunc
-	ContextVal T
+type Ticker struct {
+	handlers       []func()
+	ctx            context.Context
+	cancel         context.CancelFunc
+	TicksPerSecond int
+	tickDuration   time.Duration
 }
 
-func NewTicker[T any](ctxVal T) *Ticker[T] {
+func NewTicker(ticksPerSecond int) *Ticker {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Ticker[T]{
-		ctx:        ctx,
-		cancel:     cancel,
-		ContextVal: ctxVal,
+	return &Ticker{
+		ctx:            ctx,
+		cancel:         cancel,
+		TicksPerSecond: ticksPerSecond,
+		tickDuration:   time.Second / time.Duration(ticksPerSecond),
 	}
 }
 
-func (t *Ticker[T]) RegisterHandler(handler Handler[T]) {
+func (t *Ticker) RegisterHandler(handler func()) {
 	t.handlers = append(t.handlers, handler)
 }
 
-func (t *Ticker[T]) executeTick() {
+func (t *Ticker) executeTick() {
 	for _, handler := range t.handlers {
-		handler(t.ContextVal)
+		handler()
 	}
 }
 
-func (t *Ticker[T]) Start() {
+func (t *Ticker) Start() {
 	nextTickTime := time.Now()
 
 	for {
@@ -60,11 +54,11 @@ func (t *Ticker[T]) Start() {
 
 			t.executeTick()
 
-			nextTickTime = nextTickTime.Add(TickDuration)
+			nextTickTime = nextTickTime.Add(t.tickDuration)
 		}
 	}
 }
 
-func (t *Ticker[T]) Stop() {
+func (t *Ticker) Stop() {
 	t.cancel()
 }

@@ -1,9 +1,10 @@
 package server
 
 import (
+	"log"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"log"
 )
 
 func (c *Connection) HandleHandshakePacket(pkt *packet.Packet) {

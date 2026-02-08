@@ -9,6 +9,11 @@ const (
 	StateMax
 )
 
+const (
+	TicksPerSecond = 20
+	TicksPerDay    = 24000
+)
+
 var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
 	Slice: &[]DataPackIdentifier{
 		{

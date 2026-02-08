@@ -20,13 +20,16 @@ const (
 	KeepAliveTimeout  = 300
 )
 
+type Broadcaster = systems.Broadcaster[*Connection, *packet.Packet]
+type Router = systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+
 type Server struct {
 	World       *world.World
-	Ticker      *systems.Ticker[*Server]
-	Router      *PacketRouter
+	Ticker      *systems.Ticker
+	Broadcaster *Broadcaster
+	Router      *Router
 	Addr        string
 	Connections sync.Map
-	Broadcast   chan BroadcastMessage
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -45,31 +48,57 @@ type Connection struct {
 	closeOnce       sync.Once
 }
 
-type BroadcastMessage struct {
-	Packet *packet.Packet
-	Sender *Connection
-}
-
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		Addr:      ":25565",
-		Broadcast: make(chan BroadcastMessage, ChannelSize),
-		Router:    NewPacketRouter(),
-		ctx:       ctx,
-		cancel:    cancel,
+		Addr:   ":25565",
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
+	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
+	server.Router.RegisterHandler(mc.StateHandshake, packet.HandshakeServerboundHandshake, (*Connection).HandleHandshakePacket)
+	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundStatusRequest, (*Connection).HandleStatusRequestPacket)
+	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundPing, (*Connection).HandlePingPacket)
+	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundLoginStart, (*Connection).HandleLoginStartPacket)
+	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundLoginAcknowledged, (*Connection).HandleLoginAckPacket)
+	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundAcknowledgeFinishConfiguration, (*Connection).HandleFinishConfigurationAckPacket)
+	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
+	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKnownPacks, (*Connection).HandleClientKnownPacksPacket)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundConfirmTeleportation, (*Connection).HandleConfirmTeleportationPacket)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundClientTickEnd, (*Connection).HandleClientTickEnd)
+	// todo: maybe add debug logs after registering handlers
+
+	server.Broadcaster = systems.NewBroadcaster(
+		func(yield func(*Connection) bool) {
+			server.Connections.Range(func(key, value any) bool {
+				conn := key.(*Connection)
+				if conn.State == mc.StatePlay {
+					return yield(conn)
+				}
+				return true
+			})
+		},
+		func(conn *Connection, pkt *packet.Packet) {
+			select {
+			case conn.OutboundPackets <- pkt:
+			default:
+				// todo: handle full channel
+			}
+		},
+	)
 	server.World = world.NewWorld()
-	server.Ticker = systems.NewTicker(server)
-	server.Ticker.RegisterHandler(updateTime)
-	server.Ticker.RegisterHandler(processIncomingPackets)
+	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
+	server.Ticker.RegisterHandler(func() { updateTime(server) })
+	server.Ticker.RegisterHandler(func() { processIncomingPackets(server) })
+
 	return server
 }
 
 func updateTime(s *Server) {
 	s.World.Time++
-	s.World.DayTime = (s.World.DayTime + 1) % 24000
+	s.World.DayTime = (s.World.DayTime + 1) % mc.TicksPerDay
 
 	if s.World.DayTime == 0 {
 		s.World.Day++
@@ -82,15 +111,7 @@ func updateTime(s *Server) {
 		timePacket, _ := packet.NewPacket(packet.PlayClientboundSetTime, &worldAge, &timeOfDay, &timeOfDayIncreasing)
 
 		s.World.NextTimeUpdate = s.World.Time + 20
-		s.Connections.Range(func(key, value any) bool {
-			conn := key.(*Connection)
-
-			if conn.State == mc.StatePlay {
-				conn.OutboundPackets <- timePacket
-			}
-
-			return true
-		})
+		s.Broadcaster.Broadcast(timePacket)
 	}
 }
 
@@ -103,7 +124,7 @@ func processIncomingPackets(s *Server) {
 		for {
 			select {
 			case pkt := <-conn.InboundPackets:
-				s.Router.Handle(conn, pkt)
+				s.Router.Handle(conn.State, pkt.ID, conn, pkt)
 			default:
 				goto keepAlive
 			}
@@ -164,7 +185,6 @@ func (s *Server) Start() {
 	defer listener.Close()
 
 	go s.Ticker.Start()
-	go s.runBroadcaster()
 
 	for {
 		conn, err := listener.Accept()
@@ -182,12 +202,6 @@ func (s *Server) Start() {
 	}
 }
 
-func (s *Server) runBroadcaster() {
-	for _ = range s.Broadcast {
-		context.TODO()
-	}
-}
-
 func (s *Server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 
@@ -201,7 +215,6 @@ func (s *Server) Stop() {
 	s.cancel()
 	s.wg.Wait()
 	s.Ticker.Stop()
-	close(s.Broadcast)
 }
 
 func (c *Connection) ReadLoop() {
