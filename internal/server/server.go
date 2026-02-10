@@ -37,6 +37,7 @@ type Server struct {
 
 type Connection struct {
 	server          *Server
+	Player          *world.Player
 	Conn            net.Conn
 	State           mc.State
 	InboundPackets  chan *packet.Packet
@@ -89,6 +90,7 @@ func NewServer() *Server {
 		},
 	)
 	server.World = world.NewWorld()
+	// todo: change how ticker work, currently it runs on 20ticks for all connections so it delays all packets
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.Ticker.RegisterHandler(func() { updateTime(server) })
 	server.Ticker.RegisterHandler(func() { processIncomingPackets(server) })
@@ -124,7 +126,12 @@ func processIncomingPackets(s *Server) {
 		for {
 			select {
 			case pkt := <-conn.InboundPackets:
-				s.Router.Handle(conn.State, pkt.ID, conn, pkt)
+				{
+					ok := s.Router.Handle(conn.State, pkt.ID, conn, pkt)
+					if !ok {
+						log.Printf("Missing handler for packet %d (0x%X) in state %d\n", pkt.ID, pkt.ID, conn.State)
+					}
+				}
 			default:
 				goto keepAlive
 			}
@@ -257,6 +264,9 @@ func (c *Connection) WriteLoop() {
 func (c *Connection) close() {
 	c.closeOnce.Do(func() {
 		c.cancel()
+		if c.Player != nil {
+			c.server.World.RemovePlayer(c.Player.UUID)
+		}
 		c.server.Connections.Delete(c)
 		_ = c.Conn.Close()
 	})

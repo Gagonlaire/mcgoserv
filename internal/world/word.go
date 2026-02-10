@@ -1,5 +1,9 @@
 package world
 
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
+)
+
 type World struct {
 	Dimensions     map[string]*Dimension
 	Rules          GameRules
@@ -7,8 +11,8 @@ type World struct {
 	DayTime        int64
 	Day            int64
 	NextTimeUpdate int64
-	// todo: add connection to players when switching to play state
-	// Players map[uuid.UUID]*Player ?
+	Players        map[mc.UUID]*Player
+	lastEntityID   mc.Int
 }
 
 type GameRules struct {
@@ -32,6 +36,7 @@ func NewWorld() *World {
 				Type: DefaultDimensionsType["minecraft:the_end"],
 			},
 		},
+		Players: make(map[mc.UUID]*Player),
 	}
 
 	for _, v := range world.Dimensions {
@@ -39,4 +44,18 @@ func NewWorld() *World {
 	}
 
 	return world
+}
+
+func (w *World) GetNextEntityID() mc.Int {
+	// todo: replace with a real id distribution
+	w.lastEntityID++
+	return w.lastEntityID
+}
+
+func (w *World) AddPlayer(p *Player) {
+	w.Players[p.UUID] = p
+}
+
+func (w *World) RemovePlayer(uuid mc.UUID) {
+	delete(w.Players, uuid)
 }

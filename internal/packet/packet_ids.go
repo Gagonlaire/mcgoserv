@@ -27,12 +27,15 @@ const (
 )
 
 const (
-	PlayClientboundGameEvent                 = 0x26
-	PlayClientboundChunkDataAndUpdateLight   = 0x2C
-	PlayClientboundLogin                     = 0x30
-	PlayClientboundSynchronizePlayerPosition = 0x46
-	PlayClientboundSetTime                   = 0x6F
-	PlayServerboundConfirmTeleportation      = 0x00
-	PlayServerboundKeepAlive                 = 0x1B
-	PlayServerboundClientTickEnd             = 0x0C
+	PlayClientboundSpawnEntity                  = 0x01
+	PlayClientboundGameEvent                    = 0x26
+	PlayClientboundChunkDataAndUpdateLight      = 0x2C
+	PlayClientboundLogin                        = 0x30
+	PlayClientboundPlayerInfoUpdate             = 0x44
+	PlayClientboundSynchronizePlayerPosition    = 0x46
+	PlayClientboundSetTime                      = 0x6F
+	PlayServerboundConfirmTeleportation         = 0x00
+	PlayServerboundClientTickEnd                = 0x0C
+	PlayServerboundKeepAlive                    = 0x1B
+	PlayServerboundSetPlayerPositionAndRotation = 0x1E
 )

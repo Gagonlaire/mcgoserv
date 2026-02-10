@@ -26,3 +26,9 @@ func (b *Broadcaster[T, M]) Broadcast(message M, filters ...Filter[T]) {
 		return true
 	})
 }
+
+func NotSender[T comparable](sender T) Filter[T] {
+	return func(target T) bool {
+		return target != sender
+	}
+}

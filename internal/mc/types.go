@@ -1,15 +1,19 @@
 package mc
 
 import (
-	"github.com/google/uuid"
 	"go/types"
 	"io"
+
+	"github.com/google/uuid"
 )
 
 type Field interface {
 	io.ReaderFrom
 	io.WriterTo
 }
+
+// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
+type PlayerAction = UnsignedByte
 
 type (
 	// Boolean Encodes:
@@ -85,6 +89,13 @@ type (
 	// Notes:
 	//  - Variable-length data encoding a two's complement signed 32-bit integer; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#VarInt_and_VarLong.
 	VarInt int32
+	// Angle Encodes:
+	//  - A rotation angle in steps of 1/256 of a full turn
+	// Size:
+	//  - 1 byte
+	// Notes:
+	//  - Whether or not this is signed does not matter, since the resulting angles are the same.
+	Angle = UnsignedByte
 	// UUID Encodes:
 	//  - A UUID; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Type:UUID.
 	// Size:
@@ -100,6 +111,11 @@ type (
 	//  - A length-prefixed bit set.
 	BitSet struct {
 		PrefixedArray[Long]
+	}
+	// todo: docs
+	FixedBitSet struct {
+		BitCount int
+		Data     []byte
 	}
 	// PrefixedOptional of X Encodes:
 	//  - A boolean and if present, a field of type X.
@@ -128,6 +144,15 @@ type (
 	//  - A length-prefixed array.
 	PrefixedArray[X any] struct {
 		Slice *[]X
+	}
+	// LpVec3 Encodes:
+	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#LpVec3.
+	// Size:
+	//  - Varies
+	// Notes:
+	//  - Usually used for low velocities.
+	LpVec3 struct {
+		X, Y, Z float64
 	}
 )
 

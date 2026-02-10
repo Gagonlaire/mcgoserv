@@ -20,10 +20,12 @@ func (r *DoubleRouter[R, S, C, D]) RegisterHandler(key1 R, key2 S, handler Handl
 	r.handlers[key1][key2] = handler
 }
 
-func (r *DoubleRouter[R, S, C, D]) Handle(key1 R, key2 S, context C, data D) {
+func (r *DoubleRouter[R, S, C, D]) Handle(key1 R, key2 S, context C, data D) bool {
 	if stateHandlers, ok := r.handlers[key1]; ok {
 		if handler, ok := stateHandlers[key2]; ok {
 			handler(context, data)
+			return true
 		}
 	}
+	return false
 }

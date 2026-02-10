@@ -2,8 +2,13 @@ package server
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
@@ -24,13 +29,15 @@ func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn)
 }
 
+// todo: we should move packet sent to methods
 func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	c.State = mc.StatePlay
+	c.server.World.AddPlayer(c.Player)
 	// todo: check for entity id generation
 	// todo: dimensionType should automatically send the good id
 	// todo: create the optional type that should take a pointer to a value and is evaluated during the packet send/receive
 	var (
-		eID                 = mc.Int(0)
+		eID                 = c.Player.EntityID
 		isHardcore          = mc.Boolean(false)
 		dimensionNames      = []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
 		maxPlayers          = mc.VarInt(20)
@@ -94,6 +101,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		&enforceSecureChat,
 	)
 	_ = pkt.Send(c.Conn)
+
 	_ = pkt.ResetWith(
 		packet.PlayClientboundSynchronizePlayerPosition,
 		&teleportId,
@@ -108,10 +116,31 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		&flags,
 	)
 	_ = pkt.Send(c.Conn)
+
 	_ = pkt.ResetWith(
 		packet.PlayClientboundGameEvent,
 		&event,
 		&value,
+	)
+	_ = pkt.Send(c.Conn)
+
+	players := []*world.Player{c.Player}
+	allPlayers := slices.Collect(maps.Values(c.server.World.Players))
+
+	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
+	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, players)
+	c.server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
+	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions, allPlayers)
+	_ = pkt1.Send(c.Conn)
+
+	worldAge := mc.Long(c.server.World.Time)
+	timeOfDay := mc.Long(c.server.World.DayTime)
+	timeOfDayIncreasing := mc.Boolean(true)
+	_ = pkt.ResetWith(
+		packet.PlayClientboundSetTime,
+		&worldAge,
+		&timeOfDay,
+		&timeOfDayIncreasing,
 	)
 	_ = pkt.Send(c.Conn)
 
@@ -123,4 +152,55 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 			_ = pkt.Send(c.Conn)
 		}
 	}
+
+	entityType := mc.VarInt(151)
+	velocity := mc.LpVec3{
+		X: 0,
+		Y: 0,
+		Z: 0,
+	}
+	zeroAngle := mc.Angle(0)
+	data := mc.VarInt(0)
+	eID2 := mc.VarInt(c.Player.EntityID)
+	// spawn newly connected player
+	pkt, _ = packet.NewPacket(
+		packet.PlayClientboundSpawnEntity,
+		&eID2,
+		&c.Player.UUID,
+		&entityType,
+		&c.Player.X,
+		&c.Player.Y,
+		&c.Player.Z,
+		&velocity,
+		&zeroAngle,
+		&zeroAngle,
+		&zeroAngle,
+		&data,
+	)
+	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.server.Connections.Range(func(k, v interface{}) bool {
+		conn := k.(*Connection)
+
+		if conn.Player.UUID != c.Player.UUID {
+			eID3 := mc.VarInt(conn.Player.EntityID)
+
+			pkt, _ := packet.NewPacket(
+				packet.PlayClientboundSpawnEntity,
+				&eID3,
+				&conn.Player.UUID,
+				&entityType,
+				&conn.Player.X,
+				&conn.Player.Y,
+				&conn.Player.Z,
+				&velocity,
+				&zeroAngle,
+				&zeroAngle,
+				&zeroAngle,
+				&data,
+			)
+
+			_ = pkt.Send(c.Conn)
+		}
+		return true
+	})
 }

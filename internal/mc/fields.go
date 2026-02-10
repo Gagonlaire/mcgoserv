@@ -267,6 +267,16 @@ func (U *UUID) WriteTo(w io.Writer) (n int64, err error) {
 	return int64(nBytes), nil
 }
 
+func (F *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
+	nBytes, err := io.ReadFull(r, F.Data)
+	return int64(nBytes), err
+}
+
+func (F *FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
+	nBytes, err := w.Write(F.Data)
+	return int64(nBytes), err
+}
+
 func (P *PrefixedOptional[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	nn, err := P.Has.ReadFrom(r)
 	if err != nil {
@@ -392,5 +402,107 @@ func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
 		}
 		n += nn
 	}
+	return n, nil
+}
+
+func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
+	buf := make([]byte, 1)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return n, err
+	}
+	n += 1
+	byte1 := uint64(buf[0])
+	if byte1 == 0 {
+		L.X, L.Y, L.Z = 0, 0, 0
+		return n, nil
+	}
+
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return n, err
+	}
+	n += 1
+	byte2 := uint64(buf[0])
+
+	fourBytes := make([]byte, 4)
+	if _, err := io.ReadFull(r, fourBytes); err != nil {
+		return n, err
+	}
+	n += 4
+	bytes3To4 := binary.BigEndian.Uint32(fourBytes)
+
+	packed := (uint64(bytes3To4) << 16) | (byte2 << 8) | byte1
+
+	scaleFactor := byte1 & 3
+	if (byte1 & 4) == 4 {
+		rest := VarInt(0)
+
+		nn, err := rest.ReadFrom(r)
+		if err != nil {
+			return n + nn, err
+		}
+		n += nn
+		scaleFactor |= uint64(rest) << 2
+	}
+	scaleFactorD := float64(scaleFactor)
+
+	L.X = unpack(packed>>3) * scaleFactorD
+	L.Y = unpack(packed>>18) * scaleFactorD
+	L.Z = unpack(packed>>33) * scaleFactorD
+
+	return n, nil
+}
+
+func (L *LpVec3) WriteTo(w io.Writer) (n int64, err error) {
+	maxCoordinate := math.Max(math.Abs(L.X), math.Max(math.Abs(L.Y), math.Abs(L.Z)))
+
+	if maxCoordinate < 3.051944088384301e-5 {
+		if _, err := w.Write([]byte{0}); err != nil {
+			return 0, err
+		}
+		return 1, nil
+	}
+
+	maxCoordinateI := int64(maxCoordinate)
+	var scaleFactor int64
+	if maxCoordinate > float64(maxCoordinateI) {
+		scaleFactor = maxCoordinateI + 1
+	} else {
+		scaleFactor = maxCoordinateI
+	}
+
+	needContinuation := (scaleFactor & 3) != scaleFactor
+
+	var packedScale int64
+	if needContinuation {
+		packedScale = (scaleFactor & 3) | 4
+	} else {
+		packedScale = scaleFactor
+	}
+
+	scaleFactorD := float64(scaleFactor)
+	packedX := pack(L.X/scaleFactorD) << 3
+	packedY := pack(L.Y/scaleFactorD) << 18
+	packedZ := pack(L.Z/scaleFactorD) << 33
+	packed := packedZ | packedY | packedX | packedScale
+
+	buf := make([]byte, 6)
+	buf[0] = byte(packed)
+	buf[1] = byte(packed >> 8)
+	valInt := uint32(packed >> 16)
+	binary.BigEndian.PutUint32(buf[2:], valInt)
+	if _, err := w.Write(buf); err != nil {
+		return 0, err
+	}
+	n += 6
+
+	if needContinuation {
+		buf := VarInt(scaleFactor >> 2)
+
+		nn, err := buf.WriteTo(w)
+		n += nn
+
+		return n, err
+	}
+
 	return n, nil
 }

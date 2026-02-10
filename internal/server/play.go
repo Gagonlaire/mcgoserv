@@ -27,3 +27,7 @@ func (c *Connection) HandleKeepAlivePacket(pkt *packet.Packet) {
 func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
 	// Used for some specific logic
 }
+
+func (c *Connection) HandleMovePlayerPosRot() {
+	// todo: implement
+}

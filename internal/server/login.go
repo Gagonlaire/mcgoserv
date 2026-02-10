@@ -2,8 +2,10 @@ package server
 
 import (
 	"fmt"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
@@ -18,6 +20,8 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		fmt.Println("Error decoding loginStart packet:", err)
 		return
 	}
+
+	c.Player = world.NewPlayer(c.server.World.GetNextEntityID(), PlayerUUID, string(Name), c.server.World)
 
 	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
 
