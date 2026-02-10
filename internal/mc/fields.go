@@ -24,9 +24,9 @@ func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 	return 1, nil
 }
 
-func (b *Boolean) WriteTo(w io.Writer) (n int64, err error) {
+func (b Boolean) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [1]byte
-	if *b {
+	if b {
 		buf[0] = 0x01
 	} else {
 		buf[0] = 0x00
@@ -46,9 +46,9 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 	return 1, nil
 }
 
-func (b *Byte) WriteTo(w io.Writer) (n int64, err error) {
+func (b Byte) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [1]byte
-	buf[0] = byte(*b)
+	buf[0] = byte(b)
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Byte: %w", err)
 	}
@@ -64,9 +64,9 @@ func (u *UnsignedByte) ReadFrom(r io.Reader) (n int64, err error) {
 	return 1, nil
 }
 
-func (u *UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
+func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [1]byte
-	buf[0] = byte(*u)
+	buf[0] = byte(u)
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing UnsignedByte: %w", err)
 	}
@@ -82,9 +82,9 @@ func (s *Short) ReadFrom(r io.Reader) (n int64, err error) {
 	return 2, nil
 }
 
-func (s *Short) WriteTo(w io.Writer) (n int64, err error) {
+func (s Short) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], uint16(*s))
+	binary.BigEndian.PutUint16(buf[:], uint16(s))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Short: %w", err)
 	}
@@ -100,9 +100,9 @@ func (u *UnsignedShort) ReadFrom(r io.Reader) (n int64, err error) {
 	return 2, nil
 }
 
-func (u *UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
+func (u UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], uint16(*u))
+	binary.BigEndian.PutUint16(buf[:], uint16(u))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing UnsignedShort: %w", err)
 	}
@@ -118,9 +118,9 @@ func (i *Int) ReadFrom(r io.Reader) (n int64, err error) {
 	return 4, nil
 }
 
-func (i *Int) WriteTo(w io.Writer) (n int64, err error) {
+func (i Int) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], uint32(*i))
+	binary.BigEndian.PutUint32(buf[:], uint32(i))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Int: %w", err)
 	}
@@ -136,9 +136,9 @@ func (l *Long) ReadFrom(r io.Reader) (n int64, err error) {
 	return 8, nil
 }
 
-func (l *Long) WriteTo(w io.Writer) (n int64, err error) {
+func (l Long) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(*l))
+	binary.BigEndian.PutUint64(buf[:], uint64(l))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Long: %w", err)
 	}
@@ -154,9 +154,9 @@ func (f *Float) ReadFrom(r io.Reader) (n int64, err error) {
 	return 4, nil
 }
 
-func (f *Float) WriteTo(w io.Writer) (n int64, err error) {
+func (f Float) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], math.Float32bits(float32(*f)))
+	binary.BigEndian.PutUint32(buf[:], math.Float32bits(float32(f)))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Float: %w", err)
 	}
@@ -174,9 +174,9 @@ func (d *Double) ReadFrom(r io.Reader) (n int64, err error) {
 	return 8, nil
 }
 
-func (d *Double) WriteTo(w io.Writer) (n int64, err error) {
+func (d Double) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], math.Float64bits(float64(*d)))
+	binary.BigEndian.PutUint64(buf[:], math.Float64bits(float64(d)))
 	if _, err = w.Write(buf[:]); err != nil {
 		return 0, fmt.Errorf("error writing Double: %w", err)
 	}
@@ -198,13 +198,13 @@ func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
 	return nLen + int64(nStr), nil
 }
 
-func (s *String) WriteTo(w io.Writer) (n int64, err error) {
-	length := VarInt(len(*s))
+func (s String) WriteTo(w io.Writer) (n int64, err error) {
+	length := VarInt(len(s))
 	n, err = length.WriteTo(w)
 	if err != nil {
 		return n, fmt.Errorf("error writing String length: %w", err)
 	}
-	nStr, err := w.Write([]byte(*s))
+	nStr, err := w.Write([]byte(s))
 	if err != nil {
 		return n + int64(nStr), fmt.Errorf("error writing String: %w", err)
 	}
@@ -231,8 +231,8 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, fmt.Errorf("VarInt too long")
 }
 
-func (v *VarInt) WriteTo(w io.Writer) (n int64, err error) {
-	val := *v
+func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
+	val := v
 	for {
 		temp := byte(val & 0x7F)
 		val >>= 7

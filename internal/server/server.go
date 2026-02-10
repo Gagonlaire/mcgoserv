@@ -131,6 +131,7 @@ func processIncomingPackets(s *Server) {
 					if !ok {
 						log.Printf("Missing handler for packet %d (0x%X) in state %d\n", pkt.ID, pkt.ID, conn.State)
 					}
+					pkt.Free()
 				}
 			default:
 				goto keepAlive
@@ -257,6 +258,7 @@ func (c *Connection) WriteLoop() {
 				}
 				return
 			}
+			pkt.Free()
 		}
 	}
 }

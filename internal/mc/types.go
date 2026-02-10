@@ -112,7 +112,12 @@ type (
 	BitSet struct {
 		PrefixedArray[Long]
 	}
-	// todo: docs
+	// FixedBitSet Encodes:
+	//  - A FixedBitSet https://minecraft.wiki/w/Java_Edition_protocol/Packets#Fixed_BitSet.
+	// Size:
+	//  - ceil(n / 8)
+	// Notes:
+	//  - A bit set with a fixed length of n bits.
 	FixedBitSet struct {
 		BitCount int
 		Data     []byte

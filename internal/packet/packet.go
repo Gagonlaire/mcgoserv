@@ -3,29 +3,37 @@ package packet
 import (
 	"bytes"
 	"fmt"
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"io"
 	"net"
+	"sync"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 )
+
+var packetPool = sync.Pool{
+	New: func() any {
+		return &Packet{
+			Buffer: bytes.NewBuffer(make([]byte, 0, 256)),
+		}
+	},
+}
 
 type Packet struct {
 	ID     mc.VarInt
 	Buffer *bytes.Buffer
 }
 
-func NewPacket(ID int, fields ...mc.Field) (*Packet, error) {
-	// todo: use a pool
-	buffer := bytes.NewBuffer(make([]byte, 0, 256))
-	packet := &Packet{
-		ID:     mc.VarInt(ID),
-		Buffer: buffer,
-	}
+func NewPacket(ID int, fields ...io.WriterTo) (*Packet, error) {
+	p := packetPool.Get().(*Packet)
+	p.ID = mc.VarInt(ID)
+	p.Buffer.Reset()
 
-	if err := packet.Encode(fields...); err != nil {
+	if err := p.Encode(fields...); err != nil {
+		p.Free()
 		return nil, fmt.Errorf("error encoding packet: %w", err)
 	}
 
-	return packet, nil
+	return p, nil
 }
 
 func Receive(conn net.Conn) (*Packet, error) {
@@ -45,10 +53,12 @@ func Receive(conn net.Conn) (*Packet, error) {
 		return nil, fmt.Errorf("error reading packet ID: %w", err)
 	}
 
-	return &Packet{
-		ID:     packetID,
-		Buffer: bytes.NewBuffer(packetData[n:]),
-	}, nil
+	p := packetPool.Get().(*Packet)
+	p.ID = packetID
+	p.Buffer.Reset()
+	p.Buffer.Write(packetData[n:])
+
+	return p, nil
 }
 
 func (p *Packet) Decode(fields ...mc.Field) error {
@@ -60,8 +70,7 @@ func (p *Packet) Decode(fields ...mc.Field) error {
 	return nil
 }
 
-func (p *Packet) Encode(fields ...mc.Field) error {
-	// todo: try to change to a any fields with casts, so it can accept local varibales (to use like: p.Encode(mc.String("example"), mc.Int(42))
+func (p *Packet) Encode(fields ...io.WriterTo) error {
 	for i, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
 			return fmt.Errorf("error encoding field %d: %w", i, err)
@@ -70,7 +79,7 @@ func (p *Packet) Encode(fields ...mc.Field) error {
 	return nil
 }
 
-func (p *Packet) ResetWith(ID int, fields ...mc.Field) error {
+func (p *Packet) ResetWith(ID int, fields ...io.WriterTo) error {
 	p.ID = mc.VarInt(ID)
 	p.Buffer.Reset()
 
@@ -84,9 +93,13 @@ func (p *Packet) Send(conn net.Conn) error {
 	_, _ = packetLength.WriteTo(buffer)
 	_, _ = p.ID.WriteTo(buffer)
 	_, _ = buffer.Write(p.Buffer.Bytes())
-
 	if _, err := conn.Write(buffer.Bytes()); err != nil {
 		return fmt.Errorf("error sending packet: %w", err)
 	}
+
 	return nil
+}
+
+func (p *Packet) Free() {
+	packetPool.Put(p)
 }
