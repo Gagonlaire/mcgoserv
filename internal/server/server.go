@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -20,14 +21,16 @@ const (
 	KeepAliveTimeout  = 300
 )
 
+type Ticker = systems.Ticker
 type Broadcaster = systems.Broadcaster[*Connection, *packet.Packet]
 type Router = systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
 
 type Server struct {
 	World       *world.World
-	Ticker      *systems.Ticker
+	Ticker      *Ticker
 	Broadcaster *Broadcaster
 	Router      *Router
+	Properties  *Properties
 	Addr        string
 	Connections sync.Map
 	ctx         context.Context
@@ -50,11 +53,17 @@ type Connection struct {
 }
 
 func NewServer() *Server {
+	props, err := LoadProperties("server.properties")
+	if err != nil {
+		log.Fatalf("Failed to load server.properties: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		Addr:   ":25565",
-		ctx:    ctx,
-		cancel: cancel,
+		Properties: props,
+		Addr:       fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
 	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
@@ -67,6 +76,9 @@ func NewServer() *Server {
 	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
 	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKnownPacks, (*Connection).HandleClientKnownPacksPacket)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundConfirmTeleportation, (*Connection).HandleConfirmTeleportationPacket)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPos, (*Connection).HandleMovePlayerPos)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPosRot, (*Connection).HandleMovePlayerPosRot)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerRot, (*Connection).HandleMovePlayerRot)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundClientTickEnd, (*Connection).HandleClientTickEnd)
 	// todo: maybe add debug logs after registering handlers
@@ -82,10 +94,12 @@ func NewServer() *Server {
 			})
 		},
 		func(conn *Connection, pkt *packet.Packet) {
+			pkt.Retain()
+
 			select {
 			case conn.OutboundPackets <- pkt:
 			default:
-				// todo: handle full channel
+				pkt.Free()
 			}
 		},
 	)
@@ -114,6 +128,7 @@ func updateTime(s *Server) {
 
 		s.World.NextTimeUpdate = s.World.Time + 20
 		s.Broadcaster.Broadcast(timePacket)
+		timePacket.Free()
 	}
 }
 
@@ -123,12 +138,19 @@ func processIncomingPackets(s *Server) {
 	s.Connections.Range(func(key, value any) bool {
 		conn := key.(*Connection)
 
+		// todo: move to a tick start or end handler
+		if conn.State == mc.StatePlay && conn.Player != nil {
+			conn.Player.Movement.PacketCount = 0
+			conn.Player.Movement.LastTickX = float64(conn.Player.X)
+			conn.Player.Movement.LastTickY = float64(conn.Player.Y)
+			conn.Player.Movement.LastTickZ = float64(conn.Player.Z)
+		}
+
 		for {
 			select {
 			case pkt := <-conn.InboundPackets:
 				{
-					ok := s.Router.Handle(conn.State, pkt.ID, conn, pkt)
-					if !ok {
+					if !s.Router.Handle(conn.State, pkt.ID, conn, pkt) {
 						log.Printf("Missing handler for packet %d (0x%X) in state %d\n", pkt.ID, pkt.ID, conn.State)
 					}
 					pkt.Free()
@@ -147,20 +169,7 @@ func processIncomingPackets(s *Server) {
 			}
 
 			if currentTick%KeepAliveInterval == 0 {
-				keepAliveID := mc.Long(currentTick)
-				var packetID int
-				// todo: replace with packet constants
-				if conn.State == mc.StatePlay {
-					packetID = 0x2B
-				} else {
-					packetID = 0x4
-				}
-
-				pkt, _ := packet.NewPacket(packetID, &keepAliveID)
-				conn.LastKeepAliveID = int64(keepAliveID)
-				select {
-				case conn.OutboundPackets <- pkt:
-				}
+				conn.SendKeepAlive()
 			}
 		}
 
@@ -252,13 +261,14 @@ func (c *Connection) WriteLoop() {
 		case <-c.ctx.Done():
 			return
 		case pkt := <-c.OutboundPackets:
-			if err := pkt.Send(c.Conn); err != nil {
+			err := pkt.Send(c.Conn)
+			pkt.Free()
+			if err != nil {
 				if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 					log.Printf("error sending packet from %s: %v", c.Conn.RemoteAddr(), err)
 				}
 				return
 			}
-			pkt.Free()
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 )
@@ -19,13 +20,15 @@ var packetPool = sync.Pool{
 }
 
 type Packet struct {
-	ID     mc.VarInt
-	Buffer *bytes.Buffer
+	ID       mc.VarInt
+	Buffer   *bytes.Buffer
+	refCount int32
 }
 
 func NewPacket(ID int, fields ...io.WriterTo) (*Packet, error) {
 	p := packetPool.Get().(*Packet)
 	p.ID = mc.VarInt(ID)
+	p.refCount = 1
 	p.Buffer.Reset()
 
 	if err := p.Encode(fields...); err != nil {
@@ -55,6 +58,7 @@ func Receive(conn net.Conn) (*Packet, error) {
 
 	p := packetPool.Get().(*Packet)
 	p.ID = packetID
+	p.refCount = 1
 	p.Buffer.Reset()
 	p.Buffer.Write(packetData[n:])
 
@@ -100,6 +104,22 @@ func (p *Packet) Send(conn net.Conn) error {
 	return nil
 }
 
+// Retain increments the reference count for the packet.
+// This method must be used when reusing a packet received from an external source
+// (such as a router handler) that currently holds ownership of it.
+// By calling Retain, you prevent the packet from being freed by the original owner.
+func (p *Packet) Retain() {
+	atomic.AddInt32(&p.refCount, 1)
+}
+
+// Free decrements the reference count for the packet and returns it to the pool if the count reaches zero.
 func (p *Packet) Free() {
-	packetPool.Put(p)
+	newRef := atomic.AddInt32(&p.refCount, -1)
+
+	if newRef < 0 {
+		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
+	}
+	if newRef == 0 {
+		packetPool.Put(p)
+	}
 }

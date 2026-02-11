@@ -21,22 +21,14 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return
 	}
 
-	c.Player = world.NewPlayer(c.server.World.GetNextEntityID(), PlayerUUID, string(Name), c.server.World)
-
+	c.Player = world.NewPlayer(c.server.World.GetNextEntityID(), PlayerUUID, Name, c.server.World)
 	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
-
-	if err := pkt.Send(c.Conn); err != nil {
-		fmt.Println("Error sending loginStart packet:", err)
-		return
-	}
+	_ = pkt.Send(c.Conn)
 }
 
 func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
 	c.State = mc.StateConfiguration
 
 	_ = pkt.ResetWith(packet.ConfigurationClientboundKnownPacks, &mc.ServerDataPacks)
-	if err := pkt.Send(c.Conn); err != nil {
-		fmt.Println("Error sending loginAck packet:", err)
-		return
-	}
+	_ = pkt.Send(c.Conn)
 }

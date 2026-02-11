@@ -7,13 +7,22 @@ import (
 type Player struct {
 	EntityID   mc.Int
 	UUID       mc.UUID
-	Name       string
+	Name       mc.String
 	World      *World
 	X, Y, Z    mc.Double
-	Yaw, Pitch float32
+	Yaw, Pitch mc.Float
+	onGround   mc.Boolean
+	Movement   MovementTracker
 }
 
-func NewPlayer(id mc.Int, uuid mc.UUID, name string, w *World) *Player {
+type MovementTracker struct {
+	PacketCount int
+	LastTickX   float64
+	LastTickY   float64
+	LastTickZ   float64
+}
+
+func NewPlayer(id mc.Int, uuid mc.UUID, name mc.String, w *World) *Player {
 	return &Player{
 		EntityID: id,
 		UUID:     uuid,
@@ -24,5 +33,8 @@ func NewPlayer(id mc.Int, uuid mc.UUID, name string, w *World) *Player {
 		Z:        0,
 		Yaw:      0,
 		Pitch:    0,
+		Movement: MovementTracker{
+			LastTickY: 80,
+		},
 	}
 }

@@ -19,6 +19,7 @@ const (
 
 const (
 	ConfigurationClientboundFinishConfiguration            = 0x03
+	ConfigurationClientboundKeepAlive                      = 0x04
 	ConfigurationClientboundRegistryData                   = 0x07
 	ConfigurationClientboundKnownPacks                     = 0x0E
 	ConfigurationServerboundAcknowledgeFinishConfiguration = 0x03
@@ -27,15 +28,23 @@ const (
 )
 
 const (
-	PlayClientboundSpawnEntity                  = 0x01
-	PlayClientboundGameEvent                    = 0x26
-	PlayClientboundChunkDataAndUpdateLight      = 0x2C
-	PlayClientboundLogin                        = 0x30
-	PlayClientboundPlayerInfoUpdate             = 0x44
-	PlayClientboundSynchronizePlayerPosition    = 0x46
-	PlayClientboundSetTime                      = 0x6F
-	PlayServerboundConfirmTeleportation         = 0x00
-	PlayServerboundClientTickEnd                = 0x0C
-	PlayServerboundKeepAlive                    = 0x1B
-	PlayServerboundSetPlayerPositionAndRotation = 0x1E
+	PlayClientboundSpawnEntity                = 0x01
+	PlayClientboundGameEvent                  = 0x26
+	PlayClientboundUpdateEntityPosition       = 0x33
+	PlayClientboundUpdateEntityPositionAndRot = 0x34
+	PlayClientboundUpdateEntityRotation       = 0x36
+	PlayClientboundKeepAlive                  = 0x2B
+	PlayClientboundChunkDataAndUpdateLight    = 0x2C
+	PlayClientboundLogin                      = 0x30
+	PlayClientboundPlayerInfoUpdate           = 0x44
+	PlayClientboundSynchronizePlayerPosition  = 0x46
+	PlayClientboundRotateHead                 = 0x51
+	PlayClientboundSetTime                    = 0x6F
+	PlayClientboundTeleportEntity             = 0x23
+	PlayServerboundConfirmTeleportation       = 0x00
+	PlayServerboundClientTickEnd              = 0x0C
+	PlayServerboundKeepAlive                  = 0x1B
+	PlayServerboundMovePlayerPos              = 0x1D
+	PlayServerboundMovePlayerPosRot           = 0x1E
+	PlayServerboundMovePlayerRot              = 0x1F
 )
