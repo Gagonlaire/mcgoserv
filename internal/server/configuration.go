@@ -31,96 +31,58 @@ func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 
 // todo: we should move packet sent to methods
 func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
-	c.State = mc.StatePlay
 	c.server.World.AddPlayer(c.Player)
-	// todo: check for entity id generation
-	// todo: dimensionType should automatically send the good id
-	// todo: create the optional type that should take a pointer to a value and is evaluated during the packet send/receive
-	var (
-		eID                 = c.Player.EntityID
-		isHardcore          = mc.Boolean(false)
-		dimensionNames      = []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
-		maxPlayers          = mc.VarInt(20)
-		viewDistance        = mc.VarInt(32)
-		simulationDistance  = mc.VarInt(32)
-		reduceDebugInfo     = mc.Boolean(false)
-		enableRespawnScreen = mc.Boolean(true)
-		doLimitedCrafting   = mc.Boolean(false)
-		dimensionType       = mc.VarInt(0)
-		dimensionName       = mc.String("minecraft:overworld")
-		hashedSeed          = mc.Long(1)
-		gameMode            = mc.UnsignedByte(0)
-		previousGameMode    = mc.Byte(-1)
-		isDebug             = mc.Boolean(false)
-		isFlat              = mc.Boolean(false)
-		hasDeathLocation    = mc.Boolean(false)
-		portalCooldown      = mc.VarInt(100)
-		seaLevel            = mc.VarInt(64)
-		enforceSecureChat   = mc.Boolean(false)
-	)
-
-	var (
-		teleportId = mc.VarInt(0)
-		x          = mc.Double(0.0)
-		y          = mc.Double(80)
-		z          = mc.Double(0.0)
-		velocityX  = mc.Double(0.0)
-		velocityY  = mc.Double(0.0)
-		velocityZ  = mc.Double(0.0)
-		yaw        = mc.Float(0.0)
-		pitch      = mc.Float(0.0)
-		flags      = mc.Int(0)
-	)
-
-	var (
-		event = mc.UnsignedByte(13)
-		value = mc.Float(0.0)
-	)
+	c.State = mc.StatePlay
+	dimensionsName := []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundLogin,
-		&eID,
-		&isHardcore,
-		mc.NewPrefixedArray(&dimensionNames),
-		&maxPlayers,
-		&viewDistance,
-		&simulationDistance,
-		&reduceDebugInfo,
-		&enableRespawnScreen,
-		&doLimitedCrafting,
-		&dimensionType,
-		&dimensionName,
-		&hashedSeed,
-		&gameMode,
-		&previousGameMode,
-		&isDebug,
-		&isFlat,
-		&hasDeathLocation,
-		&portalCooldown,
-		&seaLevel,
-		&enforceSecureChat,
+		mc.Int(c.Player.EntityID),
+		mc.Boolean(c.server.Properties.Hardcore),
+		mc.NewPrefixedArray(&dimensionsName),
+		mc.VarInt(c.server.Properties.MaxPlayers),
+		mc.VarInt(c.server.Properties.ViewDistance),
+		mc.VarInt(c.server.Properties.SimulationDistance),
+		mc.Boolean(false),
+		mc.Boolean(true),
+		mc.Boolean(false),
+		// todo: get the correct dimension type and name from player
+		mc.VarInt(0),
+		mc.String("minecraft:overworld"),
+		// todo: hash world see
+		mc.Long(1),
+		c.Player.GameMode,
+		c.Player.PreviousGameMode,
+		mc.Boolean(false),
+		mc.Boolean(false),
+		// todo: get the correct value
+		mc.Boolean(false),
+		mc.VarInt(100),
+		mc.VarInt(64),
+		mc.Boolean(false),
 	)
 	_ = pkt.Send(c.Conn)
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundSynchronizePlayerPosition,
-		&teleportId,
-		&x,
-		&y,
-		&z,
-		&velocityX,
-		&velocityY,
-		&velocityZ,
-		&yaw,
-		&pitch,
-		&flags,
+		mc.VarInt(0),
+		c.Player.Position.X,
+		c.Player.Position.Y,
+		c.Player.Position.Z,
+		// todo: replace with velocity
+		mc.Double(0.0),
+		mc.Double(0.0),
+		mc.Double(0.0),
+		c.Player.Position.Yaw,
+		c.Player.Position.Pitch,
+		mc.Int(0),
 	)
 	_ = pkt.Send(c.Conn)
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundGameEvent,
-		&event,
-		&value,
+		mc.UnsignedByte(13),
+		mc.Float(0.0),
 	)
 	_ = pkt.Send(c.Conn)
 
@@ -133,14 +95,11 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions, allPlayers)
 	_ = pkt1.Send(c.Conn)
 
-	worldAge := mc.Long(c.server.World.Time)
-	timeOfDay := mc.Long(c.server.World.DayTime)
-	timeOfDayIncreasing := mc.Boolean(true)
 	_ = pkt.ResetWith(
 		packet.PlayClientboundSetTime,
-		&worldAge,
-		&timeOfDay,
-		&timeOfDayIncreasing,
+		mc.Long(c.server.World.Time),
+		mc.Long(c.server.World.DayTime),
+		mc.Boolean(true),
 	)
 	_ = pkt.Send(c.Conn)
 
@@ -161,16 +120,16 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	}
 	zeroAngle := mc.Angle(0)
 	data := mc.VarInt(0)
-	eID2 := mc.VarInt(c.Player.EntityID)
+	eID2 := c.Player.EntityID
 	// spawn newly connected player
 	pkt, _ = packet.NewPacket(
 		packet.PlayClientboundSpawnEntity,
 		&eID2,
 		&c.Player.UUID,
 		&entityType,
-		&c.Player.X,
-		&c.Player.Y,
-		&c.Player.Z,
+		&c.Player.Position.X,
+		&c.Player.Position.Y,
+		&c.Player.Position.Z,
 		&velocity,
 		&zeroAngle,
 		&zeroAngle,
@@ -182,16 +141,14 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		conn := k.(*Connection)
 
 		if conn.Player.UUID != c.Player.UUID {
-			eID3 := mc.VarInt(conn.Player.EntityID)
-
 			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundSpawnEntity,
-				&eID3,
+				conn.Player.EntityID,
 				&conn.Player.UUID,
-				&entityType,
-				&conn.Player.X,
-				&conn.Player.Y,
-				&conn.Player.Z,
+				entityType,
+				&conn.Player.Position.X,
+				&conn.Player.Position.Y,
+				&conn.Player.Position.Z,
 				&velocity,
 				&zeroAngle,
 				&zeroAngle,

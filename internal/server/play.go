@@ -16,7 +16,7 @@ const (
 )
 
 func (c *Connection) Teleport(x, y, z mc.Double, yaw, pitch mc.Float) {
-	// todo: correct usage of tp id and flags
+	// todo: correct usage of tp id and flags, also add velocity
 	pkt, _ := packet.NewPacket(packet.PlayClientboundSynchronizePlayerPosition,
 		x, y, z,
 		yaw, pitch,
@@ -56,9 +56,9 @@ func (c *Connection) HandleMovePlayerPos(pkt *packet.Packet) {
 		log.Printf("Error decoding move player pos packet: %v", err)
 		return
 	}
-	oldX, oldY, oldZ := c.Player.X, c.Player.Y, c.Player.Z
+	oldX, oldY, oldZ := c.Player.Position.X, c.Player.Position.Y, c.Player.Position.Z
 	if c.handlePositionUpdate(float64(x), float64(y), float64(z)) {
-		c.syncMovement(float64(oldX), float64(oldY), float64(oldZ), bool(onGround), true, false)
+		c.syncMovement(float64(oldX), float64(oldY), float64(oldZ), true, false)
 	}
 }
 
@@ -72,12 +72,12 @@ func (c *Connection) HandleMovePlayerPosRot(pkt *packet.Packet) {
 		return
 	}
 
-	oldX, oldY, oldZ := c.Player.X, c.Player.Y, c.Player.Z
+	oldX, oldY, oldZ := c.Player.Position.X, c.Player.Position.Y, c.Player.Position.Z
 	posValid := c.handlePositionUpdate(float64(x), float64(y), float64(z))
 	rotValid := c.handleRotationUpdate(float32(yaw), float32(pitch))
 
 	if posValid || rotValid {
-		c.syncMovement(float64(oldX), float64(oldY), float64(oldZ), bool(onGround), posValid, rotValid)
+		c.syncMovement(float64(oldX), float64(oldY), float64(oldZ), posValid, rotValid)
 	}
 }
 
@@ -91,7 +91,7 @@ func (c *Connection) HandleMovePlayerRot(pkt *packet.Packet) {
 	}
 
 	if c.handleRotationUpdate(float32(yaw), float32(pitch)) {
-		c.syncMovement(float64(c.Player.X), float64(c.Player.Y), float64(c.Player.Z), bool(onGround), false, true)
+		c.syncMovement(float64(c.Player.Position.X), float64(c.Player.Position.Y), float64(c.Player.Position.Z), false, true)
 	}
 }
 
@@ -125,54 +125,53 @@ func (c *Connection) handlePositionUpdate(x, y, z float64) bool {
 	maxDistSq := 100.0 * float64(multiplier)
 	if distSq-velocitySq > maxDistSq {
 		log.Printf("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
-		c.Teleport(c.Player.X, c.Player.Y, c.Player.Z, c.Player.Yaw, c.Player.Pitch)
+		c.Teleport(c.Player.Position.X, c.Player.Position.Y, c.Player.Position.Z, c.Player.Position.Yaw, c.Player.Position.Pitch)
 		return false
 	}
 
-	c.Player.X = mc.Double(x)
-	c.Player.Y = mc.Double(y)
-	c.Player.Z = mc.Double(z)
-	// todo: handle onGround
+	c.Player.Position.X = mc.Double(x)
+	c.Player.Position.Y = mc.Double(y)
+	c.Player.Position.Z = mc.Double(z)
 
 	return true
 }
 
-func (c *Connection) syncMovement(oldX, oldY, oldZ float64, onGround, posChanged, rotChanged bool) {
-	deltaX := int64(float64(c.Player.X)*fixedPointMultiplier - oldX*fixedPointMultiplier)
-	deltaY := int64(float64(c.Player.Y)*fixedPointMultiplier - oldY*fixedPointMultiplier)
-	deltaZ := int64(float64(c.Player.Z)*fixedPointMultiplier - oldZ*fixedPointMultiplier)
+func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChanged bool) {
+	deltaX := int64(float64(c.Player.Position.X)*fixedPointMultiplier - oldX*fixedPointMultiplier)
+	deltaY := int64(float64(c.Player.Position.Y)*fixedPointMultiplier - oldY*fixedPointMultiplier)
+	deltaZ := int64(float64(c.Player.Position.Z)*fixedPointMultiplier - oldZ*fixedPointMultiplier)
 	needsTeleport := deltaX > maxDelta || deltaX < minDelta ||
 		deltaY > maxDelta || deltaY < minDelta ||
 		deltaZ > maxDelta || deltaZ < minDelta
 
 	if needsTeleport {
-		c.broadcastTeleport(onGround)
+		c.broadcastTeleport()
 		return
 	}
 
-	yaw := mc.Angle(c.Player.Yaw / 360.0 * 256.0)
-	pitch := mc.Angle(c.Player.Pitch / 360.0 * 256.0)
+	yaw := mc.Angle(c.Player.Position.Yaw / 360.0 * 256.0)
+	pitch := mc.Angle(c.Player.Position.Pitch / 360.0 * 256.0)
 	var pkt *packet.Packet
 
 	switch {
 	case posChanged && rotChanged:
 		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityPositionAndRot,
-			mc.VarInt(c.Player.EntityID),
+			c.Player.EntityID,
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
 			yaw, pitch,
-			mc.Boolean(onGround),
+			mc.Boolean(c.Player.Position.Flags == 1),
 		)
 	case posChanged:
 		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityPosition,
-			mc.VarInt(c.Player.EntityID),
+			c.Player.EntityID,
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
-			mc.Boolean(onGround),
+			mc.Boolean(c.Player.Position.Flags == 1),
 		)
 	case rotChanged:
 		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityRotation,
-			mc.VarInt(c.Player.EntityID),
+			c.Player.EntityID,
 			yaw, pitch,
-			mc.Boolean(onGround),
+			mc.Boolean(c.Player.Position.Flags == 1),
 		)
 	}
 
@@ -180,7 +179,7 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, onGround, posChanged
 
 	if rotChanged {
 		pktHead, _ := packet.NewPacket(packet.PlayClientboundRotateHead,
-			mc.VarInt(c.Player.EntityID),
+			c.Player.EntityID,
 			yaw,
 		)
 		c.server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
@@ -195,8 +194,8 @@ func (c *Connection) handleRotationUpdate(yaw, pitch float32) bool {
 		return false
 	}
 
-	c.Player.Yaw = mc.Float(yaw)
-	c.Player.Pitch = mc.Float(pitch)
+	c.Player.Position.Yaw = mc.Float(yaw)
+	c.Player.Position.Pitch = mc.Float(pitch)
 	return true
 }
 
@@ -216,13 +215,106 @@ func (c *Connection) SendKeepAlive() {
 	c.Send(pkt)
 }
 
-func (c *Connection) broadcastTeleport(onGround bool) {
+func (c *Connection) broadcastTeleport() {
 	pkt, _ := packet.NewPacket(packet.PlayClientboundTeleportEntity,
-		mc.VarInt(c.Player.EntityID),
-		c.Player.X, c.Player.Y, c.Player.Z,
+		c.Player.EntityID,
+		c.Player.Position.X, c.Player.Position.Y, c.Player.Position.Z,
 		mc.Double(0), mc.Double(0), mc.Double(0),
-		c.Player.Yaw*256/360, c.Player.Pitch*256/360,
-		mc.Boolean(onGround),
+		c.Player.Position.Yaw*256/360, c.Player.Position.Pitch*256/360,
+		c.Player.Position.Flags,
 	)
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+}
+
+func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
+	var eID mc.VarInt
+	var actionID mc.VarInt
+	var jumpBoost mc.VarInt
+
+	if err := pkt.Decode(&eID, &actionID, &jumpBoost); err != nil {
+		log.Printf("Error decoding player command packet: %v", err)
+	}
+
+	switch mc.PlayerCommand(actionID) {
+	case mc.ActionStartSprinting:
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			c.Player.EntityID,
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0x08),
+			mc.UnsignedByte(0xff),
+		)
+		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	case mc.ActionStopSprinting:
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			c.Player.EntityID,
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0),
+			mc.UnsignedByte(0xff),
+		)
+		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	}
+}
+
+func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
+	var input mc.UnsignedByte
+
+	if err := pkt.Decode(&input); err != nil {
+		log.Printf("Error decoding player input packet: %v", err)
+	}
+
+	c.Player.Input = input
+
+	if input&mc.InputSneak != 0 {
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			c.Player.EntityID,
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0x08),
+			mc.UnsignedByte(6),
+			mc.VarInt(20),
+			mc.VarInt(mc.PoseSneaking),
+			mc.UnsignedByte(0xff),
+		)
+		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	} else {
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			c.Player.EntityID,
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0),
+			mc.UnsignedByte(6),
+			mc.VarInt(20),
+			mc.VarInt(mc.PoseStanding),
+			mc.UnsignedByte(0xff),
+		)
+		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	}
+}
+
+func (c *Connection) HandlePlayerLoaded(_ *packet.Packet) {
+	c.Player.Loaded = true
+}
+
+func (c *Connection) HandleMovePlayerStatusOnly(pkt *packet.Packet) {
+	var newFlags mc.Byte
+
+	if err := pkt.Decode(&newFlags); err != nil {
+		log.Printf("Error decoding move player status only packet: %v", err)
+		return
+	}
+	c.Player.Position.Flags = newFlags
+	// we use entity rotation because this is the smallest packer that can send flags
+	c.syncMovement(
+		float64(c.Player.Position.X),
+		float64(c.Player.Position.Y),
+		float64(c.Player.Position.Z),
+		false,
+		true,
+	)
 }

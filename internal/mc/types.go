@@ -12,9 +12,6 @@ type Field interface {
 	io.WriterTo
 }
 
-// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
-type PlayerAction = UnsignedByte
-
 type (
 	// Boolean Encodes:
 	//  - Either false or true.
@@ -161,7 +158,16 @@ type (
 	}
 )
 
+// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
+type PlayerAction = UnsignedByte
+
+type PlayerInput = UnsignedByte
+
+type PlayerCommand int
+
 type State int
+
+type Pose int
 
 //go:generate-field-impl
 type DataPackIdentifier struct {

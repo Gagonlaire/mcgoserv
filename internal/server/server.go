@@ -81,6 +81,10 @@ func NewServer() *Server {
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerRot, (*Connection).HandleMovePlayerRot)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundClientTickEnd, (*Connection).HandleClientTickEnd)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerLoaded, (*Connection).HandlePlayerLoaded)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerStatusOnly, (*Connection).HandleMovePlayerStatusOnly)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerCommand, (*Connection).HandlePlayerCommand)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerInput, (*Connection).HandlePlayerInput)
 	// todo: maybe add debug logs after registering handlers
 
 	server.Broadcaster = systems.NewBroadcaster(
@@ -139,17 +143,23 @@ func processIncomingPackets(s *Server) {
 		conn := key.(*Connection)
 
 		// todo: move to a tick start or end handler
-		if conn.State == mc.StatePlay && conn.Player != nil {
+		// todo: fix disconnect logic, loop seems to run after after the disconnect, nullptr on player
+		if conn.Player != nil {
 			conn.Player.Movement.PacketCount = 0
-			conn.Player.Movement.LastTickX = float64(conn.Player.X)
-			conn.Player.Movement.LastTickY = float64(conn.Player.Y)
-			conn.Player.Movement.LastTickZ = float64(conn.Player.Z)
+			conn.Player.Movement.LastTickX = float64(conn.Player.Position.X)
+			conn.Player.Movement.LastTickY = float64(conn.Player.Position.Y)
+			conn.Player.Movement.LastTickZ = float64(conn.Player.Position.Z)
 		}
 
 		for {
 			select {
 			case pkt := <-conn.InboundPackets:
 				{
+					if !conn.Player.Loaded &&
+						!(pkt.ID == packet.PlayServerboundKeepAlive || pkt.ID == packet.PlayServerboundPlayerLoaded) {
+						pkt.Free()
+						continue
+					}
 					if !s.Router.Handle(conn.State, pkt.ID, conn, pkt) {
 						log.Printf("Missing handler for packet %d (0x%X) in state %d\n", pkt.ID, pkt.ID, conn.State)
 					}
@@ -160,6 +170,7 @@ func processIncomingPackets(s *Server) {
 			}
 		}
 
+		// todo: fix, configuration keep alive cannot be reached there
 	keepAlive:
 		if conn.State == mc.StatePlay || conn.State == mc.StateConfiguration {
 			if currentTick-conn.LastKeepAlive > KeepAliveTimeout {
@@ -250,7 +261,13 @@ func (c *Connection) ReadLoop() {
 			}
 			return
 		}
-		c.InboundPackets <- pkt
+		// If not in play state, we don't use the ticking system to avoid artificial delay of packets
+		if c.State == mc.StatePlay {
+			c.InboundPackets <- pkt
+		} else {
+			c.server.Router.Handle(c.State, pkt.ID, c, pkt)
+			pkt.Free()
+		}
 	}
 }
 

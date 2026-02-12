@@ -21,13 +21,14 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return
 	}
 
-	c.Player = world.NewPlayer(c.server.World.GetNextEntityID(), PlayerUUID, Name, c.server.World)
+	c.Player = world.NewPlayer(mc.VarInt(c.server.World.GetNextEntityID()), PlayerUUID, Name, c.server.World)
 	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
 	_ = pkt.Send(c.Conn)
 }
 
 func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
 	c.State = mc.StateConfiguration
+	c.LastKeepAlive = c.server.World.Time
 
 	_ = pkt.ResetWith(packet.ConfigurationClientboundKnownPacks, &mc.ServerDataPacks)
 	_ = pkt.Send(c.Conn)

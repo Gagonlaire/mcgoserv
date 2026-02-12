@@ -39,6 +39,7 @@ const (
 	PlayClientboundPlayerInfoUpdate           = 0x44
 	PlayClientboundSynchronizePlayerPosition  = 0x46
 	PlayClientboundRotateHead                 = 0x51
+	PlayClientboundSetEntityData              = 0x61
 	PlayClientboundSetTime                    = 0x6F
 	PlayClientboundTeleportEntity             = 0x23
 	PlayServerboundConfirmTeleportation       = 0x00
@@ -47,4 +48,8 @@ const (
 	PlayServerboundMovePlayerPos              = 0x1D
 	PlayServerboundMovePlayerPosRot           = 0x1E
 	PlayServerboundMovePlayerRot              = 0x1F
+	PlayServerboundMovePlayerStatusOnly       = 0x20
+	PlayServerboundPlayerCommand              = 0x29
+	PlayServerboundPlayerInput                = 0x2A
+	PlayServerboundPlayerLoaded               = 0x2B
 )

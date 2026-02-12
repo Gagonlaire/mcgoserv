@@ -8,7 +8,27 @@ const (
 	StateLogin
 	StateConfiguration
 	StatePlay
-	StateMax
+)
+
+const (
+	PoseStanding Pose = iota
+	PoseFallFlying
+	PoseSleeping
+	PoseSwimming
+	PoseSpinAttack
+	PoseSneaking
+	PoseLongJumping
+	PoseDying
+	PoseCroaking
+	PoseUsingTongue
+	PoseSitting
+	PoseRoaring
+	PoseSniffing
+	PoseEmerging
+	PoseDigging
+	PoseSliding
+	PoseShooting
+	PoseInhaling
 )
 
 const (
@@ -25,6 +45,26 @@ const (
 	ActionUpdateDisplayName  PlayerAction = 1 << 5 // 32
 	ActionUpdateListPriority PlayerAction = 1 << 6 // 64
 	ActionUpdateHat          PlayerAction = 1 << 7 // 128
+)
+
+const (
+	ActionLeaveBed             PlayerCommand = 0
+	ActionStartSprinting       PlayerCommand = 1
+	ActionStopSprinting        PlayerCommand = 2
+	ActionStartJumpWithHorse   PlayerCommand = 3
+	ActionStopJumpWithHorse    PlayerCommand = 4
+	ActionOpenVehicleInventory PlayerCommand = 5
+	ActionFlyingWithElytra     PlayerCommand = 6
+)
+
+const (
+	InputForward PlayerInput = 1 << 0
+	InputBack    PlayerInput = 1 << 1
+	InputLeft    PlayerInput = 1 << 2
+	InputRight   PlayerInput = 1 << 3
+	InputJump    PlayerInput = 1 << 4
+	InputSneak   PlayerInput = 1 << 5
+	InputSprint  PlayerInput = 1 << 6
 )
 
 const (
