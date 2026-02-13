@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"sync"
@@ -36,20 +34,6 @@ type Server struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
-}
-
-type Connection struct {
-	server          *Server
-	Player          *world.Player
-	Conn            net.Conn
-	State           mc.State
-	InboundPackets  chan *packet.Packet
-	OutboundPackets chan *packet.Packet
-	LastKeepAlive   int64
-	LastKeepAliveID int64
-	ctx             context.Context
-	cancel          context.CancelFunc
-	closeOnce       sync.Once
 }
 
 func NewServer() *Server {
@@ -146,9 +130,9 @@ func processIncomingPackets(s *Server) {
 		// todo: fix disconnect logic, loop seems to run after after the disconnect, nullptr on player
 		if conn.Player != nil {
 			conn.Player.Movement.PacketCount = 0
-			conn.Player.Movement.LastTickX = float64(conn.Player.Position.X)
-			conn.Player.Movement.LastTickY = float64(conn.Player.Position.Y)
-			conn.Player.Movement.LastTickZ = float64(conn.Player.Position.Z)
+			conn.Player.Movement.LastTickX = conn.Player.Pos[0]
+			conn.Player.Movement.LastTickY = conn.Player.Pos[1]
+			conn.Player.Movement.LastTickZ = conn.Player.Pos[2]
 		}
 
 		for {
@@ -186,23 +170,6 @@ func processIncomingPackets(s *Server) {
 
 		return true
 	})
-}
-
-func (s *Server) NewConnection(conn net.Conn) *Connection {
-	ctx, cancel := context.WithCancel(s.ctx)
-	newConnection := &Connection{
-		server:          s,
-		Conn:            conn,
-		State:           mc.StateHandshake,
-		InboundPackets:  make(chan *packet.Packet, ChannelSize),
-		OutboundPackets: make(chan *packet.Packet, ChannelSize),
-		LastKeepAlive:   s.World.Time,
-		ctx:             ctx,
-		cancel:          cancel,
-	}
-
-	s.Connections.Store(newConnection, struct{}{})
-	return newConnection
 }
 
 func (s *Server) Start() {
@@ -243,60 +210,4 @@ func (s *Server) Stop() {
 	s.cancel()
 	s.wg.Wait()
 	s.Ticker.Stop()
-}
-
-func (c *Connection) ReadLoop() {
-	defer c.close()
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		default:
-		}
-
-		pkt, err := packet.Receive(c.Conn)
-		if err != nil {
-			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-				log.Printf("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
-			}
-			return
-		}
-		// If not in play state, we don't use the ticking system to avoid artificial delay of packets
-		if c.State == mc.StatePlay {
-			c.InboundPackets <- pkt
-		} else {
-			c.server.Router.Handle(c.State, pkt.ID, c, pkt)
-			pkt.Free()
-		}
-	}
-}
-
-func (c *Connection) WriteLoop() {
-	defer c.close()
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case pkt := <-c.OutboundPackets:
-			err := pkt.Send(c.Conn)
-			pkt.Free()
-			if err != nil {
-				if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-					log.Printf("error sending packet from %s: %v", c.Conn.RemoteAddr(), err)
-				}
-				return
-			}
-		}
-	}
-}
-
-func (c *Connection) close() {
-	c.closeOnce.Do(func() {
-		c.cancel()
-		if c.Player != nil {
-			c.server.World.RemovePlayer(c.Player.UUID)
-		}
-		c.server.Connections.Delete(c)
-		_ = c.Conn.Close()
-	})
 }

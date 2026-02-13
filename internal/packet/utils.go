@@ -6,13 +6,15 @@ import (
 )
 
 func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*world.Player) (*Packet, error) {
+	// todo: i'm not sure this should be here
 	packet, _ := NewPacket(PlayClientboundPlayerInfoUpdate)
 
 	_ = packet.Encode(&actions)
 	playerCount := mc.VarInt(len(players))
 	_ = packet.Encode(&playerCount)
 	for _, player := range players {
-		_ = packet.Encode(&player.UUID)
+		uuid := mc.UUID(player.UUID)
+		_ = packet.Encode(&uuid)
 
 		for bit := 0; bit < 8; bit++ {
 			currentAction := mc.PlayerAction(1 << bit)

@@ -43,17 +43,17 @@ func Receive(conn net.Conn) (*Packet, error) {
 	var packetLength, packetID mc.VarInt
 
 	if _, err := packetLength.ReadFrom(conn); err != nil {
-		return nil, fmt.Errorf("error reading packet length: %w", err)
+		return nil, err
 	}
 
 	packetData := make([]byte, int(packetLength))
 	if _, err := io.ReadFull(conn, packetData); err != nil {
-		return nil, fmt.Errorf("error reading packet data (expected %d bytes): %w", packetLength, err)
+		return nil, err
 	}
 
 	n, err := packetID.ReadFrom(bytes.NewBuffer(packetData))
 	if err != nil {
-		return nil, fmt.Errorf("error reading packet ID: %w", err)
+		return nil, err
 	}
 
 	p := packetPool.Get().(*Packet)

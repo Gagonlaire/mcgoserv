@@ -9,6 +9,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
+	"github.com/Tnze/go-mc/nbt"
 )
 
 func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
@@ -49,10 +50,10 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		// todo: get the correct dimension type and name from player
 		mc.VarInt(0),
 		mc.String("minecraft:overworld"),
-		// todo: hash world see
+		// todo: hash world seed
 		mc.Long(1),
-		c.Player.GameMode,
-		c.Player.PreviousGameMode,
+		mc.UnsignedByte(c.Player.GameMode),
+		mc.Byte(c.Player.PreviousGameMode),
 		mc.Boolean(false),
 		mc.Boolean(false),
 		// todo: get the correct value
@@ -66,15 +67,15 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	_ = pkt.ResetWith(
 		packet.PlayClientboundSynchronizePlayerPosition,
 		mc.VarInt(0),
-		c.Player.Position.X,
-		c.Player.Position.Y,
-		c.Player.Position.Z,
+		mc.Double(c.Player.Pos[0]),
+		mc.Double(c.Player.Pos[1]),
+		mc.Double(c.Player.Pos[2]),
 		// todo: replace with velocity
-		mc.Double(0.0),
-		mc.Double(0.0),
-		mc.Double(0.0),
-		c.Player.Position.Yaw,
-		c.Player.Position.Pitch,
+		mc.Double(c.Player.Motion[0]),
+		mc.Double(c.Player.Motion[1]),
+		mc.Double(c.Player.Motion[2]),
+		mc.Float(c.Player.Rot[0]),
+		mc.Float(c.Player.Rot[1]),
 		mc.Int(0),
 	)
 	_ = pkt.Send(c.Conn)
@@ -120,16 +121,17 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	}
 	zeroAngle := mc.Angle(0)
 	data := mc.VarInt(0)
-	eID2 := c.Player.EntityID
+	eID2 := mc.VarInt(c.Player.EntityID)
+	uuid := mc.UUID(c.Player.UUID)
 	// spawn newly connected player
 	pkt, _ = packet.NewPacket(
 		packet.PlayClientboundSpawnEntity,
 		&eID2,
-		&c.Player.UUID,
+		&uuid,
 		&entityType,
-		&c.Player.Position.X,
-		&c.Player.Position.Y,
-		&c.Player.Position.Z,
+		mc.Double(c.Player.Pos[0]),
+		mc.Double(c.Player.Pos[1]),
+		mc.Double(c.Player.Pos[2]),
 		&velocity,
 		&zeroAngle,
 		&zeroAngle,
@@ -141,14 +143,16 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		conn := k.(*Connection)
 
 		if conn.Player.UUID != c.Player.UUID {
+			uuid := mc.UUID(conn.Player.UUID)
+
 			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundSpawnEntity,
-				conn.Player.EntityID,
-				&conn.Player.UUID,
+				mc.VarInt(conn.Player.EntityID),
+				&uuid,
 				entityType,
-				&conn.Player.Position.X,
-				&conn.Player.Position.Y,
-				&conn.Player.Position.Z,
+				mc.Double(conn.Player.Pos[0]),
+				mc.Double(conn.Player.Pos[1]),
+				mc.Double(conn.Player.Pos[2]),
 				&velocity,
 				&zeroAngle,
 				&zeroAngle,
@@ -160,4 +164,20 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		}
 		return true
 	})
+
+	// todo: replace with a flexible type
+	type PlayerJoined struct {
+		Text  string `nbt:"text"`
+		Color string `nbt:"color,omitempty"`
+	}
+	component := PlayerJoined{
+		Text:  string(c.Player.Name) + " joined the game",
+		Color: "yellow",
+	}
+	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat)
+	encoder := nbt.NewEncoder(pkt.Buffer)
+	encoder.NetworkFormat(true)
+	_ = encoder.Encode(component, "")
+	_ = pkt.Encode(mc.Boolean(false))
+	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }

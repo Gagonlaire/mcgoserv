@@ -1,7 +1,7 @@
 package world
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/google/uuid"
 )
 
 type World struct {
@@ -11,8 +11,8 @@ type World struct {
 	DayTime        int64
 	Day            int64
 	NextTimeUpdate int64
-	Players        map[mc.UUID]*Player
-	lastEntityID   mc.Int
+	Players        map[uuid.UUID]*Player
+	lastEntityID   int32
 }
 
 type GameRules struct {
@@ -36,7 +36,7 @@ func NewWorld() *World {
 				Type: DefaultDimensionsType["minecraft:the_end"],
 			},
 		},
-		Players: make(map[mc.UUID]*Player),
+		Players: make(map[uuid.UUID]*Player),
 	}
 
 	for _, v := range world.Dimensions {
@@ -46,7 +46,7 @@ func NewWorld() *World {
 	return world
 }
 
-func (w *World) GetNextEntityID() mc.Int {
+func (w *World) GetNextEntityID() int32 {
 	// todo: replace with a real id distribution
 	w.lastEntityID++
 	return w.lastEntityID
@@ -56,6 +56,6 @@ func (w *World) AddPlayer(p *Player) {
 	w.Players[p.UUID] = p
 }
 
-func (w *World) RemovePlayer(uuid mc.UUID) {
+func (w *World) RemovePlayer(uuid uuid.UUID) {
 	delete(w.Players, uuid)
 }

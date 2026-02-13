@@ -6,6 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
+	"github.com/google/uuid"
 )
 
 func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
@@ -21,7 +22,17 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return
 	}
 
-	c.Player = world.NewPlayer(mc.VarInt(c.server.World.GetNextEntityID()), PlayerUUID, Name, c.server.World)
+	c.server.Connections.Range(func(k, v interface{}) bool {
+		conn := k.(*Connection)
+
+		if conn.Player != nil && conn.Player.UUID == uuid.UUID(PlayerUUID) {
+			conn.Disconnect("You have logged in from another location.")
+			return false
+		}
+		return true
+	})
+
+	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, c.server.World)
 	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
 	_ = pkt.Send(c.Conn)
 }
