@@ -51,14 +51,14 @@ func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
 
 func (c *Connection) HandleMovePlayerPos(pkt *packet.Packet) {
 	var x, y, z mc.Double
-	var onGround mc.Boolean
+	var flags mc.Byte
 
-	if err := pkt.Decode(&x, &y, &z, &onGround); err != nil {
+	if err := pkt.Decode(&x, &y, &z, &flags); err != nil {
 		log.Printf("Error decoding move player pos packet: %v", err)
 		return
 	}
 	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	if c.handlePositionUpdate(float64(x), float64(y), float64(z)) {
+	if c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags)) {
 		c.syncMovement(oldX, oldY, oldZ, true, false)
 	}
 }
@@ -66,16 +66,16 @@ func (c *Connection) HandleMovePlayerPos(pkt *packet.Packet) {
 func (c *Connection) HandleMovePlayerPosRot(pkt *packet.Packet) {
 	var x, y, z mc.Double
 	var yaw, pitch mc.Float
-	var onGround mc.Boolean
+	var flags mc.Byte
 
-	if err := pkt.Decode(&x, &y, &z, &yaw, &pitch, &onGround); err != nil {
+	if err := pkt.Decode(&x, &y, &z, &yaw, &pitch, &flags); err != nil {
 		log.Printf("Error decoding move player pos rot packet: %v", err)
 		return
 	}
 
 	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	posValid := c.handlePositionUpdate(float64(x), float64(y), float64(z))
-	rotValid := c.handleRotationUpdate(float32(yaw), float32(pitch))
+	posValid := c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags))
+	rotValid := c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags))
 
 	if posValid || rotValid {
 		c.syncMovement(oldX, oldY, oldZ, posValid, rotValid)
@@ -84,19 +84,19 @@ func (c *Connection) HandleMovePlayerPosRot(pkt *packet.Packet) {
 
 func (c *Connection) HandleMovePlayerRot(pkt *packet.Packet) {
 	var yaw, pitch mc.Float
-	var onGround mc.Boolean
+	var flags mc.Byte
 
-	if err := pkt.Decode(&yaw, &pitch, &onGround); err != nil {
+	if err := pkt.Decode(&yaw, &pitch, &flags); err != nil {
 		log.Printf("Error decoding move player rot: %v", err)
 		return
 	}
 
-	if c.handleRotationUpdate(float32(yaw), float32(pitch)) {
+	if c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags)) {
 		c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], false, true)
 	}
 }
 
-func (c *Connection) handlePositionUpdate(x, y, z float64) bool {
+func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	// todo: implement logic for vehicule, sleeping and flying.
 	// todo: ignore movement packets if there is a teleportation pending
 
@@ -133,6 +133,24 @@ func (c *Connection) handlePositionUpdate(x, y, z float64) bool {
 	c.Player.Pos[0] = x
 	c.Player.Pos[1] = y
 	c.Player.Pos[2] = z
+	c.Player.OnGround = flags&0x01 != 0
+	c.Player.PushingAgainstWall = flags&0x02 != 0
+
+	return true
+}
+
+func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
+	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
+		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
+		// todo: change to a disconnect method with a reason
+		c.close()
+		return false
+	}
+
+	c.Player.Rot[0] = yaw
+	c.Player.Rot[1] = pitch
+	c.Player.OnGround = flags&0x01 != 0
+	c.Player.PushingAgainstWall = flags&0x02 != 0
 
 	return true
 }
@@ -185,19 +203,6 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		)
 		c.server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
 	}
-}
-
-func (c *Connection) handleRotationUpdate(yaw, pitch float32) bool {
-	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
-		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
-		// todo: change to a disconnect method with a reason
-		c.close()
-		return false
-	}
-
-	c.Player.Rot[0] = yaw
-	c.Player.Rot[1] = pitch
-	return true
 }
 
 func (c *Connection) SendKeepAlive() {
@@ -276,7 +281,7 @@ func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
 			mc.VarInt(c.Player.EntityID),
 			mc.UnsignedByte(0),
 			mc.VarInt(0),
-			mc.Byte(0x08),
+			mc.Byte(0x02),
 			mc.UnsignedByte(6),
 			mc.VarInt(20),
 			mc.VarInt(mc.PoseSneaking),
@@ -318,4 +323,74 @@ func (c *Connection) HandleMovePlayerStatusOnly(pkt *packet.Packet) {
 		false,
 		true,
 	)
+}
+
+func (c *Connection) HandleSwingArm(pkt *packet.Packet) {
+	var arm mc.VarInt
+
+	if err := pkt.Decode(&arm); err != nil {
+		log.Printf("Error decoding swing arm packet: %v", err)
+	}
+	var animationID int
+
+	if arm == 0 {
+		animationID = 0
+	} else {
+		animationID = 3
+	}
+
+	c.AnimateEntity(animationID)
+}
+
+func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
+	const (
+		StatusStartDigging   = 0
+		StatusCancelDigging  = 1
+		StatusFinishDigging  = 2
+		StatusDropItemStack  = 3
+		StatusDropItem       = 4
+		StatusReleaseUseItem = 5
+		StatusSwapHand       = 6
+	)
+
+	var status mc.VarInt
+	var location mc.Position
+	var face mc.Byte
+	var sequence mc.VarInt
+
+	if err := pkt.Decode(&status, &location, &face, &sequence); err != nil {
+		log.Printf("Error decoding player action packet: %v", err)
+		return
+	}
+
+	switch status {
+	case StatusStartDigging:
+		if c.Player.GameMode == 1 {
+			pkt, _ := packet.NewPacket(
+				packet.PlayClientboundBlockUpdate,
+				location,
+				mc.VarInt(0),
+			)
+			c.server.Broadcaster.Broadcast(pkt)
+		}
+	case StatusFinishDigging:
+		pkt, _ := packet.NewPacket(
+			packet.PlayClientboundBlockUpdate,
+			location,
+			mc.VarInt(0),
+		)
+		c.server.Broadcaster.Broadcast(pkt)
+	}
+
+	pkt, _ = packet.NewPacket(packet.PlayClientboundAcknowledgeBlockChange, sequence)
+	c.Send(pkt)
+}
+
+func (c *Connection) AnimateEntity(animationID int) {
+	pkt, _ := packet.NewPacket(
+		packet.PlayClientboundAnimate,
+		mc.VarInt(c.Player.EntityID),
+		mc.UnsignedByte(animationID),
+	)
+	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }

@@ -32,7 +32,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return true
 	})
 
-	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, c.server.World)
+	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, c.server.World, c.server.Properties)
 	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
 	_ = pkt.Send(c.Conn)
 }

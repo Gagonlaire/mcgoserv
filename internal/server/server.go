@@ -22,6 +22,7 @@ const (
 type Ticker = systems.Ticker
 type Broadcaster = systems.Broadcaster[*Connection, *packet.Packet]
 type Router = systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+type Properties = systems.Properties
 
 type Server struct {
 	World       *world.World
@@ -37,7 +38,7 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	props, err := LoadProperties("server.properties")
+	props, err := systems.LoadProperties("server.properties")
 	if err != nil {
 		log.Fatalf("Failed to load server.properties: %v", err)
 	}
@@ -69,6 +70,8 @@ func NewServer() *Server {
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerStatusOnly, (*Connection).HandleMovePlayerStatusOnly)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerCommand, (*Connection).HandlePlayerCommand)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerInput, (*Connection).HandlePlayerInput)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSwingArm, (*Connection).HandleSwingArm)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerAction, (*Connection).HandlePlayerAction)
 	// todo: maybe add debug logs after registering handlers
 
 	server.Broadcaster = systems.NewBroadcaster(

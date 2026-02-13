@@ -104,6 +104,9 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	)
 	_ = pkt.Send(c.Conn)
 
+	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(0), mc.VarInt(0))
+	_ = pkt.Send(c.Conn)
+
 	for x := -10; x <= 10; x++ {
 		for z := -10; z <= 10; z++ {
 			// Create a chunk with random data for now

@@ -156,6 +156,17 @@ type (
 	LpVec3 struct {
 		X, Y, Z float64
 	}
+	// Position Encodes:
+	//  - An integer/block position: x (-33554432 to 33554431), z (-33554432 to 33554431), y (-2048 to 2047)
+	// Size:
+	//  - 8 bytes
+	// Notes:
+	//  - Encoded as a single 64-bit integer, with the x, y, and z coordinates packed into it. The x coordinate is stored in the most significant 26 bits, the z coordinate in the next 26 bits, and the y coordinate in the least significant 12 bits.
+	Position struct {
+		X int32
+		Y int32
+		Z int32
+	}
 )
 
 // https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
@@ -187,4 +198,25 @@ type RegistryDataEntry struct {
 type RegistryData struct {
 	ID      String
 	Entries PrefixedArray[RegistryDataEntry]
+}
+
+func (p *Position) ReadFrom(r io.Reader) (n int64, err error) {
+	var val Long
+
+	n, err = val.ReadFrom(r)
+	if err != nil {
+		return
+	}
+
+	p.X = int32(val >> 38)
+	p.Y = int32(val << 52 >> 52)
+	p.Z = int32(val << 26 >> 38)
+
+	return
+}
+
+func (p Position) WriteTo(w io.Writer) (n int64, err error) {
+	val := ((int64(p.X) & 0x3FFFFFF) << 38) | (int64(p.Y) & 0xFFF) | ((int64(p.Z) & 0x3FFFFFF) << 12)
+
+	return Long(val).WriteTo(w)
 }

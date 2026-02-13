@@ -1,4 +1,4 @@
-package server
+package systems
 
 import (
 	"bufio"
@@ -11,16 +11,19 @@ import (
 	"time"
 )
 
+// todo: make this generic
 type Properties struct {
 	MaxPlayers          int    `property:"max-players" default:"20"`
 	Motd                string `property:"motd" default:"A Minecraft Server"`
-	ViewDistance        int    `property:"view-distance" default:"10"`
-	SimulationDistance  int    `property:"simulation-distance" default:"10"`
+	ViewDistance        int    `property:"view-distance" default:"10" min:"2" max:"32"`
+	SimulationDistance  int    `property:"simulation-distance" default:"10" min:"2" max:"32"`
 	Hardcore            bool   `property:"hardcore" default:"false"`
 	EnableRespawnScreen bool   `property:"enable-respawn-screen" default:"true"`
 	LevelName           string `property:"level-name" default:"world"`
 	ServerIp            string `property:"server-ip" default:""`
-	ServerPort          int    `property:"server-port" default:"25565"`
+	ServerPort          int    `property:"server-port" default:"25565" min:"1" max:"65535"`
+	GameMode            int    `property:"gamemode" default:"0" min:"0" max:"3"`
+	ForceGameMode       bool   `property:"force-gamemode" default:"false"`
 }
 
 func LoadProperties(path string) (*Properties, error) {
@@ -112,6 +115,7 @@ func writeProperties(path string, props map[string]string) error {
 	}
 	sort.Strings(keys)
 
+	// todo: make this generic
 	fmt.Fprintln(writer, "#Minecraft server properties")
 	fmt.Fprintf(writer, "#%s\n", time.Now().Format(time.RFC1123))
 
@@ -147,6 +151,21 @@ func populateStruct(props *Properties, data map[string]string) error {
 			if err != nil {
 				return fmt.Errorf("invalid int value for %s: %s", key, valStr)
 			}
+
+			if minTag := field.Tag.Get("min"); minTag != "" {
+				minVal, err := strconv.Atoi(minTag)
+				if err == nil && intVal < minVal {
+					intVal = minVal
+				}
+			}
+
+			if maxTag := field.Tag.Get("max"); maxTag != "" {
+				maxVal, err := strconv.Atoi(maxTag)
+				if err == nil && intVal > maxVal {
+					intVal = maxVal
+				}
+			}
+
 			fieldVal.SetInt(int64(intVal))
 		case reflect.Bool:
 			boolVal, err := strconv.ParseBool(valStr)

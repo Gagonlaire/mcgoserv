@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
 
@@ -37,6 +38,7 @@ type Player struct {
 	foodTickTimer       int32
 	GameMode            uint8 // ntb playerGameType
 	PreviousGameMode    int8  // ntb previousPlayerGameType
+	PushingAgainstWall  bool  // not sure if this should be there ?
 
 	// State
 	World    *World
@@ -53,15 +55,16 @@ type MovementTracker struct {
 	LastTickZ   float64
 }
 
-func NewPlayer(uuid uuid.UUID, name mc.String, w *World) *Player {
-	// todo: get current gamemode
+func NewPlayer(uuid uuid.UUID, name mc.String, w *World, p *systems.Properties) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
 			Entity: &Entity{},
 		},
-		World:  w,
-		Name:   name,
-		Loaded: false,
+		World:            w,
+		Name:             name,
+		Loaded:           false,
+		GameMode:         uint8(p.GameMode), // handle force-gamemode
+		PreviousGameMode: -1,
 		Movement: MovementTracker{
 			LastTickY: 80,
 		},

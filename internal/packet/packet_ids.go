@@ -30,6 +30,7 @@ const (
 )
 
 const (
+	PlayClientboundSetChunkCacheCenter        = 0x5C
 	PlayClientboundSpawnEntity                = 0x01
 	PlayClientboundGameEvent                  = 0x26
 	PlayClientboundUpdateEntityPosition       = 0x33
@@ -48,6 +49,10 @@ const (
 	PlayClientboundSystemChat                 = 0x77
 	PlayClientboundTeleportEntity             = 0x23
 	PlayClientboundRemoveEntities             = 0x4B
+	PlayClientboundAnimate                    = 0x02
+	PlayClientboundAcknowledgeBlockChange     = 0x04
+	PlayClientboundBlockUpdate                = 0x08
+	PlayServerboundPlayerAction               = 0x28
 	PlayServerboundConfirmTeleportation       = 0x00
 	PlayServerboundClientTickEnd              = 0x0C
 	PlayServerboundKeepAlive                  = 0x1B
@@ -58,4 +63,5 @@ const (
 	PlayServerboundPlayerCommand              = 0x29
 	PlayServerboundPlayerInput                = 0x2A
 	PlayServerboundPlayerLoaded               = 0x2B
+	PlayServerboundSwingArm                   = 0x3C
 )
