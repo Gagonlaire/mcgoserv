@@ -95,6 +95,13 @@ func (v *VarInt) Len() int {
 	return n
 }
 
+func NewArray[E any](size uint32) *Array[E] {
+	slice := make([]E, size)
+	return &Array[E]{
+		Slice: &slice,
+	}
+}
+
 func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
 	return &PrefixedArray[E]{
 		Slice: slice,

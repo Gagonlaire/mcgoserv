@@ -64,4 +64,5 @@ const (
 	PlayServerboundPlayerInput                = 0x2A
 	PlayServerboundPlayerLoaded               = 0x2B
 	PlayServerboundSwingArm                   = 0x3C
+	PlayServerboundChat                       = 0x08
 )

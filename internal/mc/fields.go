@@ -321,9 +321,26 @@ func (P *PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
+// todo: this should not need reflection type check and accept the field interface directly
 func (a *Array[X]) ReadFrom(r io.Reader) (n int64, err error) {
-	//TODO implement me
-	panic("implement me")
+	if a.Slice == nil {
+		a.Slice = &[]X{}
+	}
+	currentSlice := *a.Slice
+	for i := range currentSlice {
+		elemAddr := &currentSlice[i]
+		fieldInstance, ok := any(elemAddr).(Field)
+		if !ok {
+			typeName := reflect.TypeOf(elemAddr).String()
+			return n, fmt.Errorf("element of type %s does not implement mc.Field required for reading", typeName)
+		}
+		nn, err := fieldInstance.ReadFrom(r)
+		if err != nil {
+			return n, fmt.Errorf("error reading element %d of Array: %w", i, err)
+		}
+		n += nn
+	}
+	return n, nil
 }
 
 func (a *Array[X]) WriteTo(w io.Writer) (n int64, err error) {

@@ -72,6 +72,7 @@ func NewServer() *Server {
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerInput, (*Connection).HandlePlayerInput)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSwingArm, (*Connection).HandleSwingArm)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerAction, (*Connection).HandlePlayerAction)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundChat, (*Connection).HandleChat)
 	// todo: maybe add debug logs after registering handlers
 
 	server.Broadcaster = systems.NewBroadcaster(

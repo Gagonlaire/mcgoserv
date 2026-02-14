@@ -1,12 +1,14 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"math"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Tnze/go-mc/nbt"
 )
 
 const (
@@ -393,4 +395,80 @@ func (c *Connection) AnimateEntity(animationID int) {
 		mc.UnsignedByte(animationID),
 	)
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+}
+
+func (c *Connection) HandleChat(pkt *packet.Packet) {
+	var message mc.String
+	var timestamp, salt mc.Long
+	var signature = mc.NewPrefixedOptional(mc.NewArray[mc.Byte](256))
+	var messageCount mc.VarInt
+	var acknowledged = mc.NewFixedBitSet(20)
+	var checksum mc.Byte
+
+	if err := pkt.Decode(&message, &timestamp, &salt, signature, &messageCount, acknowledged, &checksum); err != nil {
+		log.Printf("Error decoding chat packet: %v", err)
+	}
+
+	// turbo dummy implementation
+	type ChatMessage struct {
+		Translate string `nbt:"translate"`
+		With      []struct {
+			Text       string `nbt:"text"`
+			ClickEvent *struct {
+				Action string `nbt:"action"`
+				Value  string `nbt:"value"`
+			} `nbt:"clickEvent,omitempty"`
+			HoverEvent *struct {
+				Action   string `nbt:"action"`
+				Contents string `nbt:"contents"`
+			} `nbt:"hoverEvent,omitempty"`
+		} `nbt:"with"`
+	}
+
+	data := ChatMessage{
+		Translate: "chat.type.text",
+		With: []struct {
+			Text       string `nbt:"text"`
+			ClickEvent *struct {
+				Action string `nbt:"action"`
+				Value  string `nbt:"value"`
+			} `nbt:"clickEvent,omitempty"`
+			HoverEvent *struct {
+				Action   string `nbt:"action"`
+				Contents string `nbt:"contents"`
+			} `nbt:"hoverEvent,omitempty"`
+		}{
+			{
+				Text: string(c.Player.Name),
+				ClickEvent: &struct {
+					Action string `nbt:"action"`
+					Value  string `nbt:"value"`
+				}{
+					Action: "suggest_command",
+					Value:  fmt.Sprintf("/tell %s ", string(c.Player.Name)),
+				},
+				HoverEvent: &struct {
+					Action   string `nbt:"action"`
+					Contents string `nbt:"contents"`
+				}{
+					Action:   "show_text",
+					Contents: "Click to message",
+				},
+			},
+			{
+				Text: string(message),
+			},
+		},
+	}
+
+	pkt.Retain()
+	_ = pkt.ResetWith(packet.PlayClientboundSystemChat)
+	encoder := nbt.NewEncoder(pkt.Buffer)
+	encoder.NetworkFormat(true)
+	if err := encoder.Encode(&data, ""); err != nil {
+		log.Printf("Error encoding chat message: %v", err)
+		return
+	}
+	_ = pkt.Encode(mc.Boolean(false))
+	c.server.Broadcaster.Broadcast(pkt)
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/google/uuid"
 )
 
 type StatusResponse struct {
@@ -44,7 +43,7 @@ func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
 			ID   string `json:"id"`
 		}{
 			Name: string(p.Name),
-			ID:   uuid.UUID(p.UUID).String(),
+			ID:   p.UUID.String(),
 		})
 	}
 	data.Description.Text = c.server.Properties.Motd
