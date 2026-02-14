@@ -65,7 +65,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn)
 
 	_ = pkt.ResetWith(
-		packet.PlayClientboundSynchronizePlayerPosition,
+		packet.PlayClientboundPlayerPosition,
 		mc.VarInt(0),
 		mc.Double(c.Player.Pos[0]),
 		mc.Double(c.Player.Pos[1]),
@@ -111,7 +111,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		for z := -10; z <= 10; z++ {
 			// Create a chunk with random data for now
 			chunk := mc.CreateChunk(x, z)
-			_ = pkt.ResetWith(packet.PlayClientboundChunkDataAndUpdateLight, chunk)
+			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
 			_ = pkt.Send(c.Conn)
 		}
 	}
@@ -128,7 +128,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	uuid := mc.UUID(c.Player.UUID)
 	// spawn newly connected player
 	pkt, _ = packet.NewPacket(
-		packet.PlayClientboundSpawnEntity,
+		packet.PlayClientboundAddEntity,
 		&eID2,
 		&uuid,
 		&entityType,
@@ -149,7 +149,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 			uuid := mc.UUID(conn.Player.UUID)
 
 			pkt, _ := packet.NewPacket(
-				packet.PlayClientboundSpawnEntity,
+				packet.PlayClientboundAddEntity,
 				mc.VarInt(conn.Player.EntityID),
 				&uuid,
 				entityType,

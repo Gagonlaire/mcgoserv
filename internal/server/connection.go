@@ -67,7 +67,9 @@ func (c *Connection) ReadLoop() {
 		if c.State == mc.StatePlay {
 			c.InboundPackets <- pkt
 		} else {
-			c.server.Router.Handle(c.State, pkt.ID, c, pkt)
+			if !c.server.Router.Handle(c.State, pkt.ID, c, pkt) {
+				log.Printf("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+			}
 			pkt.Free()
 		}
 	}
@@ -90,7 +92,7 @@ func (c *Connection) WriteLoop() {
 				return
 			}
 
-			if (c.State == mc.StateLogin && id == packet.LoginClientboundDisconnect) ||
+			if (c.State == mc.StateLogin && id == packet.LoginClientboundLoginDisconnect) ||
 				(c.State == mc.StateConfiguration && id == packet.ConfigurationClientboundDisconnect) ||
 				(c.State == mc.StatePlay && id == packet.PlayClientboundDisconnect) {
 				return
@@ -117,7 +119,7 @@ func (c *Connection) Disconnect(reason string) {
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt, _ = packet.NewPacket(packet.LoginClientboundDisconnect, mc.String(reasonBytes))
+		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reasonBytes))
 	case mc.StateConfiguration:
 		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reasonBytes))
 	case mc.StatePlay:

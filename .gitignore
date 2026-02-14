@@ -1,5 +1,6 @@
 ### Generators related
 /internal/mc/*_gen.go
+/internal/packet/*_gen.go
 /internal/mcdata
 logs/
 versions/

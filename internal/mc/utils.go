@@ -1,6 +1,8 @@
 package mc
 
-import "math"
+import (
+	"math"
+)
 
 const (
 	StateHandshake State = iota
@@ -179,4 +181,21 @@ func unpack(value uint64) float64 {
 	v = math.Min(v, MaxQuantizedValue)
 
 	return v*2.0/MaxQuantizedValue - 1.0
+}
+
+func GetStateName(state State) string {
+	switch state {
+	case StateHandshake:
+		return "Handshake"
+	case StateStatus:
+		return "Status"
+	case StateLogin:
+		return "Login"
+	case StateConfiguration:
+		return "Configuration"
+	case StatePlay:
+		return "Play"
+	default:
+		return "Unknown"
+	}
 }

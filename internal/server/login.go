@@ -33,7 +33,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	})
 
 	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, c.server.World, c.server.Properties)
-	_ = pkt.ResetWith(packet.LoginClientboundLoginSuccess, &PlayerUUID, &Name, &Properties)
+	_ = pkt.ResetWith(packet.LoginClientboundLoginFinished, &PlayerUUID, &Name, &Properties)
 	_ = pkt.Send(c.Conn)
 }
 
@@ -41,6 +41,6 @@ func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.server.World.Time
 
-	_ = pkt.ResetWith(packet.ConfigurationClientboundKnownPacks, &mc.ServerDataPacks)
+	_ = pkt.ResetWith(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
 	_ = pkt.Send(c.Conn)
 }

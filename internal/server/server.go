@@ -52,15 +52,15 @@ func NewServer() *Server {
 	}
 
 	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
-	server.Router.RegisterHandler(mc.StateHandshake, packet.HandshakeServerboundHandshake, (*Connection).HandleHandshakePacket)
+	server.Router.RegisterHandler(mc.StateHandshake, packet.HandshakeServerboundIntention, (*Connection).HandleHandshakePacket)
 	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundStatusRequest, (*Connection).HandleStatusRequestPacket)
-	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundPing, (*Connection).HandlePingPacket)
-	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundLoginStart, (*Connection).HandleLoginStartPacket)
+	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundPingRequest, (*Connection).HandlePingPacket)
+	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundHello, (*Connection).HandleLoginStartPacket)
 	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundLoginAcknowledged, (*Connection).HandleLoginAckPacket)
-	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundAcknowledgeFinishConfiguration, (*Connection).HandleFinishConfigurationAckPacket)
+	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundFinishConfiguration, (*Connection).HandleFinishConfigurationAckPacket)
 	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
-	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKnownPacks, (*Connection).HandleClientKnownPacksPacket)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundConfirmTeleportation, (*Connection).HandleConfirmTeleportationPacket)
+	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundSelectKnownPacks, (*Connection).HandleClientKnownPacksPacket)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundAcceptTeleportation, (*Connection).HandleConfirmTeleportationPacket)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPos, (*Connection).HandleMovePlayerPos)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPosRot, (*Connection).HandleMovePlayerPosRot)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerRot, (*Connection).HandleMovePlayerRot)
@@ -70,9 +70,10 @@ func NewServer() *Server {
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerStatusOnly, (*Connection).HandleMovePlayerStatusOnly)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerCommand, (*Connection).HandlePlayerCommand)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerInput, (*Connection).HandlePlayerInput)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSwingArm, (*Connection).HandleSwingArm)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSwing, (*Connection).HandleSwingArm)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerAction, (*Connection).HandlePlayerAction)
 	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundChat, (*Connection).HandleChat)
+	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundChatCommand, (*Connection).HandleChatCommand)
 	// todo: maybe add debug logs after registering handlers
 
 	server.Broadcaster = systems.NewBroadcaster(
@@ -128,28 +129,28 @@ func processIncomingPackets(s *Server) {
 	currentTick := s.World.Time
 
 	s.Connections.Range(func(key, value any) bool {
-		conn := key.(*Connection)
+		c := key.(*Connection)
 
 		// todo: move to a tick start or end handler
 		// todo: fix disconnect logic, loop seems to run after after the disconnect, nullptr on player
-		if conn.Player != nil {
-			conn.Player.Movement.PacketCount = 0
-			conn.Player.Movement.LastTickX = conn.Player.Pos[0]
-			conn.Player.Movement.LastTickY = conn.Player.Pos[1]
-			conn.Player.Movement.LastTickZ = conn.Player.Pos[2]
+		if c.Player != nil {
+			c.Player.Movement.PacketCount = 0
+			c.Player.Movement.LastTickX = c.Player.Pos[0]
+			c.Player.Movement.LastTickY = c.Player.Pos[1]
+			c.Player.Movement.LastTickZ = c.Player.Pos[2]
 		}
 
 		for {
 			select {
-			case pkt := <-conn.InboundPackets:
+			case pkt := <-c.InboundPackets:
 				{
-					if !conn.Player.Loaded &&
+					if !c.Player.Loaded &&
 						!(pkt.ID == packet.PlayServerboundKeepAlive || pkt.ID == packet.PlayServerboundPlayerLoaded) {
 						pkt.Free()
 						continue
 					}
-					if !s.Router.Handle(conn.State, pkt.ID, conn, pkt) {
-						log.Printf("Missing handler for packet %d (0x%X) in state %d\n", pkt.ID, pkt.ID, conn.State)
+					if !s.Router.Handle(c.State, pkt.ID, c, pkt) {
+						log.Printf("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 					}
 					pkt.Free()
 				}
@@ -160,15 +161,15 @@ func processIncomingPackets(s *Server) {
 
 		// todo: fix, configuration keep alive cannot be reached there
 	keepAlive:
-		if conn.State == mc.StatePlay || conn.State == mc.StateConfiguration {
-			if currentTick-conn.LastKeepAlive > KeepAliveTimeout {
-				log.Printf("keep-alive timeout for %s", conn.Conn.RemoteAddr())
-				conn.close()
+		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
+			if currentTick-c.LastKeepAlive > KeepAliveTimeout {
+				log.Printf("keep-alive timeout for %s", c.Conn.RemoteAddr())
+				c.close()
 				return true
 			}
 
 			if currentTick%KeepAliveInterval == 0 {
-				conn.SendKeepAlive()
+				c.SendKeepAlive()
 			}
 		}
 

@@ -20,7 +20,7 @@ const (
 func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32) {
 	// todo: correct usage of tp id and flags, also add velocity
 	pkt, _ := packet.NewPacket(
-		packet.PlayClientboundSynchronizePlayerPosition,
+		packet.PlayClientboundPlayerPosition,
 		mc.Double(x), mc.Double(y), mc.Double(z),
 		mc.Float(yaw), mc.Float(pitch),
 		mc.Byte(0),
@@ -176,20 +176,20 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 
 	switch {
 	case posChanged && rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityPositionAndRot,
+		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPosRot,
 			mc.VarInt(c.Player.EntityID),
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
 			yaw, pitch,
 			mc.Boolean(c.Player.OnGround),
 		)
 	case posChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityPosition,
+		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPos,
 			mc.VarInt(c.Player.EntityID),
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
 			mc.Boolean(c.Player.OnGround),
 		)
 	case rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundUpdateEntityRotation,
+		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityRot,
 			mc.VarInt(c.Player.EntityID),
 			yaw, pitch,
 			mc.Boolean(c.Player.OnGround),
@@ -384,7 +384,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 		c.server.Broadcaster.Broadcast(pkt)
 	}
 
-	pkt, _ = packet.NewPacket(packet.PlayClientboundAcknowledgeBlockChange, sequence)
+	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
 	c.Send(pkt)
 }
 
@@ -471,4 +471,15 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 	}
 	_ = pkt.Encode(mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt)
+}
+
+func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
+	var command mc.String
+
+	if err := pkt.Decode(&command); err != nil {
+		log.Printf("Error decoding chat command packet: %v", err)
+		return
+	}
+
+	// todo: work on some command handling system
 }
