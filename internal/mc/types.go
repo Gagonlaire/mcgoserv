@@ -180,6 +180,22 @@ type State int
 
 type Pose int
 
+type ProfileProperty struct {
+	Name      string
+	Value     string
+	Signature string
+}
+
+type Slot struct {
+	Count  int32
+	ItemID int32
+
+	Components *map[int32]any
+	RemoveList *[]int32
+}
+
+// todo: create a tuple to avoid this weird struct generation
+
 //go:generate-field-impl
 type DataPackIdentifier struct {
 	Namespace String

@@ -1,7 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -9,12 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type GameProfile struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Properties []struct {
+		Name      string `json:"name"`
+		Value     string `json:"value"`
+		Signature string `json:"signature,omitempty"`
+	} `json:"properties"`
+}
+
 func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	var (
 		Name       mc.String
 		PlayerUUID mc.UUID
-		// Properties todo: should fetch user data from mc api (array of properties for capes, skins, etc.)
-		Properties = mc.VarInt(0)
 	)
 
 	if err := pkt.Decode(&Name, &PlayerUUID); err != nil {
@@ -32,9 +43,40 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return true
 	})
 
-	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, c.server.World, c.server.Properties)
-	_ = pkt.ResetWith(packet.LoginClientboundLoginFinished, &PlayerUUID, &Name, &Properties)
+	url := "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.UUID(PlayerUUID).String()
+	if c.server.Properties.OnlineMode == true {
+		url += "?unsigned=false"
+	}
+	res, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error fetching player data from Mojang API:", err)
+	}
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		fmt.Printf("Mojang API returned non-200 status code: %d\n", res.StatusCode)
+	}
+
+	var profile GameProfile
+	if err := json.Unmarshal(body, &profile); err != nil {
+		fmt.Println("Error parsing player data from Mojang API:", err)
+	}
+
+	var profileProperties = make([]mc.ProfileProperty, 0, len(profile.Properties))
+
+	_ = pkt.ResetWith(packet.LoginClientboundLoginFinished, &PlayerUUID, &Name)
+	_ = pkt.Encode(mc.VarInt(len(profile.Properties)))
+	for _, prop := range profile.Properties {
+		newProperty := mc.ProfileProperty{
+			Name:      prop.Name,
+			Value:     prop.Value,
+			Signature: prop.Signature,
+		}
+		profileProperties = append(profileProperties, newProperty)
+		_ = pkt.Encode(newProperty)
+	}
 	_ = pkt.Send(c.Conn)
+	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, profileProperties, c.server.World, c.server.Properties)
 }
 
 func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {

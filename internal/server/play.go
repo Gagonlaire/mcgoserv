@@ -483,3 +483,73 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 
 	// todo: work on some command handling system
 }
+
+func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
+	var slot mc.Short
+
+	if err := pkt.Decode(&slot); err != nil {
+		log.Printf("Error decoding set carried item packet: %v", err)
+		return
+	}
+
+	c.Player.SelectedItemSlot = int32(slot)
+}
+
+func (c *Connection) HandleSetCreativeModeSlot(pkt *packet.Packet) {
+	var slot mc.Short
+	var slotData mc.Slot
+
+	if err := pkt.Decode(&slot, &slotData); err != nil {
+		log.Printf("Error decoding set creative mode slot packet: %v", err)
+		return
+	}
+
+	_ = c.Player.Inventory.Set(int(slot), slotData)
+}
+
+func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
+	var hand, face, sequence mc.VarInt
+	var location mc.Position
+	var cursorX, cursorY, cursorZ mc.Float
+	var insideBlock, worldBorderHit mc.Boolean
+
+	if err := pkt.Decode(&hand, &location, &face, &cursorX, &cursorY, &cursorZ, &insideBlock, &worldBorderHit, &sequence); err != nil {
+		log.Printf("Error decoding use item on packet: %v", err)
+		return
+	}
+
+	switch face {
+	case 0: // Bottom
+		location.Y--
+	case 1: // Top
+		location.Y++
+	case 2: // North
+		location.Z--
+	case 3: // South
+		location.Z++
+	case 4: // West
+		location.X--
+	case 5: // East
+		location.X++
+	}
+
+	var slotId = mc.HotbarToInternal(int(c.Player.SelectedItemSlot))
+	var slotData = c.Player.Inventory.Get(slotId)
+
+	if slotData.Count > 0 {
+		item, ok := mc.GetItem(int(slotData.ItemID))
+
+		if ok && item.BlockID != -1 {
+			block, _ := mc.GetBlock(item.BlockID)
+			pkt, _ = packet.NewPacket(
+				packet.PlayClientboundBlockUpdate,
+				location,
+				mc.VarInt(block.DefaultStateID),
+			)
+			c.server.Broadcaster.Broadcast(pkt)
+		}
+	}
+
+	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
+	c.Send(pkt)
+}

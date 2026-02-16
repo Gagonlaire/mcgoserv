@@ -39,13 +39,16 @@ type Player struct {
 	GameMode            uint8 // ntb playerGameType
 	PreviousGameMode    int8  // ntb previousPlayerGameType
 	PushingAgainstWall  bool  // not sure if this should be there ?
+	SelectedItemSlot    int32
 
 	// State
-	World    *World
-	Name     mc.String
-	Loaded   bool
-	Input    mc.UnsignedByte
-	Movement MovementTracker
+	Inventory         *mc.PlayerInventory // todo: this should maybe be a generic struct, as entities can have inventories too
+	World             *World
+	ProfileProperties []mc.ProfileProperty
+	Name              mc.String
+	Loaded            bool
+	Input             mc.UnsignedByte
+	Movement          MovementTracker
 }
 
 type MovementTracker struct {
@@ -55,24 +58,27 @@ type MovementTracker struct {
 	LastTickZ   float64
 }
 
-func NewPlayer(uuid uuid.UUID, name mc.String, w *World, p *systems.Properties) *Player {
+func NewPlayer(uuid uuid.UUID, name mc.String, profileProperties []mc.ProfileProperty, world *World, properties *systems.Properties) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
-			Entity: &Entity{},
+			Entity: &Entity{
+				EntityID: world.GetNextEntityID(),
+				UUID:     uuid,
+				OnGround: true,
+				Pos:      [3]float64{0, 80, 0},
+			},
 		},
-		World:            w,
+		World:            world,
+		Inventory:        mc.NewPlayerInventory(),
 		Name:             name,
 		Loaded:           false,
-		GameMode:         uint8(p.GameMode), // handle force-gamemode
+		GameMode:         uint8(properties.GameMode), // handle force-gamemode
 		PreviousGameMode: -1,
 		Movement: MovementTracker{
 			LastTickY: 80,
 		},
+		ProfileProperties: profileProperties,
 	}
-	player.EntityID = w.GetNextEntityID()
-	player.UUID = uuid
-	player.Pos[1] = 80
-	player.OnGround = true
 	player.Movement.LastTickY = player.Pos[1]
 
 	return player

@@ -22,10 +22,10 @@ func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*world.Playe
 			if actions&currentAction != 0 {
 				switch currentAction {
 				case mc.ActionAddPlayer:
-					name := mc.String(player.Name)
-					propCount := mc.VarInt(0)
-
-					_ = packet.Encode(&name, &propCount)
+					_ = packet.Encode(player.Name, mc.VarInt(len(player.ProfileProperties)))
+					for _, prop := range player.ProfileProperties {
+						_ = packet.Encode(prop)
+					}
 				case mc.ActionUpdateListed:
 					// todo: replace with real value
 					listed := mc.Boolean(true)

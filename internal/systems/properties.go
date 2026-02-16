@@ -24,6 +24,7 @@ type Properties struct {
 	ServerPort          int    `property:"server-port" default:"25565" min:"1" max:"65535"`
 	GameMode            int    `property:"gamemode" default:"0" min:"0" max:"3"`
 	ForceGameMode       bool   `property:"force-gamemode" default:"false"`
+	OnlineMode          bool   `property:"online-mode" default:"true"`
 }
 
 func LoadProperties(path string) (*Properties, error) {

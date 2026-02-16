@@ -523,3 +523,87 @@ func (L *LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 
 	return n, nil
 }
+
+func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
+	var count, itemID, componentToAdd, componentToRemove VarInt
+
+	nn, err := count.ReadFrom(r)
+	if err != nil {
+		return nn, fmt.Errorf("error reading Slot count: %w", err)
+	}
+	n += nn
+
+	s.Count = int32(count)
+	if count <= 0 {
+		return
+	}
+
+	nn, err = itemID.ReadFrom(r)
+	if err != nil {
+		return n, fmt.Errorf("error reading Slot itemID: %w", err)
+	}
+	n += nn
+	s.ItemID = int32(itemID)
+
+	nn, err = componentToAdd.ReadFrom(r)
+	if err != nil {
+		return n, fmt.Errorf("error reading Slot componentToAdd: %w", err)
+	}
+	n += nn
+	nn, err = componentToRemove.ReadFrom(r)
+	if err != nil {
+		return n, fmt.Errorf("error reading Slot componentToRemove: %w", err)
+	}
+	n += nn
+
+	// todo: component to add/remove should not be higher than 0 for now
+	return n, nil
+}
+
+func (s *Slot) WriteTo(w io.Writer) (n int64, err error) {
+	nn, err := VarInt(s.Count).WriteTo(w)
+	if err != nil {
+		return n, fmt.Errorf("error writing Slot count: %w", err)
+	}
+	n += nn
+	if s.Count <= 0 {
+		return n, nil
+	}
+
+	nn, err = VarInt(s.ItemID).WriteTo(w)
+	if err != nil {
+		return n, fmt.Errorf("error writing Slot itemID: %w", err)
+	}
+	n += nn
+
+	nn, err = VarInt(0).WriteTo(w)
+	if err != nil {
+		return n, fmt.Errorf("error writing Slot componentToAdd: %w", err)
+	}
+	n += nn
+
+	nn, err = VarInt(0).WriteTo(w)
+	if err != nil {
+		return n, fmt.Errorf("error writing Slot componentToRemove: %w", err)
+	}
+	n += nn
+
+	return n, nil
+}
+
+func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
+	nn, _ := String(p.Name).WriteTo(w)
+	n += nn
+	nn, _ = String(p.Value).WriteTo(w)
+	n += nn
+	if p.Signature != "" {
+		nn, _ = Boolean(true).WriteTo(w)
+		nnn, _ := String(p.Signature).WriteTo(w)
+		n += nn + nnn
+	} else {
+		nn, _ = Boolean(false).WriteTo(w)
+		n += nn
+	}
+
+	return n, nil
+}
