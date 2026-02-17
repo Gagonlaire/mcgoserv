@@ -7,10 +7,21 @@ type Block struct {
 	Name           string
 	DisplayName    string
 	Hardness       float32
+	Resistance     float32
+	StackSize      int
+	Diggable       bool
+	Material       string
+	Transparent    bool
+	EmitLight      int
+	FilterLight    int
+	BoundingBox    string
+	Drops          []int
+	HarvestTools   map[string]bool
 	MinStateID     int
 	MaxStateID     int
 	DefaultStateID int
 	Properties     []StateProperty
+	Sounds         map[string]int
 }
 
 type StateProperty struct {
@@ -36,9 +47,28 @@ func init() {
 		Name:           "{{ .Name }}",
 		DisplayName:    "{{ .DisplayName }}",
 		Hardness:       {{ .Hardness }},
+		Resistance:     {{ .Resistance }},
+        StackSize:      {{ .StackSize }},
+        Diggable:       {{ .Diggable }},
+        Material:       "{{ .Material }}",
+        Transparent:    {{ .Transparent }},
+        EmitLight:      {{ .EmitLight }},
+        FilterLight:    {{ .FilterLight }},
+        BoundingBox:    "{{ .BoundingBox }}",
 		MinStateID:     {{ .MinStateID }},
 		MaxStateID:     {{ .MaxStateID }},
 		DefaultStateID: {{ .DefaultStateID }},
+
+		Drops: []int{
+            {{- range .Drops }}
+        	{{ . }},
+            {{- end }}
+        },
+        HarvestTools: map[string]bool{
+            {{- range $k, $v := .HarvestTools }}
+            "{{ $k }}": {{ $v }},
+            {{- end }}
+        },
 		Properties:     []StateProperty{
 			{{- range .States }}
 			{
@@ -48,6 +78,11 @@ func init() {
 			},
 			{{- end }}
 		},
+		Sounds: map[string]int{
+            {{- range $k, $v := .Sounds }}
+            "{{ $k }}": {{ $v }},
+            {{- end }}
+        },
 	}
 {{- end }}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/template"
 )
 
@@ -48,10 +49,21 @@ type GenBlock struct {
 	Name           string
 	DisplayName    string
 	Hardness       float32
+	Resistance     float32
+	StackSize      int
+	Diggable       bool
+	Material       string
+	Transparent    bool
+	EmitLight      int
+	FilterLight    int
+	BoundingBox    string
+	Drops          []int
+	HarvestTools   map[string]bool
 	MinStateID     int
 	MaxStateID     int
 	DefaultStateID int
 	States         []GenProperty
+	Sounds         map[string]int
 }
 
 type BlockTemplateData struct {
@@ -60,15 +72,21 @@ type BlockTemplateData struct {
 	MaxStateID int
 }
 
-func generateBlocks(rawBlockDefinitions io.ReadCloser) (map[string]int, error) {
+func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) error {
 	const (
 		outputFile = "internal/mc/blocks_gen.go"
-		tmplFile   = "cmd/gen-prismarine-js/blocks.tmpl"
+		tmplFile   = "cmd/gen-prismarine-js/tmpl/blocks.tmpl"
 	)
 
 	var blockDefinitions []BlockDefinition
 	if err := json.NewDecoder(rawBlockDefinitions).Decode(&blockDefinitions); err != nil {
-		return nil, err // Return nil map on error
+		return err
+	}
+
+	allSounds := data["sounds"].([]SoundDefinition)
+	soundLookup := make(map[string]int)
+	for _, s := range allSounds {
+		soundLookup[s.Name] = s.ID
 	}
 
 	blockIDMap := make(map[string]int)
@@ -80,10 +98,10 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser) (map[string]int, error) {
 	for _, b := range blockDefinitions {
 		blockIDMap[b.Name] = b.ID
 
+		// states
 		pName := toPascalCase(b.Name)
 		genStates := make([]GenProperty, len(b.States))
 		currentStride := 1
-
 		for i := len(b.States) - 1; i >= 0; i-- {
 			prop := b.States[i]
 			genStates[i] = GenProperty{
@@ -107,6 +125,16 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser) (map[string]int, error) {
 			Name:           b.Name,
 			DisplayName:    b.DisplayName,
 			Hardness:       b.Hardness,
+			Resistance:     b.Resistance,
+			StackSize:      b.StackSize,
+			Diggable:       b.Diggable,
+			Material:       b.Material,
+			Transparent:    b.Transparent,
+			EmitLight:      b.EmitLight,
+			FilterLight:    b.FilterLight,
+			BoundingBox:    b.BoundingBox,
+			Drops:          b.Drops,
+			HarvestTools:   b.HarvestTools,
 			MinStateID:     b.MinStateID,
 			MaxStateID:     b.MaxStateID,
 			DefaultStateID: b.Default,
@@ -114,26 +142,46 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser) (map[string]int, error) {
 		})
 	}
 
+	for _, sound := range allSounds {
+		if strings.HasPrefix(sound.Name, "block.") {
+			parts := strings.SplitN(sound.Name, ".", 3)
+			if len(parts) == 3 {
+				blockName := parts[1]
+				if blockID, ok := blockIDMap[blockName]; ok {
+					if _, exists := processedBlocks[blockID].Sounds[sound.Name]; !exists {
+						if processedBlocks[blockID].Sounds == nil {
+							processedBlocks[blockID].Sounds = make(map[string]int)
+						}
+
+						processedBlocks[blockID].Sounds[parts[2]] = sound.ID
+					}
+				}
+			}
+		}
+	}
+
 	outFile, err := os.Create(outputFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer outFile.Close()
 
 	tmpl, err := template.ParseFiles(tmplFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
+		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	data := BlockTemplateData{
+	tmplData := BlockTemplateData{
 		Blocks:     processedBlocks,
 		MaxBlockID: maxBlockID,
 		MaxStateID: maxStateID,
 	}
 
-	if err := tmpl.Execute(outFile, data); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+	if err := tmpl.Execute(outFile, tmplData); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return blockIDMap, nil
+	data["blocks"] = blockIDMap
+
+	return nil
 }

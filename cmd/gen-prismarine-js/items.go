@@ -9,19 +9,25 @@ import (
 )
 
 type ItemDefinition struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	StackSize   int    `json:"stackSize"`
+	ID                int      `json:"id"`
+	Name              string   `json:"name"`
+	DisplayName       string   `json:"displayName"`
+	StackSize         int      `json:"stackSize"`
+	EnchantCategories []string `json:"enchantCategories"`
+	RepairWith        []string `json:"repairWith"`
+	MaxDurability     int      `json:"maxDurability"`
 }
 
 type GenItem struct {
-	PascalName  string
-	ID          int
-	Name        string
-	DisplayName string
-	StackSize   int
-	BlockID     int
+	PascalName        string
+	ID                int
+	Name              string
+	DisplayName       string
+	StackSize         int
+	BlockID           int
+	EnchantCategories []string
+	RepairWith        []string
+	MaxDurability     int
 }
 
 type ItemTemplateData struct {
@@ -51,11 +57,12 @@ var itemBlockExclusions = map[string]bool{
 	"fire":     true,
 }
 
-func generateItems(rawItemDefinitions io.ReadCloser, blockIDs map[string]int) error {
+func generateItems(rawItemDefinitions io.ReadCloser, data map[string]any) error {
 	const (
 		outputFile = "internal/mc/items_gen.go"
-		tmplFile   = "cmd/gen-prismarine-js/items.tmpl"
+		tmplFile   = "cmd/gen-prismarine-js/tmpl/items.tmpl"
 	)
+
 	var itemDefinitions []ItemDefinition
 	if err := json.NewDecoder(rawItemDefinitions).Decode(&itemDefinitions); err != nil {
 		return err
@@ -63,7 +70,7 @@ func generateItems(rawItemDefinitions io.ReadCloser, blockIDs map[string]int) er
 
 	var processedItems []GenItem
 	maxItemID := 0
-
+	blockIDs := data["blocks"].(map[string]int)
 	for _, item := range itemDefinitions {
 		if item.ID > maxItemID {
 			maxItemID = item.ID
@@ -76,7 +83,7 @@ func generateItems(rawItemDefinitions io.ReadCloser, blockIDs map[string]int) er
 			targetBlockName = alias
 		}
 		if itemBlockExclusions[item.Name] {
-			targetBlockName = "" // Invalid
+			targetBlockName = ""
 		}
 		if targetBlockName != "" {
 			if foundID, ok := blockIDs[targetBlockName]; ok {
@@ -84,13 +91,21 @@ func generateItems(rawItemDefinitions io.ReadCloser, blockIDs map[string]int) er
 			}
 		}
 
+		if item.MaxDurability == 0 {
+			// Item is not damageable
+			item.MaxDurability = -1
+		}
 		processedItems = append(processedItems, GenItem{
-			PascalName:  toPascalCase(item.Name),
-			ID:          item.ID,
-			Name:        item.Name,
-			DisplayName: item.DisplayName,
-			StackSize:   item.StackSize,
-			BlockID:     bID,
+			PascalName: toPascalCase(item.Name),
+			BlockID:    bID,
+
+			ID:                item.ID,
+			Name:              item.Name,
+			DisplayName:       item.DisplayName,
+			StackSize:         item.StackSize,
+			EnchantCategories: item.EnchantCategories,
+			RepairWith:        item.RepairWith,
+			MaxDurability:     item.MaxDurability,
 		})
 	}
 
@@ -105,12 +120,12 @@ func generateItems(rawItemDefinitions io.ReadCloser, blockIDs map[string]int) er
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	data := ItemTemplateData{
+	tmplData := ItemTemplateData{
 		Items:     processedItems,
 		MaxItemID: maxItemID,
 	}
 
-	if err := tmpl.Execute(outFile, data); err != nil {
+	if err := tmpl.Execute(outFile, tmplData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 

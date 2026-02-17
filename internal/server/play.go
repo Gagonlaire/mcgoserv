@@ -373,6 +373,14 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 				location,
 				mc.VarInt(0),
 			)
+			eventPkt, _ := packet.NewPacket(
+				packet.PlayClientboundLevelEvent,
+				mc.Int(2001),
+				location,
+				mc.Int(3), // todo: this should check chunk to get the block state id
+				mc.Boolean(false),
+			)
+			c.server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
 			c.server.Broadcaster.Broadcast(pkt)
 		}
 	case StatusFinishDigging:
@@ -493,6 +501,22 @@ func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 	}
 
 	c.Player.SelectedItemSlot = int32(slot)
+	inventoryId := mc.HotbarToInternal(int(slot))
+	item := c.Player.Inventory.Get(inventoryId)
+	glass, _ := mc.GetItemByName("glass")
+	testSlot := mc.Slot{
+		ItemID: int32(glass.ID),
+		Count:  1,
+	}
+	pkt, _ = packet.NewPacket(
+		packet.PlayClientboundSetEquipment,
+		mc.VarInt(c.Player.EntityID),
+		mc.UnsignedByte(0|1<<7),
+		&item,
+		mc.UnsignedByte(5),
+		&testSlot,
+	)
+	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 
 func (c *Connection) HandleSetCreativeModeSlot(pkt *packet.Packet) {
@@ -547,6 +571,22 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 				mc.VarInt(block.DefaultStateID),
 			)
 			c.server.Broadcaster.Broadcast(pkt)
+
+			// todo: fix to handle sound groups
+			if soundId, ok := block.Sounds["place"]; ok {
+				soundPkt, _ := packet.NewPacket(
+					packet.PlayClientboundSound,
+					mc.VarInt(soundId+1),
+					mc.VarInt(4),
+					mc.Int(location.X*8),
+					mc.Int(location.Y*8),
+					mc.Int(location.Z*8),
+					mc.Float(1),
+					mc.Float(1),
+					mc.Long(0),
+				)
+				c.server.Broadcaster.Broadcast(soundPkt, systems.NotSender(c))
+			}
 		}
 	}
 

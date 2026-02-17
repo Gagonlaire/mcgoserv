@@ -3,11 +3,14 @@
 package mc
 
 type Item struct {
-	ID          int
-	Name        string
-	DisplayName string
-	StackSize   int
-	BlockID     int
+	ID                int
+	Name              string
+	DisplayName       string
+	StackSize         int
+	BlockID           int
+	EnchantCategories []string
+	RepairWith        []string
+	MaxDurability     int
 }
 
 var (
@@ -27,6 +30,18 @@ func init() {
 		DisplayName: "{{ .DisplayName }}",
 		StackSize:   {{ .StackSize }},
 		BlockID:     {{ .BlockID }},
+		MaxDurability: {{ .MaxDurability }},
+
+		EnchantCategories: []string{
+            {{- range .EnchantCategories }}
+            "{{ . }}",
+            {{- end }}
+		},
+		RepairWith: []string{
+            {{- range .RepairWith }}
+            "{{ . }}",
+            {{- end }}
+        },
 	}
 	Items[{{ .ID }}] = itm
 {{- end }}
