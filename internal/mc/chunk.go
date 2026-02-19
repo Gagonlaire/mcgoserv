@@ -1,5 +1,9 @@
 package mc
 
+import (
+	"fmt"
+)
+
 //go:generate-field-impl
 type Chunk struct {
 	X                   Int
@@ -38,6 +42,7 @@ type BlockEntity struct {
 }
 
 func CreateChunk(x int, z int) *Chunk {
+	// todo: implement generations
 	emptyPalette := NewPalettedContainer(0)
 	air := ChunkSection{
 		BlockCount:  0,
@@ -69,4 +74,34 @@ func CreateChunk(x int, z int) *Chunk {
 			Slice: &sections,
 		},
 	}
+}
+
+func (c *Chunk) GetBlock(x, y, z, minY int) (int32, error) {
+	sectionIndex := (y - minY) >> 4
+	if sectionIndex < 0 || sectionIndex >= len(*c.Data.Slice) {
+		return 0, fmt.Errorf("y out of bounds")
+	}
+
+	section := (*c.Data.Slice)[sectionIndex]
+
+	relY := y & 15
+	index := (relY << 8) | (z << 4) | x
+
+	return section.BlockStates.Get(index), nil
+}
+
+func (c *Chunk) SetBlock(x, y, z, minY int, blockState int32) error {
+	// todo: based on the nbt struct of chunk, minY must be stored in each sections
+	sectionIndex := (y - minY) >> 4
+	if sectionIndex < 0 || sectionIndex >= len(*c.Data.Slice) {
+		return fmt.Errorf("y out of bounds")
+	}
+
+	section := (*c.Data.Slice)[sectionIndex]
+
+	relY := y & 15
+	index := (relY << 8) | (z << 4) | x
+
+	// todo: handle palette resizing if necessary
+	return section.BlockStates.Set(index, blockState)
 }

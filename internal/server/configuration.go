@@ -104,13 +104,18 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	)
 	_ = pkt.Send(c.Conn)
 
-	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(0), mc.VarInt(0))
+	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(int(c.Player.Pos[0])>>4), mc.VarInt(int(c.Player.Pos[2])>>4))
 	_ = pkt.Send(c.Conn)
 
-	for x := -10; x <= 10; x++ {
-		for z := -10; z <= 10; z++ {
-			// Create a chunk with random data for now
-			chunk := mc.CreateChunk(x, z)
+	cx := int(c.Player.Pos[0]) >> 4
+	cz := int(c.Player.Pos[2]) >> 4
+	viewDistance := c.server.Properties.ViewDistance
+	// todo: get the correct dimension type and name from player
+	dimension := c.server.World.Dimensions["minecraft:overworld"]
+
+	for x := cx - viewDistance; x <= cx+viewDistance; x++ {
+		for z := cz - viewDistance; z <= cz+viewDistance; z++ {
+			chunk := dimension.GetChunk(x, z)
 			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
 			_ = pkt.Send(c.Conn)
 		}

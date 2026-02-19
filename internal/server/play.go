@@ -371,6 +371,9 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 	switch status {
 	case StatusStartDigging:
 		if c.Player.GameMode == 1 {
+			dim := c.server.World.Dimensions["minecraft:overworld"]
+			blockState, _ := dim.GetBlock(int(location.X), int(location.Y), int(location.Z))
+
 			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				location,
@@ -380,7 +383,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 				packet.PlayClientboundLevelEvent,
 				mc.Int(2001),
 				location,
-				mc.Int(3), // todo: this should check chunk to get the block state id
+				mc.Int(blockState),
 				mc.Boolean(false),
 			)
 			c.server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
@@ -599,6 +602,9 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 
 		if ok && item.BlockID != -1 {
 			block, _ := mc.GetBlock(item.BlockID)
+			dim := c.server.World.Dimensions["minecraft:overworld"]
+			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), int32(block.DefaultStateID))
+
 			pkt, _ = packet.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				location,
