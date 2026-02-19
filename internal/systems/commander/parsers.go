@@ -2,8 +2,11 @@ package commander
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"strings"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 )
 
 type IntType struct {
@@ -11,6 +14,27 @@ type IntType struct {
 	MaxVal int
 	hasMin bool
 	hasMax bool
+}
+
+func (i IntType) WriteTo(w io.Writer) (int64, error) {
+	flags := byte(0)
+
+	if i.hasMin {
+		flags |= 0x01
+	}
+	if i.hasMax {
+		flags |= 0x02
+	}
+	n, _ := mc.Byte(flags).WriteTo(w)
+	if i.hasMin {
+		nn, _ := mc.Int(i.MinVal).WriteTo(w)
+		n += nn
+	}
+	if i.hasMax {
+		nn, _ := mc.Int(i.MaxVal).WriteTo(w)
+		n += nn
+	}
+	return n, nil
 }
 
 var Int = IntType{
@@ -30,7 +54,7 @@ func (i IntType) Max(max int) IntType {
 	return i
 }
 
-func (i IntType) ID() string { return "brigadier:integer" }
+func (i IntType) ID() int { return 3 }
 
 // todo: parser should maybe return a ErrorCode instead
 // todo: parser other than brigadier should maybe be outside of this package

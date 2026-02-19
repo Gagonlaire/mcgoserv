@@ -58,3 +58,18 @@ func (n *Node) Executes(cmd Command) *Node {
 	n.Run = cmd
 	return n
 }
+
+func (n *Node) GetFlags() byte {
+	flags := byte(0)
+
+	flags |= byte(n.Kind) & 0x03
+	if n.Run != nil {
+		flags |= 0x04
+	}
+	if n.Redirect != nil {
+		flags |= 0x08
+	}
+	// todo: add suggestion types and restricted
+
+	return flags
+}

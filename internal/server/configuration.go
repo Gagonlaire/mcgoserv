@@ -8,6 +8,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
 	"github.com/Tnze/go-mc/nbt"
 )
@@ -104,6 +105,8 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	)
 	_ = pkt.Send(c.Conn)
 
+	c.server.sendCommands(c)
+
 	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(int(c.Player.Pos[0])>>4), mc.VarInt(int(c.Player.Pos[2])>>4))
 	_ = pkt.Send(c.Conn)
 
@@ -188,4 +191,34 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	_ = encoder.Encode(component, "")
 	_ = pkt.Encode(mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+}
+
+func (s *Server) sendCommands(c *Connection) {
+	flattenGraph, idMap := s.Commander.FlattenGraph()
+	pkt, _ := packet.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
+
+	for _, node := range flattenGraph {
+		flags := node.GetFlags()
+
+		_ = pkt.Encode(mc.Byte(flags), mc.VarInt(len(node.Children)))
+		for _, node := range node.Children {
+			_ = pkt.Encode(mc.VarInt(idMap[node]))
+		}
+
+		if node.Redirect != nil {
+			_ = pkt.Encode(mc.VarInt(idMap[node.Redirect]))
+		}
+		if node.Kind == commander.LiteralNode || node.Kind == commander.ArgumentNode {
+			_ = pkt.Encode(mc.String(node.Name))
+
+			if node.Kind == commander.ArgumentNode {
+				_ = pkt.Encode(mc.VarInt(node.Parser.ID()))
+				_, _ = node.Parser.WriteTo(pkt.Buffer)
+			}
+		}
+
+		// todo: encode suggestion type
+	}
+	_ = pkt.Encode(mc.VarInt(0))
+	c.Send(pkt)
 }

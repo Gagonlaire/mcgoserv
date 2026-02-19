@@ -3,6 +3,7 @@ package commander
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -18,8 +19,8 @@ type CommandContext struct {
 
 type ArgumentParser interface {
 	Parse(reader *strings.Reader) (interface{}, error)
-	ID() string
-	// Serialize(buf *bytes.Buffer) todo: implement later
+	ID() int
+	WriteTo(w io.Writer) (n int64, err error)
 }
 
 type Command func(ctx *CommandContext) (string, error)
@@ -125,6 +126,30 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 	}
 
 	return current.Run(cmdCtx)
+}
+
+func (d *Commander) FlattenGraph() ([]*Node, map[*Node]int) {
+	var nodes []*Node
+	var walk func(n *Node)
+	indices := make(map[*Node]int)
+
+	walk = func(n *Node) {
+		if _, visited := indices[n]; visited {
+			return
+		}
+
+		indices[n] = len(nodes)
+		nodes = append(nodes, n)
+		for _, child := range n.Children {
+			walk(child)
+		}
+		if n.Redirect != nil {
+			walk(n.Redirect)
+		}
+	}
+	walk(d.Root)
+
+	return nodes, indices
 }
 
 func peekWord(r *strings.Reader) string {
