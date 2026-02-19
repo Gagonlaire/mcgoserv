@@ -23,7 +23,7 @@ func NewTicker(ticksPerSecond int) *Ticker {
 	}
 }
 
-func (t *Ticker) RegisterHandler(handler func()) {
+func (t *Ticker) Register(handler func()) {
 	t.handlers = append(t.handlers, handler)
 }
 

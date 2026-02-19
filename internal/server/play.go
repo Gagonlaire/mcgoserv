@@ -1,9 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
+	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -489,7 +492,45 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 		return
 	}
 
-	// todo: work on some command handling system
+	resp, err := c.server.Commander.Execute(
+		context.WithValue(c.server.ctx, "connection", c),
+		string(command),
+	)
+
+	type ChatComponent struct {
+		Text  string `nbt:"text"`
+		Color string `nbt:"color,omitempty"`
+	}
+
+	if err != nil {
+		// todo: update to have the minecraft error message with click suggestcommand
+		errMsg := ChatComponent{
+			Text:  err.Error(),
+			Color: "red",
+		}
+		pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat)
+		encoder := nbt.NewEncoder(pkt.Buffer)
+		encoder.NetworkFormat(true)
+		if err := encoder.Encode(&errMsg, ""); err != nil {
+			log.Printf("Error encoding command error message: %v", err)
+			return
+		}
+		_ = pkt.Encode(mc.Boolean(false))
+		c.Send(pkt)
+	} else if resp != "" {
+		successMsg := ChatComponent{
+			Text: resp,
+		}
+		pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat)
+		encoder := nbt.NewEncoder(pkt.Buffer)
+		encoder.NetworkFormat(true)
+		if err := encoder.Encode(&successMsg, ""); err != nil {
+			log.Printf("Error encoding command success message: %v", err)
+			return
+		}
+		_ = pkt.Encode(mc.Boolean(false))
+		c.Send(pkt)
+	}
 }
 
 func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
@@ -503,18 +544,11 @@ func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 	c.Player.SelectedItemSlot = int32(slot)
 	inventoryId := mc.HotbarToInternal(int(slot))
 	item := c.Player.Inventory.Get(inventoryId)
-	glass, _ := mc.GetItemByName("glass")
-	testSlot := mc.Slot{
-		ItemID: int32(glass.ID),
-		Count:  1,
-	}
 	pkt, _ = packet.NewPacket(
 		packet.PlayClientboundSetEquipment,
 		mc.VarInt(c.Player.EntityID),
 		mc.UnsignedByte(0|1<<7),
 		&item,
-		mc.UnsignedByte(5),
-		&testSlot,
 	)
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
@@ -573,6 +607,9 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 			c.server.Broadcaster.Broadcast(pkt)
 
 			// todo: fix to handle sound groups
+			// todo: check if faster rand exist
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			pitch := 0.5 + r.Float64()*(2-0.5)
 			if soundId, ok := block.Sounds["place"]; ok {
 				soundPkt, _ := packet.NewPacket(
 					packet.PlayClientboundSound,
@@ -582,7 +619,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 					mc.Int(location.Y*8),
 					mc.Int(location.Z*8),
 					mc.Float(1),
-					mc.Float(1),
+					mc.Float(pitch),
 					mc.Long(0),
 				)
 				c.server.Broadcaster.Broadcast(soundPkt, systems.NotSender(c))

@@ -25,6 +25,9 @@ type Properties struct {
 	GameMode            int    `property:"gamemode" default:"0" min:"0" max:"3"`
 	ForceGameMode       bool   `property:"force-gamemode" default:"false"`
 	OnlineMode          bool   `property:"online-mode" default:"true"`
+	EnableRcon          bool   `property:"enable-rcon" default:"false"`
+	RconPassword        string `property:"rcon.password" default:""`
+	RconPort            int    `property:"rcon.port" default:"25575" min:"1" max:"65535"`
 }
 
 func LoadProperties(path string) (*Properties, error) {

@@ -13,7 +13,7 @@ func NewDoubleRouter[R comparable, S comparable, C any, D any]() *DoubleRouter[R
 	}
 }
 
-func (r *DoubleRouter[R, S, C, D]) RegisterHandler(key1 R, key2 S, handler Handler[C, D]) {
+func (r *DoubleRouter[R, S, C, D]) Register(key1 R, key2 S, handler Handler[C, D]) {
 	if _, ok := r.handlers[key1]; !ok {
 		r.handlers[key1] = make(map[S]Handler[C, D])
 	}

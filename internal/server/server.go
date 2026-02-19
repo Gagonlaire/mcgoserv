@@ -1,15 +1,19 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
@@ -19,22 +23,19 @@ const (
 	KeepAliveTimeout  = 300
 )
 
-type Ticker = systems.Ticker
-type Broadcaster = systems.Broadcaster[*Connection, *packet.Packet]
-type Router = systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
-type Properties = systems.Properties
-
 type Server struct {
-	World       *world.World
-	Ticker      *Ticker
-	Broadcaster *Broadcaster
-	Router      *Router
-	Properties  *Properties
-	Addr        string
-	Connections sync.Map
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	World         *world.World
+	Ticker        *systems.Ticker
+	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
+	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+	Properties    *systems.Properties
+	RemoteConsole *systems.RemoteConsole
+	Commander     *commander.Commander
+	Addr          string
+	Connections   sync.Map
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 func NewServer() *Server {
@@ -43,41 +44,24 @@ func NewServer() *Server {
 		log.Fatalf("Failed to load server.properties: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
 		Properties: props,
 		Addr:       fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
-		ctx:        ctx,
-		cancel:     cancel,
 	}
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", server))
+	server.ctx = ctx
+	server.cancel = cancel
 
 	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
-	server.Router.RegisterHandler(mc.StateHandshake, packet.HandshakeServerboundIntention, (*Connection).HandleHandshakePacket)
-	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundStatusRequest, (*Connection).HandleStatusRequestPacket)
-	server.Router.RegisterHandler(mc.StateStatus, packet.StatusServerboundPingRequest, (*Connection).HandlePingPacket)
-	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundHello, (*Connection).HandleLoginStartPacket)
-	server.Router.RegisterHandler(mc.StateLogin, packet.LoginServerboundLoginAcknowledged, (*Connection).HandleLoginAckPacket)
-	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundFinishConfiguration, (*Connection).HandleFinishConfigurationAckPacket)
-	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
-	server.Router.RegisterHandler(mc.StateConfiguration, packet.ConfigurationServerboundSelectKnownPacks, (*Connection).HandleClientKnownPacksPacket)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundAcceptTeleportation, (*Connection).HandleConfirmTeleportationPacket)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPos, (*Connection).HandleMovePlayerPos)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerPosRot, (*Connection).HandleMovePlayerPosRot)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerRot, (*Connection).HandleMovePlayerRot)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundKeepAlive, (*Connection).HandleKeepAlivePacket)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundClientTickEnd, (*Connection).HandleClientTickEnd)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerLoaded, (*Connection).HandlePlayerLoaded)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundMovePlayerStatusOnly, (*Connection).HandleMovePlayerStatusOnly)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerCommand, (*Connection).HandlePlayerCommand)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerInput, (*Connection).HandlePlayerInput)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSwing, (*Connection).HandleSwingArm)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundPlayerAction, (*Connection).HandlePlayerAction)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundChat, (*Connection).HandleChat)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundChatCommand, (*Connection).HandleChatCommand)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSetCarriedItem, (*Connection).HandleSetCarriedItem)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundSetCreativeModeSlot, (*Connection).HandleSetCreativeModeSlot)
-	server.Router.RegisterHandler(mc.StatePlay, packet.PlayServerboundUseItemOn, (*Connection).HandleUseItemOn)
-	// todo: maybe add debug logs after registering handlers
+	server.registerPacketHandlers()
+
+	server.Commander = commander.NewCommander()
+	server.registerCommands()
+
+	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
+	server.registerTickerSteps()
+
+	server.World = world.NewWorld()
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {
@@ -99,13 +83,75 @@ func NewServer() *Server {
 			}
 		},
 	)
-	server.World = world.NewWorld()
-	// todo: change how ticker work, currently it runs on 20ticks for all connections so it delays all packets
-	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
-	server.Ticker.RegisterHandler(func() { updateTime(server) })
-	server.Ticker.RegisterHandler(func() { processIncomingPackets(server) })
+
+	if server.Properties.EnableRcon {
+		if server.Properties.RconPassword == "" {
+			log.Printf("No rcon password set in server.properties, rcon disabled!")
+		} else {
+			server.RemoteConsole = systems.NewRemoteConsole(
+				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
+				server.Properties.RconPassword,
+				func(s string) string {
+					resp, err := server.Commander.Execute(server.ctx, s)
+					if err != nil {
+						return err.Error()
+					}
+					return resp
+				},
+			)
+		}
+	}
 
 	return server
+}
+
+func (s *Server) Start() {
+	listener, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		log.Fatalf("failed to listen on %s: %v", s.Addr, err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	if s.RemoteConsole != nil {
+		if err := s.RemoteConsole.Start(); err != nil {
+			log.Printf("Failed to start RCON server: %v", err)
+		} else {
+			defer s.RemoteConsole.Stop()
+		}
+	}
+
+	go s.handleStdin()
+	go s.Ticker.Start()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			if s.ctx.Err() != nil {
+				return
+			}
+			log.Printf("failed to accept connection: %v", err)
+			continue
+		}
+		log.Printf("accepted connection from %s", conn.RemoteAddr())
+
+		s.wg.Add(1)
+		go s.handleConnection(conn)
+	}
+}
+
+func (s *Server) Stop() {
+	s.cancel()
+	s.wg.Wait()
+	s.Ticker.Stop()
+}
+
+func (s *Server) handleConnection(conn net.Conn) {
+	defer s.wg.Done()
+
+	c := s.NewConnection(conn)
+
+	go c.ReadLoop()
+	c.WriteLoop()
 }
 
 func updateTime(s *Server) {
@@ -180,42 +226,19 @@ func processIncomingPackets(s *Server) {
 	})
 }
 
-func (s *Server) Start() {
-	listener, err := net.Listen("tcp", s.Addr)
-	if err != nil {
-		log.Fatalf("failed to listen on %s: %v", s.Addr, err)
-	}
-	defer listener.Close()
+func (s *Server) handleStdin() {
+	scanner := bufio.NewScanner(os.Stdin)
 
-	go s.Ticker.Start()
+	for scanner.Scan() {
+		command := scanner.Text()
+		if strings.TrimSpace(command) != "" {
+			resp, err := s.Commander.Execute(s.ctx, command)
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if s.ctx.Err() != nil {
-				return
+			if err != nil {
+				fmt.Println(err.Error())
+			} else if resp != "" {
+				fmt.Println(resp)
 			}
-			log.Printf("failed to accept connection: %v", err)
-			continue
 		}
-		log.Printf("accepted connection from %s", conn.RemoteAddr())
-
-		s.wg.Add(1)
-		go s.handleConnection(conn)
 	}
-}
-
-func (s *Server) handleConnection(conn net.Conn) {
-	defer s.wg.Done()
-
-	c := s.NewConnection(conn)
-
-	go c.ReadLoop()
-	c.WriteLoop()
-}
-
-func (s *Server) Stop() {
-	s.cancel()
-	s.wg.Wait()
-	s.Ticker.Stop()
 }
