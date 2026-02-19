@@ -6,11 +6,11 @@ import (
 	"slices"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
-	"github.com/Tnze/go-mc/nbt"
 )
 
 func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
@@ -176,20 +176,8 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		return true
 	})
 
-	// todo: replace with a flexible type
-	type PlayerJoined struct {
-		Text  string `nbt:"text"`
-		Color string `nbt:"color,omitempty"`
-	}
-	component := PlayerJoined{
-		Text:  string(c.Player.Name) + " joined the game",
-		Color: "yellow",
-	}
-	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat)
-	encoder := nbt.NewEncoder(pkt.Buffer)
-	encoder.NetworkFormat(true)
-	_ = encoder.Encode(component, "")
-	_ = pkt.Encode(mc.Boolean(false))
+	joinMessage := tc.Translatable("multiplayer.player.joined", tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name)))).SetColor(tc.ColorYellow)
+	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 

@@ -74,7 +74,7 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 		} else {
 			for _, child := range current.Children {
 				if child.Kind == ArgumentNode {
-					reader.Seek(int64(len(input)-startLen), 0)
+					_, _ = reader.Seek(int64(len(input)-startLen), 0)
 
 					val, err := child.Parser.Parse(reader)
 					if err == nil {
@@ -95,7 +95,7 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 		}
 
 		if found == nil {
-			reader.Seek(int64(len(input)-startLen), 0)
+			_, _ = reader.Seek(int64(len(input)-startLen), 0)
 			badToken := readWord(reader)
 			cursor := len(input) - reader.Len()
 
@@ -155,7 +155,7 @@ func (d *Commander) FlattenGraph() ([]*Node, map[*Node]int) {
 func peekWord(r *strings.Reader) string {
 	start, _ := r.Seek(0, 1)
 	word := readWord(r)
-	r.Seek(start, 0)
+	_, _ = r.Seek(start, 0)
 	return word
 }
 

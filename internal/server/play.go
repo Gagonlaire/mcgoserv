@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -424,67 +425,13 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 		log.Printf("Error decoding chat packet: %v", err)
 	}
 
-	// turbo dummy implementation
-	type ChatMessage struct {
-		Translate string `nbt:"translate"`
-		With      []struct {
-			Text       string `nbt:"text"`
-			ClickEvent *struct {
-				Action string `nbt:"action"`
-				Value  string `nbt:"value"`
-			} `nbt:"clickEvent,omitempty"`
-			HoverEvent *struct {
-				Action   string `nbt:"action"`
-				Contents string `nbt:"contents"`
-			} `nbt:"hoverEvent,omitempty"`
-		} `nbt:"with"`
-	}
-
-	data := ChatMessage{
-		Translate: "chat.type.text",
-		With: []struct {
-			Text       string `nbt:"text"`
-			ClickEvent *struct {
-				Action string `nbt:"action"`
-				Value  string `nbt:"value"`
-			} `nbt:"clickEvent,omitempty"`
-			HoverEvent *struct {
-				Action   string `nbt:"action"`
-				Contents string `nbt:"contents"`
-			} `nbt:"hoverEvent,omitempty"`
-		}{
-			{
-				Text: string(c.Player.Name),
-				ClickEvent: &struct {
-					Action string `nbt:"action"`
-					Value  string `nbt:"value"`
-				}{
-					Action: "suggest_command",
-					Value:  fmt.Sprintf("/tell %s ", string(c.Player.Name)),
-				},
-				HoverEvent: &struct {
-					Action   string `nbt:"action"`
-					Contents string `nbt:"contents"`
-				}{
-					Action:   "show_text",
-					Contents: "Click to message",
-				},
-			},
-			{
-				Text: string(message),
-			},
-		},
-	}
-
+	chatMessage := tc.Translatable(
+		"chat.type.text",
+		tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name))),
+		tc.Text(string(message)),
+	)
 	pkt.Retain()
-	_ = pkt.ResetWith(packet.PlayClientboundSystemChat)
-	encoder := nbt.NewEncoder(pkt.Buffer)
-	encoder.NetworkFormat(true)
-	if err := encoder.Encode(&data, ""); err != nil {
-		log.Printf("Error encoding chat message: %v", err)
-		return
-	}
-	_ = pkt.Encode(mc.Boolean(false))
+	_ = pkt.ResetWith(packet.PlayClientboundSystemChat, chatMessage, mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt)
 }
 

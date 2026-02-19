@@ -2,18 +2,18 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"sync"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
-	"github.com/Tnze/go-mc/nbt"
 )
 
 type Connection struct {
@@ -110,24 +110,17 @@ func (c *Connection) Send(pkt *packet.Packet) {
 }
 
 func (c *Connection) Disconnect(reason string) {
-	// todo: create JSON text component and text component
-	reasonObj := struct {
-		Text string `json:"text" nbt:"text"`
-	}{Text: reason}
-	reasonBytes, _ := json.Marshal(reasonObj)
+	// todo: check if reason is translatable key
+	disconnectReason := tc.Translatable("multiplayer.disconnect.generic")
 	var pkt *packet.Packet
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reasonBytes))
+		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(disconnectReason.ToJSON()))
 	case mc.StateConfiguration:
-		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reasonBytes))
+		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(disconnectReason.ToJSON()))
 	case mc.StatePlay:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect)
-
-		encoder := nbt.NewEncoder(pkt.Buffer)
-		encoder.NetworkFormat(true)
-		_ = encoder.Encode(reasonObj, "")
+		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect, disconnectReason)
 	default:
 		panic("unhandled default case")
 	}
@@ -136,29 +129,15 @@ func (c *Connection) Disconnect(reason string) {
 }
 
 func (c *Connection) close() {
-	// todo: same here, move to a flexible type
-	type PlayerLeft struct {
-		Text  string `nbt:"text"`
-		Color string `nbt:"color,omitempty"`
-	}
-
 	c.closeOnce.Do(func() {
 		c.cancel()
 		if c.Player != nil {
-			component := PlayerLeft{
-				Text:  string(c.Player.Name) + " left the game",
-				Color: "yellow",
-			}
-
 			eID := mc.VarInt(c.Player.EntityID)
 			UUID := mc.UUID(c.Player.UUID)
 			pkt1, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), &UUID)
 			pkt2, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), eID)
-			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat)
-			encoder := nbt.NewEncoder(pkt3.Buffer)
-			encoder.NetworkFormat(true)
-			_ = encoder.Encode(component, "")
-			_ = pkt3.Encode(mc.Boolean(false))
+			leftMessage := tc.Translatable("multiplayer.player.left", tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name)))).SetColor(tc.ColorYellow)
+			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 			c.server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
 			c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 			c.server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
