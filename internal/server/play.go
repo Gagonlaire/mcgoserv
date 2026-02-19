@@ -496,6 +496,7 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 		return
 	}
 
+	// todo: commands should maybe ran in a separate routine
 	resp, err := c.server.Commander.Execute(
 		context.WithValue(c.server.ctx, "connection", c),
 		string(command),

@@ -33,6 +33,22 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return
 	}
 
+	ip := c.Conn.RemoteAddr().String()
+	if banned, entry := c.server.PlayerList.IsIPBanned(ip); banned {
+		c.Disconnect(fmt.Sprintf("You are IP banned: %s", entry.Reason))
+		return
+	}
+
+	if banned, entry := c.server.PlayerList.IsBanned(uuid.UUID(PlayerUUID)); banned {
+		c.Disconnect(fmt.Sprintf("You are banned: %s", entry.Reason))
+		return
+	}
+
+	if c.server.Properties.WhiteList && !c.server.PlayerList.IsWhitelisted(uuid.UUID(PlayerUUID)) {
+		c.Disconnect("You are not whitelisted on this server!")
+		return
+	}
+
 	c.server.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
 

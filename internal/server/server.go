@@ -29,6 +29,7 @@ type Server struct {
 	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
 	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
 	Properties    *systems.Properties
+	PlayerList    *systems.AccessControl
 	RemoteConsole *systems.RemoteConsole
 	Commander     *commander.Commander
 	Addr          string
@@ -61,7 +62,7 @@ func NewServer() *Server {
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.registerTickerSteps()
 
-	server.World = world.NewWorld()
+	server.PlayerList = systems.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json")
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {
@@ -83,6 +84,8 @@ func NewServer() *Server {
 			}
 		},
 	)
+
+	server.World = world.NewWorld()
 
 	if server.Properties.EnableRcon {
 		if server.Properties.RconPassword == "" {

@@ -19,6 +19,8 @@ type Properties struct {
 	SimulationDistance  int    `property:"simulation-distance" default:"10" min:"2" max:"32"`
 	Hardcore            bool   `property:"hardcore" default:"false"`
 	EnableRespawnScreen bool   `property:"enable-respawn-screen" default:"true"`
+	EnforceWhitelist    bool   `property:"enforce-whitelist" default:"false"`
+	WhiteList           bool   `property:"white-list" default:"false"`
 	LevelName           string `property:"level-name" default:"world"`
 	ServerIp            string `property:"server-ip" default:""`
 	ServerPort          int    `property:"server-port" default:"25565" min:"1" max:"65535"`

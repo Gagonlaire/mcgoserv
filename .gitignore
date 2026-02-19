@@ -7,6 +7,11 @@ versions/
 libraries/
 /server*
 
+### Access control related
+banned-players.json
+banned-ips.json
+whitelist.json
+
 ### Benchmark files
 .benchmark/
 
