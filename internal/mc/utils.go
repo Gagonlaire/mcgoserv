@@ -2,6 +2,8 @@ package mc
 
 import (
 	"math"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 )
 
 const (
@@ -78,7 +80,7 @@ var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
 		{
 			Namespace: String("minecraft"),
 			ID:        String("core"),
-			Version:   String(GameVersion),
+			Version:   String(mcdata.GameVersion),
 		},
 	},
 }

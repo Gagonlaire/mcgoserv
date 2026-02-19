@@ -74,7 +74,7 @@ type BlockTemplateData struct {
 
 func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mc/blocks_gen.go"
+		outputFile = "internal/mcdata/blocks_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/blocks.tmpl"
 	)
 

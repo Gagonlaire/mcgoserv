@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
@@ -30,8 +31,8 @@ type StatusResponse struct {
 func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
 	var data StatusResponse
 
-	data.Version.Name = mc.GameVersion
-	data.Version.Protocol = mc.ProtocolVersion
+	data.Version.Name = mcdata.GameVersion
+	data.Version.Protocol = mcdata.ProtocolVersion
 	data.Players.Max = c.server.Properties.MaxPlayers
 	data.Players.Online = len(c.server.World.Players)
 	for _, p := range c.server.World.Players {

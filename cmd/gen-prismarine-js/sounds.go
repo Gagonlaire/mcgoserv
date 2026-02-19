@@ -20,7 +20,7 @@ type SoundTemplateData struct {
 
 func generateSounds(rawSounds io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mc/sounds_gen.go"
+		outputFile = "internal/mcdata/sounds_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/sounds.tmpl"
 	)
 

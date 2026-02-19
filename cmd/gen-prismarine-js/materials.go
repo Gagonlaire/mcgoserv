@@ -15,7 +15,7 @@ type MaterialTemplateData map[string]map[int]float32
 
 func generateMaterials(rawMaterials io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mc/materials_gen.go"
+		outputFile = "internal/mcdata/materials_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/materials.tmpl"
 	)
 

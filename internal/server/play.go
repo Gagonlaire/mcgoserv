@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Tnze/go-mc/nbt"
@@ -598,10 +599,10 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 	var slotData = c.Player.Inventory.Get(slotId)
 
 	if slotData.Count > 0 {
-		item, ok := mc.GetItem(int(slotData.ItemID))
+		item, ok := mcdata.GetItem(int(slotData.ItemID))
 
 		if ok && item.BlockID != -1 {
-			block, _ := mc.GetBlock(item.BlockID)
+			block, _ := mcdata.GetBlock(item.BlockID)
 			dim := c.server.World.Dimensions["minecraft:overworld"]
 			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), int32(block.DefaultStateID))
 
