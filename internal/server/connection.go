@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
@@ -111,7 +111,7 @@ func (c *Connection) Send(pkt *packet.Packet) {
 
 func (c *Connection) Disconnect(reason string) {
 	// todo: check if reason is translatable key
-	disconnectReason := tc.Translatable("multiplayer.disconnect.generic")
+	disconnectReason := tc.Translatable(mcdata.MultiplayerDisconnectGeneric)
 	var pkt *packet.Packet
 
 	switch c.State {
@@ -136,8 +136,12 @@ func (c *Connection) close() {
 			UUID := mc.UUID(c.Player.UUID)
 			pkt1, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), &UUID)
 			pkt2, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), eID)
-			leftMessage := tc.Translatable("multiplayer.player.left", tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name)))).SetColor(tc.ColorYellow)
+			leftMessage := tc.Translatable(
+				mcdata.MultiplayerPlayerLeft,
+				tc.PresetPlayerName(string(c.Player.Name)),
+			).SetColor(tc.ColorYellow)
 			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
+
 			c.server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
 			c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 			c.server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))

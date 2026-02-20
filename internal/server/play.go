@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -426,8 +425,8 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 	}
 
 	chatMessage := tc.Translatable(
-		"chat.type.text",
-		tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name))),
+		mcdata.ChatTypeText,
+		tc.PresetPlayerName(string(c.Player.Name)),
 		tc.Text(string(message)),
 	)
 	pkt.Retain()

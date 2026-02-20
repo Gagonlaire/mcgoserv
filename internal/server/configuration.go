@@ -7,6 +7,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -176,7 +177,10 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		return true
 	})
 
-	joinMessage := tc.Translatable("multiplayer.player.joined", tc.Text(string(c.Player.Name)).SuggestCommand(fmt.Sprintf("/tell %s ", string(c.Player.Name)))).SetColor(tc.ColorYellow)
+	joinMessage := tc.Translatable(
+		mcdata.MultiplayerPlayerJoined,
+		tc.PresetPlayerName(string(c.Player.Name)),
+	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }

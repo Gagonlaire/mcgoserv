@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Tnze/go-mc/nbt"
 )
 
@@ -71,9 +72,9 @@ func Text(text string) *TextComponent {
 	return t
 }
 
-func Translatable(translate string, with ...Component) *TranslatableComponent {
+func Translatable(translation mcdata.TranslationKey, with ...Component) *TranslatableComponent {
 	t := &TranslatableComponent{
-		Translate: translate,
+		Translate: string(translation),
 		Base: Base[*TranslatableComponent]{
 			Type:          "translatable",
 			Formatting:    &Formatting{},
