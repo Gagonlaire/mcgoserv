@@ -1,10 +1,11 @@
 package server
 
 import (
-	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
@@ -16,31 +17,46 @@ func (s *Server) registerTickerSteps() {
 
 func (s *Server) registerCommands() {
 	s.Commander.Register(
-		Literal("stop").Executes(func(ctx *CommandContext) (string, error) {
+		Literal("stop").Executes(func(ctx *CommandContext) text_component.Component {
 			server := ctx.Value("server").(*Server)
 			server.Connections.Range(func(k, v interface{}) bool {
 				conn := k.(*Connection)
-				conn.Disconnect("Server closed")
+				conn.Disconnect(text_component.Text("Server closed"))
 				return true
 			})
 			// todo: server should actually stop :)
 			server.Stop()
-			return "", nil
+			return text_component.Text("Stopping the server")
 		}),
-		Literal("list").Executes(func(ctx *CommandContext) (string, error) {
+
+		Literal("list").Executes(func(ctx *CommandContext) text_component.Component {
 			server := ctx.Value("server").(*Server)
 			players := make([]string, 0)
+			playerList := text_component.Container()
 
 			server.Connections.Range(func(k, v interface{}) bool {
 				conn := k.(*Connection)
 
 				if conn.Player != nil && conn.State == mc.StatePlay {
+					// todo: check if listed
 					players = append(players, string(conn.Player.Name))
+					playerList.AddExtra(
+						text_component.PresetPlayerName(string(conn.Player.Name)),
+						text_component.Text(", "),
+					)
 				}
 				return true
 			})
+			if len(players) > 0 {
+				playerList.Extra = playerList.Extra[:len(playerList.Extra)-1]
+			}
 
-			return fmt.Sprintf("There are %d of a max of %d players online: %s", len(players), server.Properties.MaxPlayers, strings.Join(players, ", ")), nil
+			return text_component.Translatable(
+				mcdata.CommandsListPlayers,
+				text_component.Text(strconv.Itoa(len(players))),
+				text_component.Text(strconv.Itoa(server.Properties.MaxPlayers)),
+				playerList,
+			)
 		}),
 	)
 }

@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
 	"github.com/google/uuid"
@@ -34,18 +36,18 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	}
 
 	ip := c.Conn.RemoteAddr().String()
-	if banned, entry := c.server.PlayerList.IsIPBanned(ip); banned {
-		c.Disconnect(fmt.Sprintf("You are IP banned: %s", entry.Reason))
+	if banned, entry := c.server.AccessControl.IsIPBanned(ip); banned {
+		c.Disconnect(tc.Text(fmt.Sprintf("You are IP banned: %s", entry.Reason)))
 		return
 	}
 
-	if banned, entry := c.server.PlayerList.IsBanned(uuid.UUID(PlayerUUID)); banned {
-		c.Disconnect(fmt.Sprintf("You are banned: %s", entry.Reason))
+	if banned, entry := c.server.AccessControl.IsBanned(uuid.UUID(PlayerUUID)); banned {
+		c.Disconnect(tc.Text(fmt.Sprintf("You are banned: %s", entry.Reason)))
 		return
 	}
 
-	if c.server.Properties.WhiteList && !c.server.PlayerList.IsWhitelisted(uuid.UUID(PlayerUUID)) {
-		c.Disconnect("You are not whitelisted on this server!")
+	if c.server.Properties.WhiteList && !c.server.AccessControl.IsWhitelisted(uuid.UUID(PlayerUUID)) {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 		return
 	}
 
@@ -53,7 +55,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		conn := k.(*Connection)
 
 		if conn.Player != nil && conn.Player.UUID == uuid.UUID(PlayerUUID) {
-			conn.Disconnect("You have logged in from another location.")
+			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectDuplicateLogin))
 			return false
 		}
 		return true

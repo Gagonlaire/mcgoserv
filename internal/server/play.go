@@ -12,7 +12,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
-	"github.com/Tnze/go-mc/nbt"
 )
 
 const (
@@ -443,43 +442,13 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 	}
 
 	// todo: commands should maybe ran in a separate routine
-	resp, err := c.server.Commander.Execute(
+	resp := c.server.Commander.Execute(
 		context.WithValue(c.server.ctx, "connection", c),
 		string(command),
 	)
 
-	type ChatComponent struct {
-		Text  string `nbt:"text"`
-		Color string `nbt:"color,omitempty"`
-	}
-
-	if err != nil {
-		// todo: update to have the minecraft error message with click suggestcommand
-		errMsg := ChatComponent{
-			Text:  err.Error(),
-			Color: "red",
-		}
-		pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat)
-		encoder := nbt.NewEncoder(pkt.Buffer)
-		encoder.NetworkFormat(true)
-		if err := encoder.Encode(&errMsg, ""); err != nil {
-			log.Printf("Error encoding command error message: %v", err)
-			return
-		}
-		_ = pkt.Encode(mc.Boolean(false))
-		c.Send(pkt)
-	} else if resp != "" {
-		successMsg := ChatComponent{
-			Text: resp,
-		}
-		pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat)
-		encoder := nbt.NewEncoder(pkt.Buffer)
-		encoder.NetworkFormat(true)
-		if err := encoder.Encode(&successMsg, ""); err != nil {
-			log.Printf("Error encoding command success message: %v", err)
-			return
-		}
-		_ = pkt.Encode(mc.Boolean(false))
+	if resp != nil {
+		pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, resp, mc.Boolean(false))
 		c.Send(pkt)
 	}
 }

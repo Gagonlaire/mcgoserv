@@ -109,18 +109,16 @@ func (c *Connection) Send(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) Disconnect(reason string) {
-	// todo: check if reason is translatable key
-	disconnectReason := tc.Translatable(mcdata.MultiplayerDisconnectGeneric)
+func (c *Connection) Disconnect(reason tc.Component) {
 	var pkt *packet.Packet
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(disconnectReason.ToJSON()))
+		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reason.ToJSON()))
 	case mc.StateConfiguration:
-		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(disconnectReason.ToJSON()))
+		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reason.ToJSON()))
 	case mc.StatePlay:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect, disconnectReason)
+		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect, reason)
 	default:
 		panic("unhandled default case")
 	}

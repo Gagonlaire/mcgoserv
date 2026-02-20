@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 )
 
 type IntType struct {
@@ -58,17 +59,18 @@ func (i IntType) ID() int { return 3 }
 
 // todo: parser should maybe return a ErrorCode instead
 // todo: parser other than brigadier should maybe be outside of this package
-func (i IntType) Parse(r *strings.Reader) (interface{}, error) {
+func (i IntType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
 	var val int
 
 	_, err := fmt.Fscan(r, &val)
+	// todo: change error messages
 	switch {
 	case err != nil:
-		return nil, err
+		return nil, text_component.Text(err.Error()).SetColor("red")
 	case i.hasMin && val < i.MinVal:
-		return nil, fmt.Errorf("integer too small: must be >= %d", i.MinVal)
+		return nil, text_component.Text(fmt.Sprintf("integer too small: must be >= %d", i.MinVal)).SetColor("red")
 	case i.hasMax && val > i.MaxVal:
-		return nil, fmt.Errorf("integer too big: must be <= %d", i.MaxVal)
+		return nil, text_component.Text(fmt.Sprintf("integer too big: must be <= %d", i.MaxVal)).SetColor("red")
 	default:
 		return val, nil
 	}

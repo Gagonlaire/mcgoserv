@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 )
 
 type Commander struct {
@@ -18,12 +21,12 @@ type CommandContext struct {
 }
 
 type ArgumentParser interface {
-	Parse(reader *strings.Reader) (interface{}, error)
+	Parse(reader *strings.Reader) (interface{}, tc.Component)
 	ID() int
 	WriteTo(w io.Writer) (n int64, err error)
 }
 
-type Command func(ctx *CommandContext) (string, error)
+type Command func(ctx *CommandContext) tc.Component
 
 func NewCommander() *Commander {
 	return &Commander{
@@ -50,7 +53,7 @@ func (d *Commander) Resolve(cmdName string) *Node {
 	return nil
 }
 
-func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
+func (d *Commander) Execute(ctx context.Context, input string) tc.Component {
 	reader := strings.NewReader(input)
 	cmdCtx := &CommandContext{
 		Context: ctx,
@@ -61,7 +64,7 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 
 	for reader.Len() > 0 {
 		if err := cmdCtx.Err(); err != nil {
-			return "", err
+			return nil
 		}
 
 		startLen := reader.Len()
@@ -82,13 +85,7 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 						found = child
 						break
 					} else {
-						return "", &SyntaxError{
-							Code:     InvalidArgument,
-							NodeName: child.Name,
-							Token:    token,
-							Input:    input,
-							Cursor:   len(input) - reader.Len(),
-						}
+						return err
 					}
 				}
 			}
@@ -97,15 +94,13 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 		if found == nil {
 			_, _ = reader.Seek(int64(len(input)-startLen), 0)
 			badToken := readWord(reader)
-			cursor := len(input) - reader.Len()
 
-			return "", &SyntaxError{
-				Code:     UnknownCommand,
-				NodeName: current.Name,
-				Token:    badToken,
-				Input:    input,
-				Cursor:   cursor,
-			}
+			return tc.Translatable(mcdata.CommandUnknownCommand).AddExtra(
+				tc.Container(
+					tc.Text("\n"+badToken).SetUnderlined(true),
+					tc.Translatable(mcdata.CommandContextHere),
+				).SuggestCommand(badToken),
+			).SetColor(tc.ColorRed)
 		}
 
 		current = found
@@ -117,12 +112,20 @@ func (d *Commander) Execute(ctx context.Context, input string) (string, error) {
 	}
 
 	if current.Run == nil {
-		return "", &SyntaxError{
-			Code:     IncompleteCommand,
-			NodeName: current.Name,
-			Input:    input,
-			Cursor:   len(input),
+		start := len(input) - 10
+		prefix := "..."
+
+		if start <= 0 {
+			start = 0
+			prefix = ""
 		}
+
+		return tc.Translatable(mcdata.CommandUnknownCommand).AddExtra(
+			tc.Container(
+				tc.Text("\n"+prefix+input[start:]).SetColor(tc.ColorGray),
+				tc.Translatable(mcdata.CommandContextHere),
+			).SuggestCommand("/" + input),
+		).SetColor(tc.ColorRed)
 	}
 
 	return current.Run(cmdCtx)

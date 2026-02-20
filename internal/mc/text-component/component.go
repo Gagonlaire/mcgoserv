@@ -3,6 +3,7 @@ package text_component
 import (
 	"encoding/json"
 	"io"
+	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Tnze/go-mc/nbt"
@@ -10,6 +11,9 @@ import (
 
 type Component interface {
 	isComponent() // lock interface
+	String() string
+	WriteTo(w io.Writer) (int64, error)
+	ToJSON() []byte
 }
 
 type Base[T any] struct {
@@ -34,7 +38,7 @@ func (b *Base[T]) WriteTo(w io.Writer) (int64, error) {
 }
 
 func (b *Base[T]) ToJSON() []byte {
-	data, err := json.Marshal(b)
+	data, err := json.Marshal(b.self)
 
 	if err != nil {
 		return nil
@@ -52,11 +56,36 @@ type TextComponent struct {
 	Text string `nbt:"text" json:"text"`
 }
 
+func (t *TextComponent) String() string {
+	var sb strings.Builder
+	sb.WriteString(t.Text)
+	for _, extra := range t.Extra {
+		sb.WriteString(extra.String())
+	}
+	return sb.String()
+}
+
 type TranslatableComponent struct {
 	Base[*TranslatableComponent]
 	Translate string      `nbt:"translate" json:"translate"`
 	Fallback  string      `nbt:"fallback,omitempty" json:"fallback,omitempty"`
 	With      []Component `nbt:"with,omitempty" json:"with,omitempty"`
+}
+
+func (t *TranslatableComponent) String() string {
+	args := make([]interface{}, len(t.With))
+	for i, comp := range t.With {
+		args[i] = comp.String()
+	}
+
+	translated := mcdata.TranslationKey(t.Translate).Format(args...)
+
+	var sb strings.Builder
+	sb.WriteString(translated)
+	for _, extra := range t.Extra {
+		sb.WriteString(extra.String())
+	}
+	return sb.String()
 }
 
 func Text(text string) *TextComponent {

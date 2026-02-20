@@ -29,7 +29,7 @@ type Server struct {
 	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
 	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
 	Properties    *systems.Properties
-	PlayerList    *systems.AccessControl
+	AccessControl *systems.AccessControl
 	RemoteConsole *systems.RemoteConsole
 	Commander     *commander.Commander
 	Addr          string
@@ -62,7 +62,7 @@ func NewServer() *Server {
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.registerTickerSteps()
 
-	server.PlayerList = systems.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json")
+	server.AccessControl = systems.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json")
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {
@@ -95,11 +95,12 @@ func NewServer() *Server {
 				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
 				server.Properties.RconPassword,
 				func(s string) string {
-					resp, err := server.Commander.Execute(server.ctx, s)
-					if err != nil {
-						return err.Error()
+					resp := server.Commander.Execute(server.ctx, s)
+
+					if resp == nil {
+						return ""
 					}
-					return resp
+					return resp.String()
 				},
 			)
 		}
@@ -231,16 +232,12 @@ func processIncomingPackets(s *Server) {
 
 func (s *Server) handleStdin() {
 	scanner := bufio.NewScanner(os.Stdin)
-
 	for scanner.Scan() {
 		command := scanner.Text()
 		if strings.TrimSpace(command) != "" {
-			resp, err := s.Commander.Execute(s.ctx, command)
-
-			if err != nil {
-				fmt.Println(err.Error())
-			} else if resp != "" {
-				fmt.Println(resp)
+			resp := s.Commander.Execute(s.ctx, command)
+			if resp != nil {
+				fmt.Println(resp.String())
 			}
 		}
 	}
