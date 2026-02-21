@@ -8,6 +8,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -59,7 +60,7 @@ func (c *Connection) ReadLoop() {
 		pkt, err := packet.Receive(c.Conn)
 		if err != nil {
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-				log.Printf("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
+				logger.Error("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
 			}
 			return
 		}
@@ -68,7 +69,7 @@ func (c *Connection) ReadLoop() {
 			c.InboundPackets <- pkt
 		} else {
 			if !c.server.Router.Handle(c.State, pkt.ID, c, pkt) {
-				log.Printf("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+				logger.Warn("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 			}
 			pkt.Free()
 		}
@@ -120,10 +121,10 @@ func (c *Connection) Disconnect(reason tc.Component) {
 	case mc.StatePlay:
 		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect, reason)
 	default:
-		panic("unhandled default case")
+		return
 	}
 
-	c.Send(pkt)
+	_ = pkt.Send(c.Conn)
 }
 
 func (c *Connection) close() {
@@ -136,7 +137,7 @@ func (c *Connection) close() {
 			pkt2, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), eID)
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
-				tc.PresetPlayerName(string(c.Player.Name)),
+				tc.PlayerName(string(c.Player.Name)),
 			).SetColor(tc.ColorYellow)
 			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 

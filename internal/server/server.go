@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -42,7 +44,7 @@ type Server struct {
 func NewServer() *Server {
 	props, err := systems.LoadProperties("server.properties")
 	if err != nil {
-		log.Fatalf("Failed to load server.properties: %v", err)
+		logger.Fatal("Failed to load server.properties: %v", err)
 	}
 
 	server := &Server{
@@ -85,11 +87,15 @@ func NewServer() *Server {
 		},
 	)
 
+	// todo: move world loading and logging to server start
+	startTime := time.Now()
 	server.World = world.NewWorld()
+	duration := time.Since(startTime)
+	logger.Info("Done (%.3fs)! For help, type \"help\"", duration.Seconds())
 
 	if server.Properties.EnableRcon {
 		if server.Properties.RconPassword == "" {
-			log.Printf("No rcon password set in server.properties, rcon disabled!")
+			logger.Warn("No rcon password set in server.properties, rcon disabled!")
 		} else {
 			server.RemoteConsole = systems.NewRemoteConsole(
 				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
@@ -112,13 +118,17 @@ func NewServer() *Server {
 func (s *Server) Start() {
 	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		log.Fatalf("failed to listen on %s: %v", s.Addr, err)
+		panic(err)
 	}
-	defer func() { _ = listener.Close() }()
+
+	go func() {
+		<-s.ctx.Done()
+		_ = listener.Close()
+	}()
 
 	if s.RemoteConsole != nil {
 		if err := s.RemoteConsole.Start(); err != nil {
-			log.Printf("Failed to start RCON server: %v", err)
+			logger.Error("Failed to start RCON server: %v", err)
 		} else {
 			defer s.RemoteConsole.Stop()
 		}
@@ -133,10 +143,8 @@ func (s *Server) Start() {
 			if s.ctx.Err() != nil {
 				return
 			}
-			log.Printf("failed to accept connection: %v", err)
 			continue
 		}
-		log.Printf("accepted connection from %s", conn.RemoteAddr())
 
 		s.wg.Add(1)
 		go s.handleConnection(conn)
@@ -144,9 +152,14 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Stop() {
+	s.Ticker.Stop()
+	s.Connections.Range(func(k, v interface{}) bool {
+		conn := k.(*Connection)
+		conn.Disconnect(tc.Text("Server closed"))
+		return true
+	})
 	s.cancel()
 	s.wg.Wait()
-	s.Ticker.Stop()
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
@@ -203,7 +216,7 @@ func processIncomingPackets(s *Server) {
 						continue
 					}
 					if !s.Router.Handle(c.State, pkt.ID, c, pkt) {
-						log.Printf("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+						logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 					}
 					pkt.Free()
 				}
@@ -216,7 +229,7 @@ func processIncomingPackets(s *Server) {
 	keepAlive:
 		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
 			if currentTick-c.LastKeepAlive > KeepAliveTimeout {
-				log.Printf("keep-alive timeout for %s", c.Conn.RemoteAddr())
+				logger.Info("keep-alive timeout for %s", c.Conn.RemoteAddr())
 				c.close()
 				return true
 			}
@@ -237,7 +250,7 @@ func (s *Server) handleStdin() {
 		if strings.TrimSpace(command) != "" {
 			resp := s.Commander.Execute(s.ctx, command)
 			if resp != nil {
-				fmt.Println(resp.String())
+				logger.Component(logger.INFO, resp)
 			}
 		}
 	}

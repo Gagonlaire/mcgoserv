@@ -425,7 +425,7 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 
 	chatMessage := tc.Translatable(
 		mcdata.ChatTypeText,
-		tc.PresetPlayerName(string(c.Player.Name)),
+		tc.PlayerName(string(c.Player.Name)),
 		tc.Text(string(message)),
 	)
 	pkt.Retain()

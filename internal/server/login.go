@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -31,7 +32,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	)
 
 	if err := pkt.Decode(&Name, &PlayerUUID); err != nil {
-		fmt.Println("Error decoding loginStart packet:", err)
+		logger.Error("Error decoding loginStart packet: %v", err)
 		return
 	}
 
@@ -67,17 +68,17 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	}
 	res, err := http.Get(url)
 	if err != nil {
-		fmt.Println("Error fetching player data from Mojang API:", err)
+		logger.Error("Error fetching player data from Mojang API: %v", err)
 	}
 	body, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		fmt.Printf("Mojang API returned non-200 status code: %d\n", res.StatusCode)
+		logger.Error("Mojang API returned non-200 status code: %d", res.StatusCode)
 	}
 
 	var profile GameProfile
 	if err := json.Unmarshal(body, &profile); err != nil {
-		fmt.Println("Error parsing player data from Mojang API:", err)
+		logger.Error("Error parsing player data from Mojang API: %v", err)
 	}
 
 	var profileProperties = make([]mc.ProfileProperty, 0, len(profile.Properties))

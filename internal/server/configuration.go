@@ -1,10 +1,10 @@
 package server
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -18,7 +18,7 @@ func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
 
 	if err := pkt.Decode(&knownPacks); err != nil {
-		fmt.Println("Error decoding clientKnownPacks packet:", err)
+		logger.Error("Error decoding clientKnownPacks packet: %v", err)
 		return
 	}
 
@@ -125,7 +125,6 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		}
 	}
 
-	entityType := mc.VarInt(151)
 	velocity := mc.LpVec3{
 		X: 0,
 		Y: 0,
@@ -140,7 +139,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		packet.PlayClientboundAddEntity,
 		&eID2,
 		&uuid,
-		&entityType,
+		mc.VarInt(mcdata.EntityPlayer),
 		mc.Double(c.Player.Pos[0]),
 		mc.Double(c.Player.Pos[1]),
 		mc.Double(c.Player.Pos[2]),
@@ -161,7 +160,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 				packet.PlayClientboundAddEntity,
 				mc.VarInt(conn.Player.EntityID),
 				&uuid,
-				entityType,
+				mc.VarInt(mcdata.EntityPlayer),
 				mc.Double(conn.Player.Pos[0]),
 				mc.Double(conn.Player.Pos[1]),
 				mc.Double(conn.Player.Pos[2]),
@@ -179,7 +178,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 
 	joinMessage := tc.Translatable(
 		mcdata.MultiplayerPlayerJoined,
-		tc.PresetPlayerName(string(c.Player.Name)),
+		tc.PlayerName(string(c.Player.Name)),
 	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))

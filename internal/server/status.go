@@ -2,8 +2,8 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -59,7 +59,7 @@ func (c *Connection) HandlePingPacket(pkt *packet.Packet) {
 	var timestamp mc.Long
 
 	if err := pkt.Decode(&timestamp); err != nil {
-		fmt.Println("Error decoding ping packet:", err)
+		logger.Error("Error decoding ping packet: %v", err)
 		return
 	}
 

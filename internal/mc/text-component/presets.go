@@ -2,8 +2,12 @@ package text_component
 
 import "fmt"
 
-func PresetPlayerName(name string) *TextComponent {
-	return Text(name).SuggestCommand(fmt.Sprintf("/tell %s ", name))
+func PlayerName(name string) *TextComponent {
+	return Text(name).SuggestCommand(fmt.Sprintf("/tell %s ", name)).SetInsertion(name)
+}
+
+func Space(count int) *TextComponent {
+	return Text(fmt.Sprintf("%*s", count, ""))
 }
 
 // Container creates a empty text component to wrap other components. Useful for styling

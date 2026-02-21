@@ -2,12 +2,12 @@ package systems
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/google/uuid"
 )
 
@@ -60,14 +60,14 @@ func NewAccessControl(whitelistFile, bannedPlayersFile, bannedIPsFile string) *A
 func (pl *AccessControl) load(filename string, v interface{}) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		if err := pl.save(filename, v); err != nil {
-			fmt.Printf("Failed to create %s: %v\n", filename, err)
+			logger.Error("Failed to create %s: %v", filename, err)
 		}
 		return
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Printf("Failed to read %s: %v\n", filename, err)
+		logger.Error("Failed to read %s: %v", filename, err)
 		return
 	}
 
@@ -75,7 +75,7 @@ func (pl *AccessControl) load(filename string, v interface{}) {
 		return
 	}
 	if err := json.Unmarshal(data, v); err != nil {
-		fmt.Printf("Failed to parse %s: %v\n", filename, err)
+		logger.Error("Failed to parse %s: %v", filename, err)
 	}
 }
 

@@ -10,10 +10,13 @@ import (
 )
 
 type Component interface {
-	isComponent() // lock interface
-	String() string
 	WriteTo(w io.Writer) (int64, error)
 	ToJSON() []byte
+	String() string
+
+	AnsiString() string
+	AnsiLines() []string
+	renderAnsi(parentStyle string) string
 }
 
 type Base[T any] struct {
@@ -23,8 +26,6 @@ type Base[T any] struct {
 	*Formatting
 	*Interactivity
 }
-
-func (b *Base[T]) isComponent() {}
 
 func (b *Base[T]) WriteTo(w io.Writer) (int64, error) {
 	encoder := nbt.NewEncoder(w)
@@ -65,6 +66,18 @@ func (t *TextComponent) String() string {
 	return sb.String()
 }
 
+func (t *TextComponent) AnsiString() string {
+	return t.renderAnsi("")
+}
+
+func (t *TextComponent) renderAnsi(parentStyle string) string {
+	return t.buildAnsiString(t.Text, parentStyle)
+}
+
+func (t *TextComponent) AnsiLines() []string {
+	return splitAnsiString(t.AnsiString())
+}
+
 type TranslatableComponent struct {
 	Base[*TranslatableComponent]
 	Translate string      `nbt:"translate" json:"translate"`
@@ -88,6 +101,25 @@ func (t *TranslatableComponent) String() string {
 	return sb.String()
 }
 
+func (t *TranslatableComponent) AnsiString() string {
+	return t.renderAnsi("")
+}
+
+func (t *TranslatableComponent) renderAnsi(parentStyle string) string {
+	args := make([]interface{}, len(t.With))
+
+	for i, comp := range t.With {
+		args[i] = comp.renderAnsi(parentStyle)
+	}
+	translated := mcdata.TranslationKey(t.Translate).Format(args...)
+
+	return t.buildAnsiString(translated, parentStyle)
+}
+
+func (t *TranslatableComponent) AnsiLines() []string {
+	return splitAnsiString(t.AnsiString())
+}
+
 func Text(text string) *TextComponent {
 	t := &TextComponent{
 		Text: text,
@@ -98,6 +130,7 @@ func Text(text string) *TextComponent {
 		},
 	}
 	t.Base.self = t
+
 	return t
 }
 
@@ -112,5 +145,6 @@ func Translatable(translation mcdata.TranslationKey, with ...Component) *Transla
 		With: with,
 	}
 	t.Base.self = t
+
 	return t
 }
