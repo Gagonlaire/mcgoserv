@@ -3,6 +3,7 @@ package server
 import (
 	"strconv"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -19,8 +20,10 @@ func (s *Server) registerCommands() {
 	s.Commander.Register(
 		Literal("stop").Executes(func(ctx *CommandContext) tc.Component {
 			server := ctx.Value("server").(*Server)
+			logger.Component(logger.INFO, tc.Text("Stopping the server"))
 			server.Stop()
-			return tc.Text("Stopping the server")
+
+			return nil
 		}),
 
 		Literal("list").Executes(func(ctx *CommandContext) tc.Component {

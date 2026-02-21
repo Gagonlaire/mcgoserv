@@ -69,7 +69,7 @@ func (c *Connection) ReadLoop() {
 			c.InboundPackets <- pkt
 		} else {
 			if !c.server.Router.Handle(c.State, pkt.ID, c, pkt) {
-				logger.Warn("Missing handler for packet %s\n", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+				logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 			}
 			pkt.Free()
 		}

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
@@ -125,6 +127,14 @@ func (s *Server) Start() {
 		<-s.ctx.Done()
 		_ = listener.Close()
 	}()
+	go func() {
+		stopChan := make(chan os.Signal, 1)
+		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+		<-stopChan
+		s.Stop()
+	}()
+	go s.handleStdin()
+	go s.Ticker.Start()
 
 	if s.RemoteConsole != nil {
 		if err := s.RemoteConsole.Start(); err != nil {
@@ -133,9 +143,6 @@ func (s *Server) Start() {
 			defer s.RemoteConsole.Stop()
 		}
 	}
-
-	go s.handleStdin()
-	go s.Ticker.Start()
 
 	for {
 		conn, err := listener.Accept()
@@ -152,6 +159,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Stop() {
+	logger.Info("Stopping server")
 	s.Ticker.Stop()
 	s.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
@@ -160,13 +168,13 @@ func (s *Server) Stop() {
 	})
 	s.cancel()
 	s.wg.Wait()
+	// todo: save world
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 
 	c := s.NewConnection(conn)
-
 	go c.ReadLoop()
 	c.WriteLoop()
 }
