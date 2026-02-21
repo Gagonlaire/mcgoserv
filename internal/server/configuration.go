@@ -1,17 +1,14 @@
 package server
 
 import (
-	"maps"
-	"slices"
-
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
-	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
@@ -89,8 +86,11 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	)
 	_ = pkt.Send(c.Conn)
 
-	players := []*world.Player{c.Player}
-	allPlayers := slices.Collect(maps.Values(c.server.World.Players))
+	players := []*entities.Player{c.Player}
+	var allPlayers []*entities.Player
+	for _, p := range c.server.World.Players {
+		allPlayers = append(allPlayers, p)
+	}
 
 	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
 	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, players)

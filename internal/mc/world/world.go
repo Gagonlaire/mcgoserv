@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	"github.com/google/uuid"
 )
 
@@ -12,7 +13,7 @@ type World struct {
 	DayTime        int64
 	Day            int64
 	NextTimeUpdate int64
-	Players        map[uuid.UUID]*Player
+	Players        map[uuid.UUID]*entities.Player
 	lastEntityID   int32
 }
 
@@ -40,7 +41,7 @@ func NewWorld() *World {
 				Chunks: make(map[uint64]*mc.Chunk),
 			},
 		},
-		Players: make(map[uuid.UUID]*Player),
+		Players: make(map[uuid.UUID]*entities.Player),
 	}
 
 	for _, v := range world.Dimensions {
@@ -56,7 +57,7 @@ func (w *World) GetNextEntityID() int32 {
 	return w.lastEntityID
 }
 
-func (w *World) AddPlayer(p *Player) {
+func (w *World) AddPlayer(p *entities.Player) {
 	w.Players[p.UUID] = p
 }
 

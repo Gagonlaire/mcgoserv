@@ -10,16 +10,16 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
-	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 type Connection struct {
 	server          *Server
-	Player          *world.Player
+	Player          *entities.Player
 	Conn            net.Conn
 	State           mc.State
 	InboundPackets  chan *packet.Packet

@@ -2,10 +2,10 @@ package packet
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/world"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 )
 
-func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*world.Player) (*Packet, error) {
+func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*Packet, error) {
 	// todo: i'm not sure this should be here
 	packet, _ := NewPacket(PlayClientboundPlayerInfoUpdate)
 

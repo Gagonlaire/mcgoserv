@@ -8,10 +8,10 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/Gagonlaire/mcgoserv/internal/world"
 	"github.com/google/uuid"
 )
 
@@ -95,7 +95,10 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		_ = pkt.Encode(newProperty)
 	}
 	_ = pkt.Send(c.Conn)
-	c.Player = world.NewPlayer(uuid.UUID(PlayerUUID), Name, profileProperties, c.server.World, c.server.Properties)
+
+	newPlayer := entities.NewPlayer(uuid.UUID(PlayerUUID), string(Name), profileProperties, c.server.Properties)
+	newPlayer.ProfileProperties = profileProperties
+	c.Player = newPlayer
 }
 
 func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
