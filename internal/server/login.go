@@ -62,6 +62,12 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		return true
 	})
 
+	if c.server.Properties.NetworkCompressionThreshold >= 0 {
+		_ = pkt.ResetWith(packet.LoginClientboundLoginCompression, mc.VarInt(c.server.Properties.NetworkCompressionThreshold))
+		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		c.CompressionThreshold = c.server.Properties.NetworkCompressionThreshold
+	}
+
 	url := "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.UUID(PlayerUUID).String()
 	if c.server.Properties.OnlineMode == true {
 		url += "?unsigned=false"
@@ -71,7 +77,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		logger.Error("Error fetching player data from Mojang API: %v", err)
 	}
 	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		logger.Error("Mojang API returned non-200 status code: %d", res.StatusCode)
 	}
@@ -80,7 +86,6 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	if err := json.Unmarshal(body, &profile); err != nil {
 		logger.Error("Error parsing player data from Mojang API: %v", err)
 	}
-
 	var profileProperties = make([]mc.ProfileProperty, 0, len(profile.Properties))
 
 	_ = pkt.ResetWith(packet.LoginClientboundLoginFinished, &PlayerUUID, &Name)
@@ -94,7 +99,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 		profileProperties = append(profileProperties, newProperty)
 		_ = pkt.Encode(newProperty)
 	}
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	newPlayer := entities.NewPlayer(uuid.UUID(PlayerUUID), string(Name), profileProperties, c.server.Properties)
 	newPlayer.ProfileProperties = profileProperties
@@ -106,5 +111,5 @@ func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
 	c.LastKeepAlive = c.server.World.Time
 
 	_ = pkt.ResetWith(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }

@@ -5,24 +5,77 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/klauspost/compress/zlib"
 )
-
-var packetPool = sync.Pool{
-	New: func() any {
-		return &Packet{
-			Buffer: bytes.NewBuffer(make([]byte, 0, 256)),
-		}
-	},
-}
 
 type Packet struct {
 	ID       mc.VarInt
 	Buffer   *bytes.Buffer
 	refCount int32
+}
+
+// MaxUncompressedSize https://minecraft.wiki/w/Java_Edition_protocol/Packets#With_compression
+const MaxUncompressedSize = 8388608
+
+var packetPool = sync.Pool{
+	New: func() any {
+		return &Packet{
+			Buffer: bytes.NewBuffer(make([]byte, 0, 128)),
+		}
+	},
+}
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		return bytes.NewBuffer(make([]byte, 0, 1024))
+	},
+}
+
+var emptyZlibPayload = func() []byte {
+	var b bytes.Buffer
+	writer, _ := zlib.NewWriterLevel(&b, zlib.NoCompression)
+
+	writer.Close()
+	return b.Bytes()
+}()
+
+var zlibReaderPool = sync.Pool{
+	New: func() any {
+		reader, _ := zlib.NewReader(bytes.NewReader(emptyZlibPayload))
+		return reader
+	},
+}
+
+var zlibWriterPool = sync.Pool{
+	New: func() any {
+		writer, _ := zlib.NewWriterLevel(nil, zlib.DefaultCompression)
+		return writer
+	},
+}
+
+func getZlibReader(r io.Reader) io.ReadCloser {
+	reader := zlibReaderPool.Get().(io.ReadCloser)
+
+	if readerConcrete, ok := reader.(interface{ Reset(io.Reader) error }); ok {
+		_ = readerConcrete.Reset(r)
+	} else {
+		_ = reader.Close()
+		reader, _ = zlib.NewReader(r)
+	}
+
+	return reader
+}
+
+func getZlibWriter(w io.Writer) *zlib.Writer {
+	writer := zlibWriterPool.Get().(*zlib.Writer)
+
+	writer.Reset(w)
+	return writer
 }
 
 func NewPacket(ID int, fields ...io.WriterTo) (*Packet, error) {
@@ -39,30 +92,109 @@ func NewPacket(ID int, fields ...io.WriterTo) (*Packet, error) {
 	return p, nil
 }
 
-func Receive(conn net.Conn) (*Packet, error) {
-	var packetLength, packetID mc.VarInt
-
-	if _, err := packetLength.ReadFrom(conn); err != nil {
-		return nil, err
+func Receive(conn net.Conn, threshold int) (*Packet, error) {
+	var frameLength mc.VarInt
+	if _, err := frameLength.ReadFrom(conn); err != nil {
+		return nil, fmt.Errorf("read frame length: %w", err)
 	}
 
-	packetData := make([]byte, int(packetLength))
-	if _, err := io.ReadFull(conn, packetData); err != nil {
-		return nil, err
+	if int(frameLength) > MaxUncompressedSize*2 || frameLength < 0 {
+		return nil, fmt.Errorf("invalid frame length: %d", frameLength)
 	}
 
-	n, err := packetID.ReadFrom(bytes.NewBuffer(packetData))
-	if err != nil {
-		return nil, err
+	rawBuf := bufferPool.Get().(*bytes.Buffer)
+	rawBuf.Reset()
+	defer bufferPool.Put(rawBuf)
+
+	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
+		return nil, fmt.Errorf("read frame body: %w", err)
+	}
+
+	frameReader := bytes.NewReader(rawBuf.Bytes())
+	var bodyReader io.Reader = frameReader
+	if threshold >= 0 {
+		var dataLength mc.VarInt
+		if _, err := dataLength.ReadFrom(frameReader); err != nil {
+			return nil, fmt.Errorf("read data length: %w", err)
+		}
+
+		if dataLength != 0 {
+			if int(dataLength) > MaxUncompressedSize {
+				return nil, fmt.Errorf("uncompressed size %d > limit", dataLength)
+			}
+			if int(dataLength) < threshold {
+				return nil, fmt.Errorf("compressed packet size %d < threshold %d", dataLength, threshold)
+			}
+
+			reader := getZlibReader(frameReader)
+			defer zlibReaderPool.Put(reader)
+			bodyReader = reader
+		}
+	}
+
+	var packetID mc.VarInt
+	if _, err := packetID.ReadFrom(bodyReader); err != nil {
+		return nil, fmt.Errorf("read packet ID: %w", err)
 	}
 
 	p := packetPool.Get().(*Packet)
 	p.ID = packetID
 	p.refCount = 1
 	p.Buffer.Reset()
-	p.Buffer.Write(packetData[n:])
+	if _, err := p.Buffer.ReadFrom(bodyReader); err != nil {
+		p.Free()
+		return nil, fmt.Errorf("read packet content: %w", err)
+	}
 
 	return p, nil
+}
+
+func (p *Packet) Send(conn net.Conn, threshold int) error {
+	frame := bufferPool.Get().(*bytes.Buffer)
+	frame.Reset()
+	defer bufferPool.Put(frame)
+
+	uncompressedSize := p.ID.Len() + p.Buffer.Len()
+	if uncompressedSize > MaxUncompressedSize {
+		return fmt.Errorf("packet size %d exceeds protocol limit", uncompressedSize)
+	}
+
+	if threshold >= 0 && uncompressedSize >= threshold {
+		dataLength := mc.VarInt(uncompressedSize)
+		compBuf := bufferPool.Get().(*bytes.Buffer)
+		compBuf.Reset()
+		defer bufferPool.Put(compBuf)
+
+		writer := getZlibWriter(compBuf)
+
+		_, _ = p.ID.WriteTo(writer)
+		_, _ = p.Buffer.WriteTo(writer)
+		_ = writer.Close()
+		zlibWriterPool.Put(writer)
+		packetLength := mc.VarInt(dataLength.Len() + compBuf.Len())
+		_, _ = packetLength.WriteTo(frame)
+		_, _ = dataLength.WriteTo(frame)
+		_, _ = compBuf.WriteTo(frame)
+	} else {
+		packetLengthValue := uncompressedSize
+		if threshold >= 0 {
+			buf := mc.VarInt(0)
+			packetLengthValue += buf.Len()
+		}
+
+		packetLength := mc.VarInt(packetLengthValue)
+		_, _ = packetLength.WriteTo(frame)
+
+		if threshold >= 0 {
+			_, _ = mc.VarInt(0).WriteTo(frame)
+		}
+
+		_, _ = p.ID.WriteTo(frame)
+		_, _ = p.Buffer.WriteTo(frame)
+	}
+
+	_, err := frame.WriteTo(conn)
+	return err
 }
 
 func (p *Packet) Decode(fields ...mc.Field) error {
@@ -90,20 +222,6 @@ func (p *Packet) ResetWith(ID int, fields ...io.WriterTo) error {
 	return p.Encode(fields...)
 }
 
-func (p *Packet) Send(conn net.Conn) error {
-	packetLength := mc.VarInt(p.ID.Len() + p.Buffer.Len())
-	buffer := bytes.NewBuffer(make([]byte, 0, int(packetLength)+packetLength.Len()))
-
-	_, _ = packetLength.WriteTo(buffer)
-	_, _ = p.ID.WriteTo(buffer)
-	_, _ = buffer.Write(p.Buffer.Bytes())
-	if _, err := conn.Write(buffer.Bytes()); err != nil {
-		return fmt.Errorf("error sending packet: %w", err)
-	}
-
-	return nil
-}
-
 // Retain increments the reference count for the packet.
 // This method must be used when reusing a packet received from an external source
 // (such as a router handler) that currently holds ownership of it.
@@ -116,10 +234,14 @@ func (p *Packet) Retain() {
 func (p *Packet) Free() {
 	newRef := atomic.AddInt32(&p.refCount, -1)
 
-	if newRef < 0 {
-		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
-	}
-	if newRef == 0 {
+	switch {
+	case newRef < 0:
+		buf := make([]byte, 1024)
+		runtime.Stack(buf, false)
+		panic(fmt.Sprintf("Packet double free detected! ID: %d, Stack: %s", p.ID, buf))
+	case newRef == 0:
+		p.Buffer.Reset()
+		p.ID = 0
 		packetPool.Put(p)
 	}
 }

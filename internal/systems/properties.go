@@ -13,23 +13,24 @@ import (
 
 // todo: make this generic
 type Properties struct {
-	MaxPlayers          int    `property:"max-players" default:"20"`
-	Motd                string `property:"motd" default:"A Minecraft Server"`
-	ViewDistance        int    `property:"view-distance" default:"10" min:"2" max:"32"`
-	SimulationDistance  int    `property:"simulation-distance" default:"10" min:"2" max:"32"`
-	Hardcore            bool   `property:"hardcore" default:"false"`
-	EnableRespawnScreen bool   `property:"enable-respawn-screen" default:"true"`
-	EnforceWhitelist    bool   `property:"enforce-whitelist" default:"false"`
-	WhiteList           bool   `property:"white-list" default:"false"`
-	LevelName           string `property:"level-name" default:"world"`
-	ServerIp            string `property:"server-ip" default:""`
-	ServerPort          int    `property:"server-port" default:"25565" min:"1" max:"65535"`
-	GameMode            int    `property:"gamemode" default:"0" min:"0" max:"3"`
-	ForceGameMode       bool   `property:"force-gamemode" default:"false"`
-	OnlineMode          bool   `property:"online-mode" default:"true"`
-	EnableRcon          bool   `property:"enable-rcon" default:"false"`
-	RconPassword        string `property:"rcon.password" default:""`
-	RconPort            int    `property:"rcon.port" default:"25575" min:"1" max:"65535"`
+	MaxPlayers                  int    `property:"max-players" default:"20"`
+	Motd                        string `property:"motd" default:"A Minecraft Server"`
+	ViewDistance                int    `property:"view-distance" default:"10" min:"2" max:"32"`
+	SimulationDistance          int    `property:"simulation-distance" default:"10" min:"2" max:"32"`
+	Hardcore                    bool   `property:"hardcore" default:"false"`
+	EnableRespawnScreen         bool   `property:"enable-respawn-screen" default:"true"`
+	EnforceWhitelist            bool   `property:"enforce-whitelist" default:"false"`
+	WhiteList                   bool   `property:"white-list" default:"false"`
+	LevelName                   string `property:"level-name" default:"world"`
+	ServerIp                    string `property:"server-ip" default:""`
+	ServerPort                  int    `property:"server-port" default:"25565" min:"1" max:"65535"`
+	GameMode                    int    `property:"gamemode" default:"0" min:"0" max:"3"`
+	ForceGameMode               bool   `property:"force-gamemode" default:"false"`
+	OnlineMode                  bool   `property:"online-mode" default:"true"`
+	EnableRcon                  bool   `property:"enable-rcon" default:"false"`
+	RconPassword                string `property:"rcon.password" default:""`
+	RconPort                    int    `property:"rcon.port" default:"25575" min:"1" max:"65535"`
+	NetworkCompressionThreshold int    `property:"network-compression-threshold" default:"256" min:"-1"`
 }
 
 func LoadProperties(path string) (*Properties, error) {

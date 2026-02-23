@@ -21,12 +21,12 @@ func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 
 	for _, registryData := range mc.RegistriesData {
 		_ = pkt.ResetWith(packet.ConfigurationClientboundRegistryData, &registryData)
-		_ = pkt.Send(c.Conn)
+		_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	}
 
 	// todo: send the update tags (optional but cause enchantment registry to not work)
 	_ = pkt.ResetWith(packet.ConfigurationClientboundFinishConfiguration)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
 // todo: we should move packet sent to methods
@@ -61,7 +61,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		mc.VarInt(64),
 		mc.Boolean(false),
 	)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundPlayerPosition,
@@ -77,14 +77,14 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		mc.Float(c.Player.Rot[1]),
 		mc.Int(0),
 	)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundGameEvent,
 		mc.UnsignedByte(13),
 		mc.Float(0.0),
 	)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	players := []*entities.Player{c.Player}
 	var allPlayers []*entities.Player
@@ -96,7 +96,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, players)
 	c.server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
 	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions, allPlayers)
-	_ = pkt1.Send(c.Conn)
+	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundSetTime,
@@ -104,12 +104,12 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		mc.Long(c.server.World.DayTime),
 		mc.Boolean(true),
 	)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	c.server.sendCommands(c)
 
 	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(int(c.Player.Pos[0])>>4), mc.VarInt(int(c.Player.Pos[2])>>4))
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
 	cx := int(c.Player.Pos[0]) >> 4
 	cz := int(c.Player.Pos[2]) >> 4
@@ -121,7 +121,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 		for z := cz - viewDistance; z <= cz+viewDistance; z++ {
 			chunk := dimension.GetChunk(x, z)
 			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
-			_ = pkt.Send(c.Conn)
+			_ = pkt.Send(c.Conn, c.CompressionThreshold)
 		}
 	}
 
@@ -171,7 +171,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 				&data,
 			)
 
-			_ = pkt.Send(c.Conn)
+			_ = pkt.Send(c.Conn, c.CompressionThreshold)
 		}
 		return true
 	})

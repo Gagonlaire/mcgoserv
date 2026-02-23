@@ -52,7 +52,7 @@ func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
 	jsonData, _ := json.Marshal(data)
 
 	_ = pkt.ResetWith(packet.StatusClientboundStatusResponse, mc.String(jsonData))
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
 func (c *Connection) HandlePingPacket(pkt *packet.Packet) {
@@ -64,6 +64,6 @@ func (c *Connection) HandlePingPacket(pkt *packet.Packet) {
 	}
 
 	_ = pkt.ResetWith(packet.StatusClientboundPongResponse, &timestamp)
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	c.close()
 }

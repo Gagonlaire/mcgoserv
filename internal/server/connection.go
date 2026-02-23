@@ -18,30 +18,32 @@ import (
 )
 
 type Connection struct {
-	server          *Server
-	Player          *entities.Player
-	Conn            net.Conn
-	State           mc.State
-	InboundPackets  chan *packet.Packet
-	OutboundPackets chan *packet.Packet
-	LastKeepAlive   int64
-	LastKeepAliveID int64
-	ctx             context.Context
-	cancel          context.CancelFunc
-	closeOnce       sync.Once
+	server               *Server
+	Player               *entities.Player
+	Conn                 net.Conn
+	State                mc.State
+	InboundPackets       chan *packet.Packet
+	OutboundPackets      chan *packet.Packet
+	LastKeepAlive        int64
+	LastKeepAliveID      int64
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	closeOnce            sync.Once
+	CompressionThreshold int
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
 	ctx, cancel := context.WithCancel(s.ctx)
 	newConnection := &Connection{
-		server:          s,
-		Conn:            conn,
-		State:           mc.StateHandshake,
-		InboundPackets:  make(chan *packet.Packet, ChannelSize),
-		OutboundPackets: make(chan *packet.Packet, ChannelSize),
-		LastKeepAlive:   s.World.Time,
-		ctx:             ctx,
-		cancel:          cancel,
+		server:               s,
+		Conn:                 conn,
+		State:                mc.StateHandshake,
+		InboundPackets:       make(chan *packet.Packet, ChannelSize),
+		OutboundPackets:      make(chan *packet.Packet, ChannelSize),
+		CompressionThreshold: -1,
+		LastKeepAlive:        s.World.Time,
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 
 	s.Connections.Store(newConnection, struct{}{})
@@ -57,7 +59,7 @@ func (c *Connection) ReadLoop() {
 		default:
 		}
 
-		pkt, err := packet.Receive(c.Conn)
+		pkt, err := packet.Receive(c.Conn, c.CompressionThreshold)
 		if err != nil {
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 				logger.Error("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
@@ -83,7 +85,7 @@ func (c *Connection) WriteLoop() {
 		case <-c.ctx.Done():
 			return
 		case pkt := <-c.OutboundPackets:
-			err := pkt.Send(c.Conn)
+			err := pkt.Send(c.Conn, c.CompressionThreshold)
 			id := pkt.ID
 			pkt.Free()
 			if err != nil {
@@ -124,7 +126,7 @@ func (c *Connection) Disconnect(reason tc.Component) {
 		return
 	}
 
-	_ = pkt.Send(c.Conn)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
 func (c *Connection) close() {

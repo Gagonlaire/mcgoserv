@@ -2,10 +2,11 @@ package packet
 
 import (
 	"bytes"
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"io"
 	"net"
 	"testing"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 )
 
 var (
@@ -24,38 +25,148 @@ var (
 	}
 )
 
-func BenchmarkPacket_Receive(b *testing.B) {
-	serverConn, clientConn := net.Pipe()
-	defer serverConn.Close()
-	defer clientConn.Close()
+func fieldsToWriters(fields []mc.Field) []io.WriterTo {
+	out := make([]io.WriterTo, len(fields))
+	for i, f := range fields {
+		out[i] = f
+	}
+	return out
+}
 
-	clientPkt := Packet{
-		ID:     testPacketID,
-		Buffer: new(bytes.Buffer),
+func TestPacket_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name      string
+		threshold int
+	}{
+		{"NoCompression", -1},
+		{"CompressionEnabled_BelowThreshold", 10000},
+		{"CompressionEnabled_AboveThreshold", 5},
 	}
 
-	_ = clientPkt.Encode(testPacketFields...)
-	packetLen := mc.VarInt(clientPkt.ID.Len() + clientPkt.Buffer.Len())
-	buf := bytes.NewBuffer(make([]byte, 0, packetLen.Len()+packetLen.Len()))
-	_, _ = packetLen.WriteTo(buf)
-	_, _ = clientPkt.ID.WriteTo(buf)
-	_, _ = clientPkt.Buffer.WriteTo(buf)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serverConn, clientConn := net.Pipe()
+			defer serverConn.Close()
+			defer clientConn.Close()
 
-	go func() {
+			go func() {
+				p, err := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
+				if err != nil {
+					t.Errorf("NewPacket error: %v", err)
+					return
+				}
+				defer p.Free()
 
-		for {
-			_, err := clientConn.Write(buf.Bytes())
+				if err := p.Send(clientConn, tt.threshold); err != nil {
+					t.Errorf("Send error: %v", err)
+				}
+			}()
+
+			p, err := Receive(serverConn, tt.threshold)
 			if err != nil {
-				return
+				t.Fatalf("Receive error: %v", err)
 			}
-		}
-	}()
+			defer p.Free()
 
-	b.ReportAllocs()
-	b.ResetTimer()
+			if p.ID != testPacketID {
+				t.Errorf("ID mismatch: got %d, want %d", p.ID, testPacketID)
+			}
 
-	for i := 0; i < b.N; i++ {
-		_, _ = Receive(serverConn)
+			expectedBuf := new(bytes.Buffer)
+			for _, f := range testPacketFields {
+				_, _ = f.WriteTo(expectedBuf)
+			}
+
+			if p.Buffer.Len() != expectedBuf.Len() {
+				t.Errorf("Payload size mismatch: got %d, want %d", p.Buffer.Len(), expectedBuf.Len())
+			}
+
+			if !bytes.Equal(p.Buffer.Bytes(), expectedBuf.Bytes()) {
+				t.Errorf("Payload content mismatch")
+			}
+		})
+	}
+}
+
+func BenchmarkPacket_Receive(b *testing.B) {
+	benchmarks := []struct {
+		name      string
+		threshold int
+	}{
+		{"Uncompressed", -1},
+		{"Compressed", 10},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			serverConn, clientConn := net.Pipe()
+			defer serverConn.Close()
+			defer clientConn.Close()
+
+			genIn, genOut := net.Pipe()
+			wireDataBuf := new(bytes.Buffer)
+			go func() {
+				p, _ := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
+				defer p.Free()
+				_ = p.Send(genIn, bm.threshold)
+				_ = genIn.Close()
+			}()
+			_, _ = io.Copy(wireDataBuf, genOut)
+			wireBytes := wireDataBuf.Bytes()
+
+			go func() {
+				for {
+					if _, err := clientConn.Write(wireBytes); err != nil {
+						return
+					}
+				}
+			}()
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				p, err := Receive(serverConn, bm.threshold)
+				if err != nil {
+					b.Fatalf("Receive failed: %v", err)
+				}
+				p.Free()
+			}
+		})
+	}
+}
+
+func BenchmarkPacket_Send(b *testing.B) {
+	benchmarks := []struct {
+		name      string
+		threshold int
+	}{
+		{"Uncompressed", -1},
+		{"Compressed", 10},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			serverConn, clientConn := net.Pipe()
+			defer serverConn.Close()
+			defer clientConn.Close()
+
+			go func() {
+				_, _ = io.Copy(io.Discard, clientConn)
+			}()
+
+			p, _ := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
+			defer p.Free()
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				if err := p.Send(serverConn, bm.threshold); err != nil {
+					b.Fatalf("Send failed: %v", err)
+				}
+			}
+		})
 	}
 }
 
@@ -64,58 +175,31 @@ func BenchmarkPacket_Decode(b *testing.B) {
 		ID:     testPacketID,
 		Buffer: new(bytes.Buffer),
 	}
-	_ = pkt.Encode(testPacketFields...)
+	_ = pkt.Encode(fieldsToWriters(testPacketFields)...)
+	encodedBytes := pkt.Buffer.Bytes()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		pkt.Buffer.Next(pkt.Buffer.Len())
+		pkt.Buffer = bytes.NewBuffer(encodedBytes)
 		_ = pkt.Decode(testPacketFields...)
 	}
 }
 
 func BenchmarkPacket_Encode(b *testing.B) {
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		p := &Packet{
-			ID:     testPacketID,
-			Buffer: new(bytes.Buffer),
-		}
-
-		_ = p.Encode(testPacketFields...)
-	}
-}
-
-func BenchmarkPacket_Send(b *testing.B) {
-	serverConn, clientConn := net.Pipe()
-	defer serverConn.Close()
-	defer clientConn.Close()
-
-	go func() {
-		_, _ = io.Copy(io.Discard, clientConn)
-	}()
-
-	templatePacket := &Packet{
+	p := &Packet{
 		ID:     testPacketID,
 		Buffer: new(bytes.Buffer),
 	}
-	_ = templatePacket.Encode(testPacketFields...)
-	initialEncodedData := templatePacket.Buffer.Bytes()
-	packetToSend := &Packet{
-		ID:     testPacketID,
-		Buffer: new(bytes.Buffer),
-	}
+
+	writers := fieldsToWriters(testPacketFields)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		packetToSend.Buffer.Reset()
-		packetToSend.Buffer.Write(initialEncodedData)
-
-		_ = packetToSend.Send(serverConn)
+		p.Buffer.Reset()
+		_ = p.Encode(writers...)
 	}
 }

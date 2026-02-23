@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
 type packetFilter struct {
@@ -84,7 +85,7 @@ func handleConnection(clientConn net.Conn, targetAddr string) {
 
 func transferMinecraftPackets(src, dst net.Conn, direction Direction) {
 	for {
-		pkt, err := packet.Receive(src)
+		pkt, err := packet.Receive(src, -1)
 		if err != nil {
 			stdLogger.Printf("Failed to receive packet %s: %v", direction, err)
 			return
@@ -108,7 +109,7 @@ func transferMinecraftPackets(src, dst net.Conn, direction Direction) {
 			}
 		}
 
-		if err = pkt.Send(dst); err != nil {
+		if err = pkt.Send(dst, -1); err != nil {
 			stdLogger.Printf("Failed to send packet %s: %v", direction, err)
 			return
 		}
