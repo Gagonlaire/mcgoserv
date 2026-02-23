@@ -1,6 +1,8 @@
 package server
 
 import (
+	"math"
+
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
@@ -11,7 +13,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
-func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
+func (c *Connection) HandleClientKnownPacks(pkt *packet.Packet) {
 	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
 
 	if err := pkt.Decode(&knownPacks); err != nil {
@@ -30,7 +32,7 @@ func (c *Connection) HandleClientKnownPacksPacket(pkt *packet.Packet) {
 }
 
 // todo: we should move packet sent to methods
-func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
+func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	c.server.World.AddPlayer(c.Player)
 	c.State = mc.StatePlay
 	dimensionsName := []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
@@ -108,20 +110,22 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 
 	c.server.sendCommands(c)
 
-	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(int(c.Player.Pos[0])>>4), mc.VarInt(int(c.Player.Pos[2])>>4))
+	cx := int(math.Floor(c.Player.Pos[0] / 16))
+	cz := int(math.Floor(c.Player.Pos[2] / 16))
+	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
-	cx := int(c.Player.Pos[0]) >> 4
-	cz := int(c.Player.Pos[2]) >> 4
-	viewDistance := c.server.Properties.ViewDistance
 	// todo: get the correct dimension type and name from player
 	dimension := c.server.World.Dimensions["minecraft:overworld"]
-
-	for x := cx - viewDistance; x <= cx+viewDistance; x++ {
-		for z := cz - viewDistance; z <= cz+viewDistance; z++ {
+	loadRadius := int(c.Player.Information.ViewDistance) + 1
+	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
+		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
+			pos := mc.ChunkPos{X: x, Z: z}
 			chunk := dimension.GetChunk(x, z)
+
 			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
 			_ = pkt.Send(c.Conn, c.CompressionThreshold)
+			c.LoadedChunks[pos] = struct{}{}
 		}
 	}
 
@@ -153,7 +157,7 @@ func (c *Connection) HandleFinishConfigurationAckPacket(pkt *packet.Packet) {
 	c.server.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
 
-		if conn.Player.UUID != c.Player.UUID {
+		if conn.Player != nil && conn.Player.UUID != c.Player.UUID {
 			uuid := mc.UUID(conn.Player.UUID)
 
 			pkt, _ := packet.NewPacket(
@@ -212,4 +216,23 @@ func (s *Server) sendCommands(c *Connection) {
 	}
 	_ = pkt.Encode(mc.VarInt(0))
 	c.Send(pkt)
+}
+
+func (c *Connection) HandleClientInformation(pkt *packet.Packet) {
+	var information mc.PlayerInformation
+
+	if err := pkt.Decode(&information); err != nil {
+		logger.Error("Error decoding clientInformation packet: %v", err)
+		return
+	}
+
+	switch {
+	case information.ViewDistance < 2:
+		c.Player.Information.ViewDistance = 2
+	case int(information.ViewDistance) > c.server.Properties.ViewDistance:
+		c.Player.Information.ViewDistance = mc.Byte(c.server.Properties.ViewDistance)
+	}
+	// todo: when in play state, should load/unload chunks based on new view distance
+
+	c.Player.Information = information
 }

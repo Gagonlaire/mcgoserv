@@ -30,6 +30,7 @@ type Connection struct {
 	cancel               context.CancelFunc
 	closeOnce            sync.Once
 	CompressionThreshold int
+	LoadedChunks         map[mc.ChunkPos]struct{}
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
@@ -44,6 +45,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		LastKeepAlive:        s.World.Time,
 		ctx:                  ctx,
 		cancel:               cancel,
+		LoadedChunks:         make(map[mc.ChunkPos]struct{}),
 	}
 
 	s.Connections.Store(newConnection, struct{}{})

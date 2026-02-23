@@ -25,7 +25,7 @@ type GameProfile struct {
 	} `json:"properties"`
 }
 
-func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
+func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 	var (
 		Name       mc.String
 		PlayerUUID mc.UUID
@@ -106,7 +106,7 @@ func (c *Connection) HandleLoginStartPacket(pkt *packet.Packet) {
 	c.Player = newPlayer
 }
 
-func (c *Connection) HandleLoginAckPacket(pkt *packet.Packet) {
+func (c *Connection) HandleLoginAck(pkt *packet.Packet) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.server.World.Time
 

@@ -7,7 +7,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-func (c *Connection) HandleHandshakePacket(pkt *packet.Packet) {
+func (c *Connection) HandleHandshake(pkt *packet.Packet) {
 	var (
 		ProtocolVersion mc.VarInt
 		ServerAddress   mc.String

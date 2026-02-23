@@ -4,6 +4,11 @@ import (
 	"fmt"
 )
 
+type ChunkPos struct {
+	X int
+	Z int
+}
+
 //go:generate-field-impl
 type Chunk struct {
 	X                   Int

@@ -26,6 +26,7 @@ type Player struct {
 	Name              mc.String
 	Loaded            bool
 	Input             mc.UnsignedByte
+	Information       mc.PlayerInformation
 }
 
 type MovementTracker struct {
@@ -33,6 +34,8 @@ type MovementTracker struct {
 	LastTickX   float64
 	LastTickY   float64
 	LastTickZ   float64
+	LastChunkX  int
+	LastChunkZ  int
 }
 
 var lastEntityID int32 = 1
@@ -56,6 +59,8 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 		ProfileProperties: profileProperties,
 	}
 	player.Movement.LastTickY = player.Pos[1]
+	player.Movement.LastChunkX = -10000
+	player.Movement.LastChunkZ = -10000
 
 	lastEntityID++
 

@@ -28,7 +28,7 @@ type StatusResponse struct {
 	EnforceSecureChat bool `json:"enforceSecureChat"`
 }
 
-func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
+func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 	var data StatusResponse
 
 	data.Version.Name = mcdata.GameVersion
@@ -55,7 +55,7 @@ func (c *Connection) HandleStatusRequestPacket(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
-func (c *Connection) HandlePingPacket(pkt *packet.Packet) {
+func (c *Connection) HandlePing(pkt *packet.Packet) {
 	var timestamp mc.Long
 
 	if err := pkt.Decode(&timestamp); err != nil {

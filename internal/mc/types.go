@@ -204,6 +204,19 @@ type DataPackIdentifier struct {
 }
 
 //go:generate-field-impl
+type PlayerInformation struct {
+	Locale              String
+	ViewDistance        Byte
+	ChatMode            VarInt
+	ChatColors          Boolean // Unused by vanilla server
+	DisplayedSkinParts  UnsignedByte
+	MainHand            VarInt
+	EnableTextFiltering Boolean
+	AllowServerListings Boolean
+	ParticleStatus      VarInt
+}
+
+//go:generate-field-impl
 type RegistryDataEntry struct {
 	ID String
 	// todo: this is supposed to be an optional NTB, change later

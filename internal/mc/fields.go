@@ -232,7 +232,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
-	val := v
+	val := uint32(v)
 	for {
 		temp := byte(val & 0x7F)
 		val >>= 7

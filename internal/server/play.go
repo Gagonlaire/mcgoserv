@@ -32,7 +32,7 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32) {
 	c.Send(pkt)
 }
 
-func (c *Connection) HandleConfirmTeleportationPacket(pkt *packet.Packet) {
+func (c *Connection) HandleConfirmTeleportation(pkt *packet.Packet) {
 	var teleportId mc.VarInt
 
 	if err := pkt.Decode(&teleportId); err != nil {
@@ -40,7 +40,7 @@ func (c *Connection) HandleConfirmTeleportationPacket(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) HandleKeepAlivePacket(pkt *packet.Packet) {
+func (c *Connection) HandleKeepAlive(pkt *packet.Packet) {
 	var keepAliveId mc.Long
 
 	if err := pkt.Decode(&keepAliveId); err != nil {
@@ -140,8 +140,53 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	c.Player.Pos[2] = z
 	c.Player.OnGround = flags&0x01 != 0
 	c.Player.PushingAgainstWall = flags&0x02 != 0
+	c.updateChunkView()
 
 	return true
+}
+
+func (c *Connection) updateChunkView() {
+	cx := int(math.Floor(c.Player.Pos[0] / 16))
+	cz := int(math.Floor(c.Player.Pos[2] / 16))
+
+	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ {
+		return
+	}
+
+	c.Player.Movement.LastChunkX = cx
+	c.Player.Movement.LastChunkZ = cz
+
+	loadRadius := int(c.Player.Information.ViewDistance) + 1
+	keepChunks := make(map[mc.ChunkPos]bool)
+	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
+		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
+			pos := mc.ChunkPos{X: x, Z: z}
+			keepChunks[pos] = true
+		}
+	}
+
+	for pos := range c.LoadedChunks {
+		if !keepChunks[pos] {
+			pkt, _ := packet.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
+			c.Send(pkt)
+			delete(c.LoadedChunks, pos)
+		}
+	}
+
+	pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	c.Send(pkt)
+
+	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
+		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
+			pos := mc.ChunkPos{X: x, Z: z}
+			if _, loaded := c.LoadedChunks[pos]; !loaded {
+				c.LoadedChunks[pos] = struct{}{}
+				chunk := mc.CreateChunk(x, z)
+				pkt, _ = packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
+				c.Send(pkt)
+			}
+		}
+	}
 }
 
 func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
