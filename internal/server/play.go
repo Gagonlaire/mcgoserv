@@ -464,13 +464,16 @@ func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 	c.Player.SelectedItemSlot = int32(slot)
 	inventoryId := mc.HotbarToInternal(int(slot))
 	item := c.Player.Inventory.Get(inventoryId)
-	pkt, _ = packet.NewPacket(
-		packet.PlayClientboundSetEquipment,
-		mc.VarInt(c.Player.EntityID),
-		mc.UnsignedByte(0|1<<7),
-		&item,
-	)
-	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	if item.Count > 0 {
+		pkt, _ = packet.NewPacket(
+			packet.PlayClientboundSetEquipment,
+			mc.VarInt(c.Player.EntityID),
+			// todo: check item slot to know if main or off hand
+			mc.UnsignedByte(0),
+			&item,
+		)
+		c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	}
 }
 
 func (c *Connection) HandleSetCreativeModeSlot(pkt *packet.Packet) {

@@ -161,7 +161,6 @@ func Receive(conn net.Conn, threshold int) (*Packet, error) {
 }
 
 func (p *Packet) Send(conn net.Conn, threshold int) error {
-	// todo: add zero-copy optimization for uncompressed packets and packet batching
 	frame := bufferPool.Get().(*bytes.Buffer)
 	frame.Reset()
 	defer bufferPool.Put(frame)
@@ -180,7 +179,7 @@ func (p *Packet) Send(conn net.Conn, threshold int) error {
 		writer := getZlibWriter(compBuf)
 
 		_, _ = p.ID.WriteTo(writer)
-		_, _ = p.Buffer.WriteTo(writer)
+		_, _ = writer.Write(p.Buffer.Bytes())
 		_ = writer.Close()
 		zlibWriterPool.Put(writer)
 		packetLength := mc.VarInt(dataLength.Len() + compBuf.Len())
@@ -202,7 +201,7 @@ func (p *Packet) Send(conn net.Conn, threshold int) error {
 		}
 
 		_, _ = p.ID.WriteTo(frame)
-		_, _ = p.Buffer.WriteTo(frame)
+		_, _ = frame.Write(p.Buffer.Bytes())
 	}
 
 	_, err := frame.WriteTo(conn)

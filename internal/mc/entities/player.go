@@ -35,12 +35,16 @@ type MovementTracker struct {
 	LastTickZ   float64
 }
 
+var lastEntityID int32 = 1
+
 func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProperty, properties *systems.Properties) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
 			BaseEntity: BaseEntity{
-				Pos:  [3]float64{0, 80, 0},
-				UUID: UUID,
+				EntityID: lastEntityID,
+				Pos:      [3]float64{0, 80, 0},
+				UUID:     UUID,
+				OnGround: true,
 			},
 			Health: 20.0,
 		},
@@ -52,6 +56,8 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 		ProfileProperties: profileProperties,
 	}
 	player.Movement.LastTickY = player.Pos[1]
+
+	lastEntityID++
 
 	return player
 }
