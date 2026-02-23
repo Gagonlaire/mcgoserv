@@ -11,6 +11,8 @@ libraries/
 banned-players.json
 banned-ips.json
 whitelist.json
+usercache.json
+ops.json
 
 ### Benchmark files
 .benchmark/

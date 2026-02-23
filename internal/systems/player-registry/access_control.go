@@ -1,93 +1,13 @@
-package systems
+package player_registry
 
 import (
-	"encoding/json"
 	"net"
-	"os"
-	"sync"
 	"time"
 
-	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/google/uuid"
 )
 
-type WhitelistEntry struct {
-	UUID string `json:"uuid"`
-	Name string `json:"name"`
-}
-
-type BanEntry struct {
-	UUID    string `json:"uuid,omitempty"`
-	Name    string `json:"name,omitempty"`
-	IP      string `json:"ip,omitempty"`
-	Created string `json:"created"`
-	Source  string `json:"source"`
-	Expires string `json:"expires"`
-	Reason  string `json:"reason"`
-}
-
-type AccessControl struct {
-	Mu            sync.RWMutex
-	Whitelist     []WhitelistEntry
-	BannedPlayers []BanEntry
-	BannedIPs     []BanEntry
-	// todo: add cache files for uuids
-
-	whitelistFile     string
-	bannedPlayersFile string
-	bannedIPsFile     string
-}
-
-func NewAccessControl(whitelistFile, bannedPlayersFile, bannedIPsFile string) *AccessControl {
-	playerList := &AccessControl{
-		whitelistFile:     whitelistFile,
-		bannedPlayersFile: bannedPlayersFile,
-		bannedIPsFile:     bannedIPsFile,
-	}
-	playerList.Mu.Lock()
-	defer playerList.Mu.Unlock()
-
-	playerList.Whitelist = make([]WhitelistEntry, 0)
-	playerList.BannedPlayers = make([]BanEntry, 0)
-	playerList.BannedIPs = make([]BanEntry, 0)
-	playerList.load(playerList.whitelistFile, &playerList.Whitelist)
-	playerList.load(playerList.bannedPlayersFile, &playerList.BannedPlayers)
-	playerList.load(playerList.bannedIPsFile, &playerList.BannedIPs)
-
-	return playerList
-}
-
-func (pl *AccessControl) load(filename string, v interface{}) {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		if err := pl.save(filename, v); err != nil {
-			logger.Error("Failed to create %s: %v", filename, err)
-		}
-		return
-	}
-
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		logger.Error("Failed to read %s: %v", filename, err)
-		return
-	}
-
-	if len(data) == 0 {
-		return
-	}
-	if err := json.Unmarshal(data, v); err != nil {
-		logger.Error("Failed to parse %s: %v", filename, err)
-	}
-}
-
-func (pl *AccessControl) save(filename string, v interface{}) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename, data, 0644)
-}
-
-func (pl *AccessControl) IsWhitelisted(UUID uuid.UUID) bool {
+func (pl *PlayerRegistry) IsWhitelisted(UUID uuid.UUID) bool {
 	pl.Mu.RLock()
 	defer pl.Mu.RUnlock()
 
@@ -99,7 +19,7 @@ func (pl *AccessControl) IsWhitelisted(UUID uuid.UUID) bool {
 	return false
 }
 
-func (pl *AccessControl) IsBanned(UUID uuid.UUID) (bool, *BanEntry) {
+func (pl *PlayerRegistry) IsBanned(UUID uuid.UUID) (bool, *BanEntry) {
 	pl.Mu.RLock()
 	defer pl.Mu.RUnlock()
 
@@ -109,7 +29,7 @@ func (pl *AccessControl) IsBanned(UUID uuid.UUID) (bool, *BanEntry) {
 			if entry.Expires != "forever" && entry.Expires != "" {
 				expireTime, err := time.Parse("2006-01-02 15:04:05 -0700", entry.Expires)
 				if err == nil && now.After(expireTime) {
-					// todo: check if entry shold be removed from the list
+					// todo: check if entry should be removed from the list
 					continue
 				}
 			}
@@ -119,7 +39,7 @@ func (pl *AccessControl) IsBanned(UUID uuid.UUID) (bool, *BanEntry) {
 	return false, nil
 }
 
-func (pl *AccessControl) IsIPBanned(ip string) (bool, *BanEntry) {
+func (pl *PlayerRegistry) IsIPBanned(ip string) (bool, *BanEntry) {
 	pl.Mu.RLock()
 	defer pl.Mu.RUnlock()
 
@@ -143,7 +63,7 @@ func (pl *AccessControl) IsIPBanned(ip string) (bool, *BanEntry) {
 	return false, nil
 }
 
-func (pl *AccessControl) AddWhitelist(UUID uuid.UUID, name string) {
+func (pl *PlayerRegistry) AddWhitelist(UUID uuid.UUID, name string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 
@@ -157,7 +77,7 @@ func (pl *AccessControl) AddWhitelist(UUID uuid.UUID, name string) {
 	_ = pl.save(pl.whitelistFile, pl.Whitelist)
 }
 
-func (pl *AccessControl) RemoveWhitelist(name string) {
+func (pl *PlayerRegistry) RemoveWhitelist(name string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 
@@ -171,7 +91,7 @@ func (pl *AccessControl) RemoveWhitelist(name string) {
 	_ = pl.save(pl.whitelistFile, pl.Whitelist)
 }
 
-func (pl *AccessControl) Ban(UUID uuid.UUID, name, source, reason, expires string) {
+func (pl *PlayerRegistry) Ban(UUID uuid.UUID, name, source, reason, expires string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 
@@ -188,7 +108,7 @@ func (pl *AccessControl) Ban(UUID uuid.UUID, name, source, reason, expires strin
 	_ = pl.save(pl.bannedPlayersFile, pl.BannedPlayers)
 }
 
-func (pl *AccessControl) BanIP(ip, source, reason, expires string) {
+func (pl *PlayerRegistry) BanIP(ip, source, reason, expires string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 
@@ -204,7 +124,7 @@ func (pl *AccessControl) BanIP(ip, source, reason, expires string) {
 	_ = pl.save(pl.bannedIPsFile, pl.BannedIPs)
 }
 
-func (pl *AccessControl) Unban(name string) {
+func (pl *PlayerRegistry) Unban(name string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 
@@ -218,7 +138,7 @@ func (pl *AccessControl) Unban(name string) {
 	_ = pl.save(pl.bannedPlayersFile, pl.BannedPlayers)
 }
 
-func (pl *AccessControl) UnbanIP(ip string) {
+func (pl *PlayerRegistry) UnbanIP(ip string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
 

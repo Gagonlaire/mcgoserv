@@ -19,6 +19,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/Gagonlaire/mcgoserv/internal/systems/player-registry"
 )
 
 const (
@@ -33,7 +34,7 @@ type Server struct {
 	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
 	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
 	Properties    *systems.Properties
-	AccessControl *systems.AccessControl
+	AccessControl *player_registry.PlayerRegistry
 	RemoteConsole *systems.RemoteConsole
 	Commander     *commander.Commander
 	Addr          string
@@ -66,7 +67,7 @@ func NewServer() *Server {
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.registerTickerSteps()
 
-	server.AccessControl = systems.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json")
+	server.AccessControl = player_registry.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {

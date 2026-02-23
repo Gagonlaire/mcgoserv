@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -20,12 +19,16 @@ type Packet struct {
 }
 
 // MaxUncompressedSize https://minecraft.wiki/w/Java_Edition_protocol/Packets#With_compression
-const MaxUncompressedSize = 8388608
+const (
+	MaxUncompressedSize = 8388608
+	MaxFrameSize        = MaxUncompressedSize + 512
+	MaxPooledBufferCap  = 65536
+)
 
 var packetPool = sync.Pool{
 	New: func() any {
 		return &Packet{
-			Buffer: bytes.NewBuffer(make([]byte, 0, 128)),
+			Buffer: bytes.NewBuffer(make([]byte, 0, 256)),
 		}
 	},
 }
@@ -61,13 +64,13 @@ var zlibWriterPool = sync.Pool{
 func getZlibReader(r io.Reader) io.ReadCloser {
 	reader := zlibReaderPool.Get().(io.ReadCloser)
 
+	// check why zlib.Reaser is not exported
 	if readerConcrete, ok := reader.(interface{ Reset(io.Reader) error }); ok {
 		_ = readerConcrete.Reset(r)
 	} else {
 		_ = reader.Close()
 		reader, _ = zlib.NewReader(r)
 	}
-
 	return reader
 }
 
@@ -98,23 +101,28 @@ func Receive(conn net.Conn, threshold int) (*Packet, error) {
 		return nil, fmt.Errorf("read frame length: %w", err)
 	}
 
-	if int(frameLength) > MaxUncompressedSize*2 || frameLength < 0 {
+	if int(frameLength) > MaxFrameSize || frameLength < 0 {
 		return nil, fmt.Errorf("invalid frame length: %d", frameLength)
 	}
 
 	rawBuf := bufferPool.Get().(*bytes.Buffer)
 	rawBuf.Reset()
-	defer bufferPool.Put(rawBuf)
+
+	defer func() {
+		if rawBuf.Cap() > MaxPooledBufferCap {
+			return
+		}
+		bufferPool.Put(rawBuf)
+	}()
 
 	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
 		return nil, fmt.Errorf("read frame body: %w", err)
 	}
 
-	frameReader := bytes.NewReader(rawBuf.Bytes())
-	var bodyReader io.Reader = frameReader
+	var bodyReader io.Reader = rawBuf
 	if threshold >= 0 {
 		var dataLength mc.VarInt
-		if _, err := dataLength.ReadFrom(frameReader); err != nil {
+		if _, err := dataLength.ReadFrom(bodyReader); err != nil {
 			return nil, fmt.Errorf("read data length: %w", err)
 		}
 
@@ -126,9 +134,12 @@ func Receive(conn net.Conn, threshold int) (*Packet, error) {
 				return nil, fmt.Errorf("compressed packet size %d < threshold %d", dataLength, threshold)
 			}
 
-			reader := getZlibReader(frameReader)
-			defer zlibReaderPool.Put(reader)
-			bodyReader = reader
+			zlibReader := getZlibReader(bodyReader)
+			defer func() {
+				_ = zlibReader.Close()
+				zlibReaderPool.Put(zlibReader)
+			}()
+			bodyReader = zlibReader
 		}
 	}
 
@@ -150,6 +161,7 @@ func Receive(conn net.Conn, threshold int) (*Packet, error) {
 }
 
 func (p *Packet) Send(conn net.Conn, threshold int) error {
+	// todo: add zero-copy optimization for uncompressed packets and packet batching
 	frame := bufferPool.Get().(*bytes.Buffer)
 	frame.Reset()
 	defer bufferPool.Put(frame)
@@ -227,6 +239,9 @@ func (p *Packet) ResetWith(ID int, fields ...io.WriterTo) error {
 // (such as a router handler) that currently holds ownership of it.
 // By calling Retain, you prevent the packet from being freed by the original owner.
 func (p *Packet) Retain() {
+	if atomic.LoadInt32(&p.refCount) <= 0 {
+		panic(fmt.Sprintf("Retain on freed packet detected! ID: %d", p.ID))
+	}
 	atomic.AddInt32(&p.refCount, 1)
 }
 
@@ -236,11 +251,13 @@ func (p *Packet) Free() {
 
 	switch {
 	case newRef < 0:
-		buf := make([]byte, 1024)
-		runtime.Stack(buf, false)
-		panic(fmt.Sprintf("Packet double free detected! ID: %d, Stack: %s", p.ID, buf))
+		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
 	case newRef == 0:
-		p.Buffer.Reset()
+		if p.Buffer.Cap() > MaxPooledBufferCap {
+			p.Buffer = bytes.NewBuffer(make([]byte, 0, 128))
+		} else {
+			p.Buffer.Reset()
+		}
 		p.ID = 0
 		packetPool.Put(p)
 	}
