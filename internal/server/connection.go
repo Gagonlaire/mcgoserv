@@ -109,8 +109,9 @@ func (c *Connection) WriteLoop() {
 func (c *Connection) Send(pkt *packet.Packet) {
 	select {
 	case c.OutboundPackets <- pkt:
-	default:
-		pkt.Free()
+		return
+	case <-c.ctx.Done():
+		return
 	}
 }
 

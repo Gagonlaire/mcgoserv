@@ -110,8 +110,8 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 	c.server.sendCommands(c)
 
-	cx := int(math.Floor(c.Player.Pos[0] / 16))
-	cz := int(math.Floor(c.Player.Pos[2] / 16))
+	cx := int(math.Floor(c.Player.Pos[0] / 16.0))
+	cz := int(math.Floor(c.Player.Pos[2] / 16.0))
 	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
@@ -128,6 +128,8 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 			c.LoadedChunks[pos] = struct{}{}
 		}
 	}
+	c.Player.Movement.LastChunkX = cx
+	c.Player.Movement.LastChunkZ = cz
 
 	velocity := mc.LpVec3{
 		X: 0,
@@ -219,7 +221,9 @@ func (s *Server) sendCommands(c *Connection) {
 }
 
 func (c *Connection) HandleClientInformation(pkt *packet.Packet) {
+	// NOTE: this packet can be sent in configuration and play state
 	var information mc.PlayerInformation
+	shouldUpdateChunks := false
 
 	if err := pkt.Decode(&information); err != nil {
 		logger.Error("Error decoding clientInformation packet: %v", err)
@@ -228,11 +232,22 @@ func (c *Connection) HandleClientInformation(pkt *packet.Packet) {
 
 	switch {
 	case information.ViewDistance < 2:
-		c.Player.Information.ViewDistance = 2
+		information.ViewDistance = 2
 	case int(information.ViewDistance) > c.server.Properties.ViewDistance:
-		c.Player.Information.ViewDistance = mc.Byte(c.server.Properties.ViewDistance)
+		information.ViewDistance = mc.Byte(c.server.Properties.ViewDistance)
 	}
-	// todo: when in play state, should load/unload chunks based on new view distance
 
+	if c.State == mc.StatePlay {
+		if information.ViewDistance != c.Player.Information.ViewDistance {
+			shouldUpdateChunks = true
+		}
+	}
 	c.Player.Information = information
+
+	if shouldUpdateChunks {
+		pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))
+
+		c.Send(pkt)
+		c.updateChunkView(true)
+	}
 }

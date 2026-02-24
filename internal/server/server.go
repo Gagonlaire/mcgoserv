@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	ChannelSize       = 32
+	ChannelSize       = 64
 	KeepAliveInterval = 100
 	KeepAliveTimeout  = 300
 )
@@ -81,12 +81,7 @@ func NewServer() *Server {
 		},
 		func(conn *Connection, pkt *packet.Packet) {
 			pkt.Retain()
-
-			select {
-			case conn.OutboundPackets <- pkt:
-			default:
-				pkt.Free()
-			}
+			conn.OutboundPackets <- pkt
 		},
 	)
 

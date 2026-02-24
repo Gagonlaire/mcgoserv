@@ -140,30 +140,34 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	c.Player.Pos[2] = z
 	c.Player.OnGround = flags&0x01 != 0
 	c.Player.PushingAgainstWall = flags&0x02 != 0
-	c.updateChunkView()
+	c.updateChunkView(false)
 
 	return true
 }
 
-func (c *Connection) updateChunkView() {
-	cx := int(math.Floor(c.Player.Pos[0] / 16))
-	cz := int(math.Floor(c.Player.Pos[2] / 16))
+func (c *Connection) updateChunkView(force bool) {
+	// todo: check chunk batch start/stop
+	cx := int(math.Floor(c.Player.Pos[0] / 16.0))
+	cz := int(math.Floor(c.Player.Pos[2] / 16.0))
 
-	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ {
+	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ && !force {
 		return
 	}
 
 	c.Player.Movement.LastChunkX = cx
 	c.Player.Movement.LastChunkZ = cz
 
-	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	keepChunks := make(map[mc.ChunkPos]bool)
+	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
 			pos := mc.ChunkPos{X: x, Z: z}
 			keepChunks[pos] = true
 		}
 	}
+
+	pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	c.Send(pkt)
 
 	for pos := range c.LoadedChunks {
 		if !keepChunks[pos] {
@@ -172,9 +176,6 @@ func (c *Connection) updateChunkView() {
 			delete(c.LoadedChunks, pos)
 		}
 	}
-
-	pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
-	c.Send(pkt)
 
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {

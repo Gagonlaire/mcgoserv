@@ -27,9 +27,7 @@ func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 						_ = packet.Encode(prop)
 					}
 				case mc.ActionUpdateListed:
-					// todo: replace with real value
-					listed := mc.Boolean(true)
-					_ = packet.Encode(&listed)
+					_ = packet.Encode(player.Information.AllowServerListings)
 				}
 			}
 		}

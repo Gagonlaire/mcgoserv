@@ -22,11 +22,11 @@ type Player struct {
 	// State
 	Inventory         *mc.PlayerInventory
 	Movement          MovementTracker
+	Information       mc.PlayerInformation
 	ProfileProperties []mc.ProfileProperty
 	Name              mc.String
 	Loaded            bool
 	Input             mc.UnsignedByte
-	Information       mc.PlayerInformation
 }
 
 type MovementTracker struct {
@@ -59,8 +59,8 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 		ProfileProperties: profileProperties,
 	}
 	player.Movement.LastTickY = player.Pos[1]
-	player.Movement.LastChunkX = -10000
-	player.Movement.LastChunkZ = -10000
+	player.Information.ViewDistance = mc.Byte(properties.ViewDistance)
+	player.Information.AllowServerListings = true
 
 	lastEntityID++
 

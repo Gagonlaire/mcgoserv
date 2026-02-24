@@ -39,13 +39,15 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 		if len(data.Players.Sample) >= 5 {
 			break
 		}
-		data.Players.Sample = append(data.Players.Sample, struct {
-			Name string `json:"name"`
-			ID   string `json:"id"`
-		}{
-			Name: string(p.Name),
-			ID:   p.UUID.String(),
-		})
+		if p.Information.AllowServerListings {
+			data.Players.Sample = append(data.Players.Sample, struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			}{
+				Name: string(p.Name),
+				ID:   p.UUID.String(),
+			})
+		}
 	}
 	data.Description.Text = c.server.Properties.Motd
 	data.EnforceSecureChat = false

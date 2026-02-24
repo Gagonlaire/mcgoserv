@@ -85,4 +85,5 @@ func (s *Server) registerPacketHandlers() {
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundSetCarriedItem, (*Connection).HandleSetCarriedItem)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundSetCreativeModeSlot, (*Connection).HandleSetCreativeModeSlot)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundUseItemOn, (*Connection).HandleUseItemOn)
+	s.Router.Register(mc.StatePlay, packet.PlayServerboundClientInformation, (*Connection).HandleClientInformation)
 }
