@@ -55,10 +55,8 @@ func (i IntType) Max(max int) IntType {
 	return i
 }
 
-func (i IntType) ID() int { return 3 }
+func (i IntType) ID() int { return 3 } // brigadier:integer
 
-// todo: parser should maybe return a ErrorCode instead
-// todo: parser other than brigadier should maybe be outside of this package
 func (i IntType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
 	var val int
 

@@ -1,6 +1,7 @@
 package mc
 
 import (
+	"context"
 	"go/types"
 	"io"
 
@@ -147,6 +148,14 @@ type (
 	PrefixedArray[X any] struct {
 		Slice *[]X
 	}
+	// DataArray of X Encodes:
+	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.
+	DataArray struct {
+		Slice        []uint64
+		BitsPerEntry int
+		Mask         uint64
+		Size         int
+	}
 	// LpVec3 Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#LpVec3.
 	// Size:
@@ -248,4 +257,20 @@ func (p Position) WriteTo(w io.Writer) (n int64, err error) {
 	val := ((int64(p.X) & 0x3FFFFFF) << 38) | (int64(p.Y) & 0xFFF) | ((int64(p.Z) & 0x3FFFFFF) << 12)
 
 	return Long(val).WriteTo(w)
+}
+
+func (d *DataArray) ReadFrom(r io.Reader) (n int64, err error) {
+	panic(context.TODO())
+}
+
+func (d *DataArray) WriteTo(w io.Writer) (n int64, err error) {
+	for i := range d.Slice {
+		nn, err := Long(d.Slice[i]).WriteTo(w)
+		if err != nil {
+			return n, err
+		}
+		n += nn
+	}
+
+	return n, nil
 }

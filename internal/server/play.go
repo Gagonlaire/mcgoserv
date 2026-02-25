@@ -181,8 +181,9 @@ func (c *Connection) updateChunkView(force bool) {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
 			pos := mc.ChunkPos{X: x, Z: z}
 			if _, loaded := c.LoadedChunks[pos]; !loaded {
+				dim := c.server.World.Dimensions["minecraft:overworld"]
 				c.LoadedChunks[pos] = struct{}{}
-				chunk := mc.CreateChunk(x, z)
+				chunk := dim.GetChunk(x, z)
 				pkt, _ = packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
 				c.Send(pkt)
 			}
@@ -420,6 +421,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 			dim := c.server.World.Dimensions["minecraft:overworld"]
 			blockState, _ := dim.GetBlock(int(location.X), int(location.Y), int(location.Z))
 
+			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), 0)
 			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				location,

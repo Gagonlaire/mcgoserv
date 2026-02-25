@@ -85,10 +85,10 @@ var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
 	},
 }
 
-func (v *VarInt) Len() int {
-	val := uint32(*v)
+func (v VarInt) Len() int {
+	val := uint32(v)
 
-	if *v < 0 {
+	if v < 0 {
 		return 5
 	}
 	n := 1
@@ -172,6 +172,42 @@ func (F *FixedBitSet) Set(i int, value bool) {
 
 func (F *FixedBitSet) Get(i int) (bool, error) {
 	return (F.Data[i/8] & (1 << (i % 8))) != 0, nil
+}
+
+func NewDataArray(bitsPerEntry int, size int) *DataArray {
+	valuesPerLong := 64 / bitsPerEntry
+	longCount := (size + valuesPerLong - 1) / valuesPerLong
+
+	return &DataArray{
+		Slice:        make([]uint64, longCount),
+		BitsPerEntry: bitsPerEntry,
+		Mask:         (1 << bitsPerEntry) - 1,
+		Size:         size,
+	}
+}
+
+func (D *DataArray) Set(index int, value int) {
+	if index < 0 || index >= D.Size {
+		return
+	}
+
+	valuesPerLong := 64 / D.BitsPerEntry
+	cellIndex := index / valuesPerLong
+	bitIndex := (index % valuesPerLong) * D.BitsPerEntry
+
+	D.Slice[cellIndex] = (D.Slice[cellIndex] &^ (D.Mask << bitIndex)) | (uint64(value) & D.Mask << bitIndex)
+}
+
+func (D *DataArray) Get(index int) int {
+	if index < 0 || index >= D.Size {
+		return 0
+	}
+
+	valuesPerLong := 64 / D.BitsPerEntry
+	cellIndex := index / valuesPerLong
+	bitIndex := (index % valuesPerLong) * D.BitsPerEntry
+
+	return int((D.Slice[cellIndex] >> bitIndex) & D.Mask)
 }
 
 func pack(value float64) int64 {

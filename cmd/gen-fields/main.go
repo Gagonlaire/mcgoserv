@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"text/template"
+	"unicode"
 )
 
 type Field struct {
@@ -99,7 +100,10 @@ func main() {
 						var fields []Field
 						for _, field := range st.Fields.List {
 							for _, name := range field.Names {
-								fields = append(fields, Field{Name: name.Name})
+								// only keep exported fields
+								if name.Name != "" && unicode.IsUpper([]rune(name.Name)[0]) {
+									fields = append(fields, Field{Name: name.Name})
+								}
 							}
 						}
 						data := StructData{

@@ -19,7 +19,7 @@ func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 	case 0x01:
 		*b = true
 	default:
-		return 1, fmt.Errorf("invalid value for Boolean: %x", buf[0])
+		return 1, fmt.Errorf("invalid Value for Boolean: %x", buf[0])
 	}
 	return 1, nil
 }
@@ -287,12 +287,12 @@ func (P *PrefixedOptional[X]) ReadFrom(r io.Reader) (n int64, err error) {
 		if fieldInstance, ok := any(P.Value).(Field); ok {
 			nn, err := fieldInstance.ReadFrom(r)
 			if err != nil {
-				return n, fmt.Errorf("error reading PrefixedOptional value: %w", err)
+				return n, fmt.Errorf("error reading PrefixedOptional Value: %w", err)
 			}
 			n += nn
 		} else {
 			typeName := reflect.TypeOf(new(X)).Elem().String()
-			return n, fmt.Errorf("type %s does not implement mc.Field, cannot read optional value", typeName)
+			return n, fmt.Errorf("type %s does not implement mc.Field, cannot read optional Value", typeName)
 		}
 	} else {
 		P.Value = nil
@@ -310,12 +310,12 @@ func (P *PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
 		if fieldInstance, ok := any(P.Value).(Field); ok {
 			nn, err := fieldInstance.WriteTo(w)
 			if err != nil {
-				return n, fmt.Errorf("error writing PrefixedOptional value: %w", err)
+				return n, fmt.Errorf("error writing PrefixedOptional Value: %w", err)
 			}
 			n += nn
 		} else {
 			typeName := reflect.TypeOf(new(X)).Elem().String()
-			return n, fmt.Errorf("type %s does not implement mc.Field, cannot write optional value", typeName)
+			return n, fmt.Errorf("type %s does not implement mc.Field, cannot write optional Value", typeName)
 		}
 	}
 	return n, nil
