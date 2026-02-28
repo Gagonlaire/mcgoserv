@@ -1,5 +1,12 @@
 package internal
 
+import (
+	"crypto/sha1"
+	"encoding/hex"
+	"io"
+	"strings"
+)
+
 const (
 	AnsiReset     = "\u001B[0m"
 	AnsiBold      = "\u001B[1m"
@@ -14,3 +21,46 @@ const (
 	ColorCyan     = "\u001B[36m"
 	ColorWhite    = "\u001B[37m"
 )
+
+// AuthDigest https://minecraft.wiki/w/Java_Edition_protocol/Encryption#Sample_Code
+func AuthDigest(s string) string {
+	h := sha1.New()
+	_, _ = io.WriteString(h, s)
+	hash := h.Sum(nil)
+	negative := (hash[0] & 0x80) == 0x80
+	if negative {
+		hash = twosComplement(hash)
+	}
+
+	res := strings.TrimLeft(hex.EncodeToString(hash), "0")
+	if negative {
+		res = "-" + res
+	}
+
+	return res
+}
+
+func twosComplement(p []byte) []byte {
+	carry := true
+	for i := len(p) - 1; i >= 0; i-- {
+		p[i] = ^p[i]
+		if carry {
+			carry = p[i] == 0xff
+			p[i]++
+		}
+	}
+	return p
+}
+
+func EqualBytes(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

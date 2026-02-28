@@ -47,7 +47,7 @@ func (c *Connection) HandleKeepAlive(pkt *packet.Packet) {
 		return
 	}
 	c.LastKeepAliveID = int64(keepAliveId)
-	c.LastKeepAlive = c.server.World.Time
+	c.LastKeepAlive = c.Server.World.Time
 }
 
 func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
@@ -181,7 +181,7 @@ func (c *Connection) updateChunkView(force bool) {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
 			pos := mc.ChunkPos{X: x, Z: z}
 			if _, loaded := c.LoadedChunks[pos]; !loaded {
-				dim := c.server.World.Dimensions["minecraft:overworld"]
+				dim := c.Server.World.Dimensions["minecraft:overworld"]
 				c.LoadedChunks[pos] = struct{}{}
 				chunk := dim.GetChunk(x, z)
 				pkt, _ = packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
@@ -246,14 +246,14 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		)
 	}
 
-	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 
 	if rotChanged {
 		pktHead, _ := packet.NewPacket(packet.PlayClientboundRotateHead,
 			mc.VarInt(c.Player.EntityID),
 			yaw,
 		)
-		c.server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
 	}
 }
 
@@ -268,8 +268,8 @@ func (c *Connection) SendKeepAlive() {
 		panic("Invalid state for sending keep-alive")
 	}
 
-	c.LastKeepAliveID = c.server.World.Time
-	pkt, _ := packet.NewPacket(packetId, mc.Long(c.server.World.Time))
+	c.LastKeepAliveID = c.Server.World.Time
+	pkt, _ := packet.NewPacket(packetId, mc.Long(c.Server.World.Time))
 	c.Send(pkt)
 }
 
@@ -281,7 +281,7 @@ func (c *Connection) broadcastTeleport() {
 		mc.Float(c.Player.Rot[0]*256/360), mc.Float(c.Player.Rot[1]*256/360),
 		mc.Boolean(c.Player.OnGround),
 	)
-	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 
 func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
@@ -304,7 +304,7 @@ func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
 			mc.Byte(0x08),
 			mc.UnsignedByte(0xff),
 		)
-		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 	case mc.ActionStopSprinting:
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
@@ -314,7 +314,7 @@ func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
 			mc.Byte(0),
 			mc.UnsignedByte(0xff),
 		)
-		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 	}
 }
 
@@ -339,7 +339,7 @@ func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
 			mc.VarInt(mc.PoseSneaking),
 			mc.UnsignedByte(0xff),
 		)
-		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 	} else {
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
@@ -352,7 +352,7 @@ func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
 			mc.VarInt(mc.PoseStanding),
 			mc.UnsignedByte(0xff),
 		)
-		c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 	}
 }
 
@@ -418,7 +418,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 	switch status {
 	case StatusStartDigging:
 		if c.Player.GameMode == 1 {
-			dim := c.server.World.Dimensions["minecraft:overworld"]
+			dim := c.Server.World.Dimensions["minecraft:overworld"]
 			blockState, _ := dim.GetBlock(int(location.X), int(location.Y), int(location.Z))
 
 			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), 0)
@@ -434,8 +434,8 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 				mc.Int(blockState),
 				mc.Boolean(false),
 			)
-			c.server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
-			c.server.Broadcaster.Broadcast(pkt)
+			c.Server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
+			c.Server.Broadcaster.Broadcast(pkt)
 		}
 	case StatusFinishDigging:
 		pkt, _ := packet.NewPacket(
@@ -443,7 +443,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 			location,
 			mc.VarInt(0),
 		)
-		c.server.Broadcaster.Broadcast(pkt)
+		c.Server.Broadcaster.Broadcast(pkt)
 	}
 
 	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
@@ -456,7 +456,7 @@ func (c *Connection) AnimateEntity(animationID int) {
 		mc.VarInt(c.Player.EntityID),
 		mc.UnsignedByte(animationID),
 	)
-	c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 
 func (c *Connection) HandleChat(pkt *packet.Packet) {
@@ -478,7 +478,7 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 	)
 	pkt.Retain()
 	_ = pkt.ResetWith(packet.PlayClientboundSystemChat, chatMessage, mc.Boolean(false))
-	c.server.Broadcaster.Broadcast(pkt)
+	c.Server.Broadcaster.Broadcast(pkt)
 }
 
 func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
@@ -490,8 +490,8 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 	}
 
 	// todo: commands should maybe ran in a separate routine
-	resp := c.server.Commander.Execute(
-		context.WithValue(c.server.ctx, "connection", c),
+	resp := c.Server.Commander.Execute(
+		context.WithValue(c.Server.ctx, "connection", c),
 		string(command),
 	)
 
@@ -520,7 +520,7 @@ func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 			mc.UnsignedByte(0),
 			&item,
 		)
-		c.server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+		c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 	}
 }
 
@@ -570,7 +570,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 
 		if ok && item.BlockID != -1 {
 			block, _ := mcdata.GetBlock(item.BlockID)
-			dim := c.server.World.Dimensions["minecraft:overworld"]
+			dim := c.Server.World.Dimensions["minecraft:overworld"]
 			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), int32(block.DefaultStateID))
 
 			pkt, _ = packet.NewPacket(
@@ -578,7 +578,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 				location,
 				mc.VarInt(block.DefaultStateID),
 			)
-			c.server.Broadcaster.Broadcast(pkt)
+			c.Server.Broadcaster.Broadcast(pkt)
 
 			// todo: fix to handle sound groups
 			// todo: check if faster rand exist
@@ -596,7 +596,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 					mc.Float(pitch),
 					mc.Long(0),
 				)
-				c.server.Broadcaster.Broadcast(soundPkt, systems.NotSender(c))
+				c.Server.Broadcaster.Broadcast(soundPkt, systems.NotSender(c))
 			}
 		}
 	}

@@ -34,7 +34,7 @@ type (
 	//  - 1 byte
 	// Notes:
 	//  - Unsigned 8-bit integer.
-	UnsignedByte byte
+	UnsignedByte uint8
 	// Short Encodes:
 	//  - An integer between -32768 and 32767.
 	// Size:

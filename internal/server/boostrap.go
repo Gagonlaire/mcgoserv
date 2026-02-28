@@ -64,6 +64,7 @@ func (s *Server) registerPacketHandlers() {
 	s.Router.Register(mc.StateStatus, packet.StatusServerboundPingRequest, (*Connection).HandlePing)
 	s.Router.Register(mc.StateLogin, packet.LoginServerboundHello, (*Connection).HandleLoginStart)
 	s.Router.Register(mc.StateLogin, packet.LoginServerboundLoginAcknowledged, (*Connection).HandleLoginAck)
+	s.Router.Register(mc.StateLogin, packet.LoginServerboundKey, (*Connection).HandleLoginEncryptionResponse)
 	s.Router.Register(mc.StateConfiguration, packet.ConfigurationServerboundFinishConfiguration, (*Connection).HandleFinishConfigurationAck)
 	s.Router.Register(mc.StateConfiguration, packet.ConfigurationServerboundKeepAlive, (*Connection).HandleKeepAlive)
 	s.Router.Register(mc.StateConfiguration, packet.ConfigurationServerboundSelectKnownPacks, (*Connection).HandleClientKnownPacks)

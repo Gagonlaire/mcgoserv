@@ -2,15 +2,20 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"fmt"
+	"image/png"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -29,19 +34,23 @@ const (
 )
 
 type Server struct {
-	World         *world.World
-	Ticker        *systems.Ticker
-	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
-	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
-	Properties    *systems.Properties
-	AccessControl *player_registry.PlayerRegistry
-	RemoteConsole *systems.RemoteConsole
-	Commander     *commander.Commander
-	Addr          string
-	Connections   sync.Map
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
+	World            *world.World
+	Ticker           *systems.Ticker
+	Broadcaster      *systems.Broadcaster[*Connection, *packet.Packet]
+	Router           *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+	Properties       *systems.Properties
+	AccessControl    *player_registry.PlayerRegistry
+	RemoteConsole    *systems.RemoteConsole
+	Commander        *commander.Commander
+	ID               string
+	Key              *rsa.PrivateKey
+	EncodedPublicKey []byte
+	Icon             string
+	Addr             string
+	Connections      sync.Map
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
 }
 
 func NewServer() *Server {
@@ -57,6 +66,23 @@ func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", server))
 	server.ctx = ctx
 	server.cancel = cancel
+
+	if server.Properties.OnlineMode {
+		key, err := rsa.GenerateKey(rand.Reader, 1024)
+		if err != nil {
+			logger.Fatal("Failed to generate RSA keypair: %v", err)
+		}
+
+		publicKeyDER, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+		if err != nil {
+			logger.Fatal("Error marshalling public key: %v", err)
+		}
+
+		server.Key = key
+		server.EncodedPublicKey = publicKeyDER
+	}
+
+	server.loadServerIcon()
 
 	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
 	server.registerPacketHandlers()
@@ -85,11 +111,7 @@ func NewServer() *Server {
 		},
 	)
 
-	// todo: move world loading and logging to server start
-	startTime := time.Now()
 	server.World = world.NewWorld()
-	duration := time.Since(startTime)
-	logger.Info("Done (%.3fs)! For help, type \"help\"", duration.Seconds())
 
 	if server.Properties.EnableRcon {
 		if server.Properties.RconPassword == "" {
@@ -165,6 +187,36 @@ func (s *Server) Stop() {
 	s.cancel()
 	s.wg.Wait()
 	// todo: save world
+}
+
+func (s *Server) loadServerIcon() {
+	if _, err := os.Stat("Server-icon.png"); err == nil {
+		file, err := os.Open("Server-icon.png")
+		if err != nil {
+			logger.Warn("Failed to open Server-icon.png: %v", err)
+			return
+		}
+		defer file.Close()
+
+		img, err := png.Decode(file)
+		if err != nil {
+			logger.Fatal("Invalid Server icon: %v", err)
+			return
+		}
+
+		if img.Bounds().Dx() != 64 || img.Bounds().Dy() != 64 {
+			logger.Fatal("Server icon must be 64x64 pixels")
+			return
+		}
+
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			logger.Fatal("Failed to encode Server icon: %v", err)
+			return
+		}
+
+		s.Icon = "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+	}
 }
 
 func (s *Server) handleConnection(conn net.Conn) {

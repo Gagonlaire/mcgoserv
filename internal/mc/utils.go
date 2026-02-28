@@ -1,6 +1,7 @@
 package mc
 
 import (
+	"iter"
 	"math"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -110,6 +111,45 @@ func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
 	return &PrefixedArray[E]{
 		Slice: slice,
 	}
+}
+
+// NewPrefixedArrayFromSlice creates a new PrefixedArray from a regular slice, applying a conversion function to each element.
+// ex: convert []byte to PrefixedArray[Byte]
+func NewPrefixedArrayFromSlice[E, S any](slice []S, convert func(S) E) *PrefixedArray[E] {
+	if slice == nil {
+		return &PrefixedArray[E]{Slice: nil}
+	}
+	newSlice := make([]E, len(slice))
+	for i, v := range slice {
+		newSlice[i] = convert(v)
+	}
+	return &PrefixedArray[E]{Slice: &newSlice}
+}
+
+// NewPrefixedArrayFromIter creates a new PrefixedArray from an iterator with a conversion function and filtering.
+// ex: iter over connections map and return the player (when the connection has one)
+func NewPrefixedArrayFromIter[E, S any](seq iter.Seq[S], convert func(S) (E, bool)) *PrefixedArray[E] {
+	var newSlice []E
+	for v := range seq {
+		if mapped, keep := convert(v); keep {
+			newSlice = append(newSlice, mapped)
+		}
+	}
+	return &PrefixedArray[E]{Slice: &newSlice}
+}
+
+// MapToSlice converts a PrefixedArray to a regular slice using a conversion function.
+// ex: convert PrefixedArray[Byte] to []byte
+func MapToSlice[E any, T any](p *PrefixedArray[E], convert func(E) T) []T {
+	if p == nil || p.Slice == nil {
+		return nil
+	}
+	src := *p.Slice
+	dst := make([]T, len(src))
+	for i, v := range src {
+		dst[i] = convert(v)
+	}
+	return dst
 }
 
 func NewPrefixedOptional[E any](value *E) *PrefixedOptional[E] {

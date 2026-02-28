@@ -25,7 +25,8 @@ type StatusResponse struct {
 	Description struct {
 		Text string `json:"text"`
 	} `json:"description"`
-	EnforceSecureChat bool `json:"enforceSecureChat"`
+	Favicon           string `json:"favicon,omitempty"`
+	EnforceSecureChat bool   `json:"enforceSecureChat"`
 }
 
 func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
@@ -33,9 +34,9 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 
 	data.Version.Name = mcdata.GameVersion
 	data.Version.Protocol = mcdata.ProtocolVersion
-	data.Players.Max = c.server.Properties.MaxPlayers
-	data.Players.Online = len(c.server.World.Players)
-	for _, p := range c.server.World.Players {
+	data.Players.Max = c.Server.Properties.MaxPlayers
+	data.Players.Online = len(c.Server.World.Players)
+	for _, p := range c.Server.World.Players {
 		if len(data.Players.Sample) >= 5 {
 			break
 		}
@@ -49,7 +50,10 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 			})
 		}
 	}
-	data.Description.Text = c.server.Properties.Motd
+	data.Description.Text = c.Server.Properties.Motd
+	if c.Server.Icon != "" {
+		data.Favicon = c.Server.Icon
+	}
 	data.EnforceSecureChat = false
 	jsonData, _ := json.Marshal(data)
 

@@ -15,28 +15,32 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/google/uuid"
 )
 
 type Connection struct {
-	server               *Server
+	Server               *Server
+	VerifyToken          []byte
 	Player               *entities.Player
+	TempName             string    // todo: move this to the player
+	TempUUID             uuid.UUID // todo: same, horrible
 	Conn                 net.Conn
 	State                mc.State
 	InboundPackets       chan *packet.Packet
 	OutboundPackets      chan *packet.Packet
 	LastKeepAlive        int64
 	LastKeepAliveID      int64
+	CompressionThreshold int
+	LoadedChunks         map[mc.ChunkPos]struct{}
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	closeOnce            sync.Once
-	CompressionThreshold int
-	LoadedChunks         map[mc.ChunkPos]struct{}
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
 	ctx, cancel := context.WithCancel(s.ctx)
 	newConnection := &Connection{
-		server:               s,
+		Server:               s,
 		Conn:                 conn,
 		State:                mc.StateHandshake,
 		InboundPackets:       make(chan *packet.Packet, ChannelSize),
@@ -72,7 +76,7 @@ func (c *Connection) ReadLoop() {
 		if c.State == mc.StatePlay {
 			c.InboundPackets <- pkt
 		} else {
-			if !c.server.Router.Handle(c.State, pkt.ID, c, pkt) {
+			if !c.Server.Router.Handle(c.State, pkt.ID, c, pkt) {
 				logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 			}
 			pkt.Free()
@@ -146,12 +150,12 @@ func (c *Connection) close() {
 			).SetColor(tc.ColorYellow)
 			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 
-			c.server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
-			c.server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
-			c.server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
-			c.server.World.RemovePlayer(c.Player.UUID)
+			c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
+			c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+			c.Server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
+			c.Server.World.RemovePlayer(c.Player.UUID)
 		}
-		c.server.Connections.Delete(c)
+		c.Server.Connections.Delete(c)
 		_ = c.Conn.Close()
 	})
 }
