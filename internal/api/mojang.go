@@ -14,19 +14,21 @@ const (
 	MojangSessionURL    = "https://sessionserver.mojang.com/session/minecraft/profile/%s?unsigned=false"
 )
 
-type MojangProfileResponse struct {
+type MojangProfile struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-type MojangSessionResponse struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Properties []struct {
-		Name      string `json:"name"`
-		Value     string `json:"value"`
-		Signature string `json:"signature,omitempty"`
-	} `json:"properties"`
+type MojangSessionProperty struct {
+	Name      string `json:"name"`
+	Value     string `json:"value"`
+	Signature string `json:"signature,omitempty"`
+}
+
+type MojangSession struct {
+	ID         string                  `json:"id"`
+	Name       string                  `json:"name"`
+	Properties []MojangSessionProperty `json:"properties"`
 }
 
 func GetUserUUID(name string) (uuid.UUID, string, error) {
@@ -43,7 +45,7 @@ func GetUserUUID(name string) (uuid.UUID, string, error) {
 		return uuid.Nil, "", fmt.Errorf("mojang API error: %s", resp.Status)
 	}
 
-	var profile MojangProfileResponse
+	var profile MojangProfile
 	if err := json.NewDecoder(resp.Body).Decode(&profile); err != nil {
 		return uuid.Nil, "", fmt.Errorf("failed to decode Mojang response: %w", err)
 	}
@@ -56,8 +58,13 @@ func GetUserUUID(name string) (uuid.UUID, string, error) {
 	return u, profile.Name, nil
 }
 
-func GetUserProfile(u uuid.UUID) (*MojangSessionResponse, error) {
-	resp, err := http.Get(fmt.Sprintf(MojangSessionURL, u.String()))
+func GetUserProfile(u uuid.UUID, signed bool) (*MojangSession, error) {
+	url := fmt.Sprintf(MojangSessionURL, u.String())
+	if !signed {
+		url += "?unsigned=true"
+	}
+
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch profile from Session Server: %w", err)
 	}
@@ -75,7 +82,7 @@ func GetUserProfile(u uuid.UUID) (*MojangSessionResponse, error) {
 		return nil, err
 	}
 
-	var sessionProfile MojangSessionResponse
+	var sessionProfile MojangSession
 	if err := json.Unmarshal(body, &sessionProfile); err != nil {
 		return nil, fmt.Errorf("failed to decode Session response: %w", err)
 	}

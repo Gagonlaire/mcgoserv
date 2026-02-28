@@ -3,11 +3,13 @@ package server
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/Gagonlaire/mcgoserv/internal"
+	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
@@ -16,16 +18,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/google/uuid"
 )
-
-type GameProfile struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Properties []struct {
-		Name      string `json:"name"`
-		Value     string `json:"value"`
-		Signature string `json:"signature,omitempty"`
-	} `json:"properties"`
-}
 
 func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 	var (
@@ -38,56 +30,26 @@ func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 		return
 	}
 
-	c.TempName = string(Name)
-	c.TempUUID = uuid.UUID(PlayerUUID)
-	ip := c.Conn.RemoteAddr().String()
-	if banned, entry := c.Server.AccessControl.IsIPBanned(ip); banned {
-		c.Disconnect(tc.Text(fmt.Sprintf("You are IP banned: %s", entry.Reason)))
+	c.ContextData["loginName"] = string(Name)
+
+	verifyToken := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, verifyToken); err != nil {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		logger.Error("Error generating verify token: %v", err)
 		return
 	}
+	c.ContextData["verifyToken"] = verifyToken
 
-	if banned, entry := c.Server.AccessControl.IsBanned(uuid.UUID(PlayerUUID)); banned {
-		c.Disconnect(tc.Text(fmt.Sprintf("You are banned: %s", entry.Reason)))
-		return
-	}
-
-	if c.Server.Properties.WhiteList && !c.Server.AccessControl.IsWhitelisted(uuid.UUID(PlayerUUID)) {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
-		return
-	}
-
-	c.Server.Connections.Range(func(k, v interface{}) bool {
-		conn := k.(*Connection)
-
-		if conn.Player != nil && conn.Player.UUID == uuid.UUID(PlayerUUID) {
-			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectDuplicateLogin))
-			return false
-		}
-		return true
-	})
-
-	if c.Server.Properties.OnlineMode {
-		verifyToken := make([]byte, 16)
-		if _, err := io.ReadFull(rand.Reader, verifyToken); err != nil {
-			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
-			logger.Error("Error generating verify token: %v", err)
-			return
-		}
-		c.VerifyToken = verifyToken
-
-		pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
-		pArrayVerifyToken := mc.NewPrefixedArrayFromSlice(verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
-		_ = pkt.ResetWith(
-			packet.LoginClientboundHello,
-			mc.String(c.Server.ID),
-			pArrayPublicKey,
-			pArrayVerifyToken,
-			mc.Boolean(true),
-		)
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
-	} else {
-		c.FinishLogin()
-	}
+	pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
+	pArrayVerifyToken := mc.NewPrefixedArrayFromSlice(verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
+	_ = pkt.ResetWith(
+		packet.LoginClientboundHello,
+		mc.String(c.Server.ID),
+		pArrayPublicKey,
+		pArrayVerifyToken,
+		mc.Boolean(c.Server.Properties.OnlineMode),
+	)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
 func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
@@ -100,12 +62,12 @@ func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
 
 	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Key, mc.MapToSlice(&encryptedSecret, func(b mc.Byte) byte { return byte(b) }))
 	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Key, mc.MapToSlice(&encryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
-
-	if !internal.EqualBytes(decryptedVerifyToken, c.VerifyToken) {
+	if !internal.EqualBytes(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		// todo: replace with correct message
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
 		return
 	}
+	delete(c.ContextData, "verifyToken")
 
 	encryptedConn, err := NewEncryptedConn(c.Conn, decryptedSecret)
 	if err != nil {
@@ -115,29 +77,133 @@ func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
 	}
 	c.Conn = encryptedConn
 
-	authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.EncodedPublicKey))
-	url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.TempName, authHash)
-	if c.Server.Properties.PreventProxyConnections {
-		url += "&ip=" + c.Conn.RemoteAddr().String()
-	}
+	var session api.MojangSession
 
-	resp, err := http.Get(url)
-	if err != nil {
-		logger.Error("Failed to contact session server: %v", err)
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
-		return
-	}
-	defer resp.Body.Close()
+	if c.Server.Properties.OnlineMode {
+		authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.EncodedPublicKey))
+		url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.ContextData["loginName"].(string), authHash)
+		if c.Server.Properties.PreventProxyConnections {
+			url += "&ip=" + c.Conn.RemoteAddr().String()
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		// todo: match the error message to the status code
+		resp, err := http.Get(url)
+		if err != nil {
+			logger.Error("Failed to contact session server: %v", err)
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+			return
+		}
 		body, _ := io.ReadAll(resp.Body)
-		logger.Error("Session server returned status %d: %s", resp.StatusCode, string(body))
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
-		return
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			// todo: match the error message to the status code
+			logger.Error("Session server returned status %d: %s", resp.StatusCode, string(body))
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+			return
+		}
+
+		if err := json.Unmarshal(body, &session); err != nil {
+			logger.Error("Failed to parse session server response: %v", err)
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+			return
+		}
+
+		realUUID, _ := uuid.Parse(session.ID)
+		c.ContextData["loginUUID"] = realUUID
+		c.ContextData["loginName"] = session.Name
+	} else {
+		offlineUUID := internal.GetOfflineUUID(c.ContextData["loginName"].(string))
+		c.ContextData["loginUUID"] = offlineUUID
+		session = api.MojangSession{
+			ID:         offlineUUID.String(),
+			Name:       c.ContextData["loginName"].(string),
+			Properties: []api.MojangSessionProperty{},
+		}
 	}
 
-	c.FinishLogin()
+	if c.CanAccessServer() {
+		pArraySession := mc.NewPrefixedArrayFromSlice(session.Properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
+			return mc.ProfileProperty{
+				Name:      p.Name,
+				Value:     p.Value,
+				Signature: p.Signature,
+			}
+		})
+
+		newPlayer := entities.NewPlayer(
+			c.ContextData["loginUUID"].(uuid.UUID),
+			c.ContextData["loginName"].(string),
+			*pArraySession.Slice,
+			c.Server.Properties,
+		)
+		c.Player = newPlayer
+		c.FinishLogin(pArraySession)
+	}
+}
+
+func (c *Connection) CanAccessServer() bool {
+	UUID := c.ContextData["loginUUID"].(uuid.UUID)
+
+	if banned, entry := c.Server.AccessControl.IsIPBanned(c.Conn.RemoteAddr().String()); banned {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBannedIpReason, tc.Text(entry.Reason)))
+		return false
+	}
+
+	if banned, entry := c.Server.AccessControl.IsBanned(UUID); banned {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBannedReason, tc.Text(entry.Reason)))
+		return false
+	}
+
+	if c.Server.Properties.WhiteList && !c.Server.AccessControl.IsWhitelisted(UUID) {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
+		return false
+	}
+
+	isRejoining := false
+	c.Server.Connections.Range(func(k, v interface{}) bool {
+		conn := k.(*Connection)
+		if conn.Player != nil && conn.Player.UUID == c.ContextData["loginUUID"] {
+			isRejoining = true
+			return false
+		}
+		return true
+	})
+
+	if len(c.Server.World.Players) >= c.Server.Properties.MaxPlayers && !isRejoining {
+		if op, entry := c.Server.AccessControl.IsOp(UUID); !op || !entry.BypassesPlayerLimit {
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectServerFull))
+			return false
+		}
+	}
+
+	c.Server.Connections.Range(func(k, v interface{}) bool {
+		conn := k.(*Connection)
+		if conn.Player != nil && conn.Player.UUID == c.ContextData["loginUUID"] {
+			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectDuplicateLogin))
+		}
+		return true
+	})
+
+	return true
+}
+
+func (c *Connection) FinishLogin(properties *mc.PrefixedArray[mc.ProfileProperty]) {
+	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
+		pkt, _ := packet.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
+		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		c.CompressionThreshold = c.Server.Properties.NetworkCompressionThreshold
+	}
+
+	UUID := mc.UUID(c.ContextData["loginUUID"].(uuid.UUID))
+	pkt, _ := packet.NewPacket(
+		packet.LoginClientboundLoginFinished,
+		&UUID,
+		mc.String(c.ContextData["loginName"].(string)),
+		properties,
+	)
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	delete(c.ContextData, "loginName")
+	delete(c.ContextData, "loginUUID")
 }
 
 func (c *Connection) HandleLoginAck(pkt *packet.Packet) {
@@ -146,54 +212,4 @@ func (c *Connection) HandleLoginAck(pkt *packet.Packet) {
 
 	_ = pkt.ResetWith(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
-}
-
-func (c *Connection) FinishLogin() {
-	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
-		pkt, _ := packet.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
-		c.CompressionThreshold = c.Server.Properties.NetworkCompressionThreshold
-	}
-
-	/*url := "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.UUID(PlayerUUID).String()
-	if c.Server.Properties.OnlineMode == true {
-		url += "?unsigned=false"
-	}
-	res, err := http.Get(url)
-	if err != nil {
-		logger.Error("Error fetching player data from Mojang API: %v", err)
-	}
-	body, err := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		logger.Error("Mojang API returned non-200 status code: %d", res.StatusCode)
-	}
-
-	var profile GameProfile
-	if err := json.Unmarshal(body, &profile); err != nil {
-		logger.Error("Error parsing player data from Mojang API: %v", err)
-	}
-	var profileProperties = make([]mc.ProfileProperty, 0, len(profile.Properties))
-
-	_ = pkt.ResetWith(packet.LoginClientboundLoginFinished, &PlayerUUID, &Name)
-	_ = pkt.Encode(mc.VarInt(len(profile.Properties)))
-	for _, prop := range profile.Properties {
-		newProperty := mc.ProfileProperty{
-			Name:      prop.Name,
-			Value:     prop.Value,
-			Signature: prop.Signature,
-		}
-		profileProperties = append(profileProperties, newProperty)
-		_ = pkt.Encode(newProperty)
-	}
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)*/
-
-	UUID := mc.UUID(c.TempUUID)
-	pkt, _ := packet.NewPacket(packet.LoginClientboundLoginFinished, &UUID, mc.String(c.TempName), mc.VarInt(0))
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
-
-	emptyProfileProperties := make([]mc.ProfileProperty, 0)
-	newPlayer := entities.NewPlayer(uuid.UUID(UUID), c.TempName, emptyProfileProperties, c.Server.Properties)
-	newPlayer.ProfileProperties = emptyProfileProperties
-	c.Player = newPlayer
 }

@@ -6,10 +6,15 @@ import (
 	"net"
 )
 
+type InPlaceWriter interface {
+	WriteInPlace(p []byte) (int, error)
+}
+
 type EncryptedConn struct {
 	net.Conn
 	encrypter cipher.Stream
 	decrypter cipher.Stream
+	writeBuf  []byte
 }
 
 func NewEncryptedConn(conn net.Conn, sharedSecret []byte) (*EncryptedConn, error) {
@@ -29,6 +34,7 @@ func NewEncryptedConn(conn net.Conn, sharedSecret []byte) (*EncryptedConn, error
 		Conn:      conn,
 		encrypter: newCFB8Stream(block, encIV, false),
 		decrypter: newCFB8Stream(block, decIV, true),
+		writeBuf:  make([]byte, 4096),
 	}, nil
 }
 
@@ -41,9 +47,18 @@ func (ec *EncryptedConn) Read(p []byte) (int, error) {
 }
 
 func (ec *EncryptedConn) Write(p []byte) (int, error) {
-	buf := make([]byte, len(p))
-	ec.encrypter.XORKeyStream(buf, p)
-	return ec.Conn.Write(buf)
+	if len(p) > cap(ec.writeBuf) {
+		ec.writeBuf = make([]byte, len(p))
+	}
+	dst := ec.writeBuf[:len(p)]
+	copy(dst, p)
+	ec.encrypter.XORKeyStream(dst, dst)
+	return ec.Conn.Write(dst)
+}
+
+func (ec *EncryptedConn) WriteInPlace(p []byte) (int, error) {
+	ec.encrypter.XORKeyStream(p, p)
+	return ec.Conn.Write(p)
 }
 
 type cfb8Stream struct {

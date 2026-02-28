@@ -15,15 +15,11 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
-	"github.com/google/uuid"
 )
 
 type Connection struct {
 	Server               *Server
-	VerifyToken          []byte
 	Player               *entities.Player
-	TempName             string    // todo: move this to the player
-	TempUUID             uuid.UUID // todo: same, horrible
 	Conn                 net.Conn
 	State                mc.State
 	InboundPackets       chan *packet.Packet
@@ -32,6 +28,7 @@ type Connection struct {
 	LastKeepAliveID      int64
 	CompressionThreshold int
 	LoadedChunks         map[mc.ChunkPos]struct{}
+	ContextData          map[string]interface{}
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	closeOnce            sync.Once
@@ -50,6 +47,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		ctx:                  ctx,
 		cancel:               cancel,
 		LoadedChunks:         make(map[mc.ChunkPos]struct{}),
+		ContextData:          make(map[string]interface{}),
 	}
 
 	s.Connections.Store(newConnection, struct{}{})

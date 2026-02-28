@@ -35,7 +35,7 @@ var packetPool = sync.Pool{
 
 var bufferPool = sync.Pool{
 	New: func() any {
-		return bytes.NewBuffer(make([]byte, 0, 1024))
+		return bytes.NewBuffer(make([]byte, 0, 4096))
 	},
 }
 
@@ -204,7 +204,14 @@ func (p *Packet) Send(conn net.Conn, threshold int) error {
 		_, _ = frame.Write(p.Buffer.Bytes())
 	}
 
-	_, err := frame.WriteTo(conn)
+	var err error
+
+	if unsafeConn, ok := conn.(interface{ WriteInPlace([]byte) (int, error) }); ok {
+		_, err = unsafeConn.WriteInPlace(frame.Bytes())
+	} else {
+		_, err = conn.Write(frame.Bytes())
+	}
+
 	return err
 }
 

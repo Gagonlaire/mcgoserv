@@ -67,20 +67,7 @@ func NewServer() *Server {
 	server.ctx = ctx
 	server.cancel = cancel
 
-	if server.Properties.OnlineMode {
-		key, err := rsa.GenerateKey(rand.Reader, 1024)
-		if err != nil {
-			logger.Fatal("Failed to generate RSA keypair: %v", err)
-		}
-
-		publicKeyDER, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
-		if err != nil {
-			logger.Fatal("Error marshalling public key: %v", err)
-		}
-
-		server.Key = key
-		server.EncodedPublicKey = publicKeyDER
-	}
+	server.generateEncryptionKeys()
 
 	server.loadServerIcon()
 
@@ -187,6 +174,21 @@ func (s *Server) Stop() {
 	s.cancel()
 	s.wg.Wait()
 	// todo: save world
+}
+
+func (s *Server) generateEncryptionKeys() {
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		logger.Fatal("Failed to generate RSA keypair: %v", err)
+	}
+
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	if err != nil {
+		logger.Fatal("Error marshalling public key: %v", err)
+	}
+
+	s.Key = key
+	s.EncodedPublicKey = publicKeyDER
 }
 
 func (s *Server) loadServerIcon() {

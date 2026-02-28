@@ -1,10 +1,13 @@
 package internal
 
 import (
+	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -63,4 +66,15 @@ func EqualBytes(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+func GetOfflineUUID(name string) uuid.UUID {
+	h := md5.New()
+	h.Write([]byte("OfflinePlayer:" + name))
+	digest := h.Sum(nil)
+	digest[6] = (digest[6] & 0x0f) | 0x30
+	digest[8] = (digest[8] & 0x3f) | 0x80
+	var u uuid.UUID
+	copy(u[:], digest)
+	return u
 }

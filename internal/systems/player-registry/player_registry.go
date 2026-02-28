@@ -1,7 +1,6 @@
 package player_registry
 
 import (
-	"crypto/md5"
 	"encoding/json"
 	"os"
 	"sync"
@@ -111,16 +110,16 @@ func (pl *PlayerRegistry) save(filename string, v interface{}) error {
 	return os.WriteFile(filename, data, 0644)
 }
 
-func (pl *PlayerRegistry) IsOp(UUID uuid.UUID) bool {
+func (pl *PlayerRegistry) IsOp(UUID uuid.UUID) (bool, *OpEntry) {
 	pl.Mu.RLock()
 	defer pl.Mu.RUnlock()
 
 	for _, entry := range pl.Ops {
 		if entry.UUID == UUID.String() {
-			return true
+			return true, &entry
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (pl *PlayerRegistry) GetOpLevel(UUID uuid.UUID) int {
@@ -228,22 +227,11 @@ func (pl *PlayerRegistry) GetUserUUID(name string) (uuid.UUID, error) {
 	return u, nil
 }
 
-func (pl *PlayerRegistry) GetUserProfile(uuid uuid.UUID) (*api.MojangSessionResponse, error) {
-	resp, err := api.GetUserProfile(uuid)
+func (pl *PlayerRegistry) GetUserProfile(uuid uuid.UUID, signed bool) (*api.MojangSession, error) {
+	resp, err := api.GetUserProfile(uuid, signed)
 	if err != nil {
 		logger.Warn("Failed to fetch profile: %v", err)
 		return nil, err
 	}
 	return resp, nil
-}
-
-func (pl *PlayerRegistry) GetOfflineUUID(name string) uuid.UUID {
-	h := md5.New()
-	h.Write([]byte("OfflinePlayer:" + name))
-	digest := h.Sum(nil)
-	digest[6] = (digest[6] & 0x0f) | 0x30
-	digest[8] = (digest[8] & 0x3f) | 0x80
-	var u uuid.UUID
-	copy(u[:], digest)
-	return u
 }

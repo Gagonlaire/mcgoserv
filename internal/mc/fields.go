@@ -381,7 +381,7 @@ func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	for i := 0; i < int(length); i++ {
 		elemAddr := &(*p.Slice)[i]
-		fieldInstance, ok := any(elemAddr).(Field)
+		fieldInstance, ok := any(elemAddr).(io.ReaderFrom)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
 			return n, fmt.Errorf("element of type %s does not implement mc.Field required for reading", typeName)
@@ -408,7 +408,7 @@ func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
 	n += nn
 	for i := range length {
 		elemAddr := &currentSlice[i]
-		fieldInstance, ok := any(elemAddr).(Field)
+		fieldInstance, ok := any(elemAddr).(io.WriterTo)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
 			return n, fmt.Errorf("element of type %s does not implement mc.Field required for writing", typeName)
