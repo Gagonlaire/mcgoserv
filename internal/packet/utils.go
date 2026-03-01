@@ -1,6 +1,8 @@
 package packet
 
 import (
+	"crypto/x509"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 )
@@ -25,6 +27,28 @@ func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 					_ = packet.Encode(player.Name, mc.VarInt(len(player.ProfileProperties)))
 					for _, prop := range player.ProfileProperties {
 						_ = packet.Encode(prop)
+					}
+				case mc.ActionInitializeChat:
+					_ = packet.Encode(mc.Boolean(player.ChatSession != nil))
+					if player.ChatSession != nil {
+						sessionID := mc.UUID(player.ChatSession.ID)
+
+						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)
+						if err != nil {
+							pubKeyBytes = []byte{}
+						}
+						pArrayPublicKey := mc.NewPrefixedArrayFromSlice(pubKeyBytes, func(b byte) mc.Byte {
+							return mc.Byte(b)
+						})
+						pArraySignature := mc.NewPrefixedArrayFromSlice(player.ChatSession.KeySignature, func(b byte) mc.Byte {
+							return mc.Byte(b)
+						})
+						_ = packet.Encode(
+							&sessionID,
+							mc.Long(player.ChatSession.ExpiresAt),
+							pArrayPublicKey,
+							pArraySignature,
+						)
 					}
 				case mc.ActionUpdateListed:
 					_ = packet.Encode(player.Information.AllowServerListings)

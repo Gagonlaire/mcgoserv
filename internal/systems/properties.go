@@ -32,6 +32,7 @@ type Properties struct {
 	RconPort                    int    `property:"rcon.port" default:"25575" min:"1" max:"65535"`
 	NetworkCompressionThreshold int    `property:"network-compression-threshold" default:"256" min:"-1"`
 	PreventProxyConnections     bool   `property:"prevent-proxy-connections" default:"false"`
+	EnforceSecureProfile        bool   `property:"enforce-secure-profile" default:"true"`
 }
 
 func LoadProperties(path string) (*Properties, error) {

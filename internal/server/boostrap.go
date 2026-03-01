@@ -82,6 +82,7 @@ func (s *Server) registerPacketHandlers() {
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundSwing, (*Connection).HandleSwingArm)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundPlayerAction, (*Connection).HandlePlayerAction)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundChat, (*Connection).HandleChat)
+	s.Router.Register(mc.StatePlay, packet.PlayServerboundChatSessionUpdate, (*Connection).HandleChatSessionUpdate)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundChatCommand, (*Connection).HandleChatCommand)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundSetCarriedItem, (*Connection).HandleSetCarriedItem)
 	s.Router.Register(mc.StatePlay, packet.PlayServerboundSetCreativeModeSlot, (*Connection).HandleSetCreativeModeSlot)

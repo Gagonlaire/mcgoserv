@@ -2,16 +2,21 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 
+	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/google/uuid"
 )
 
 const (
@@ -459,28 +464,6 @@ func (c *Connection) AnimateEntity(animationID int) {
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 
-func (c *Connection) HandleChat(pkt *packet.Packet) {
-	var message mc.String
-	var timestamp, salt mc.Long
-	var signature = mc.NewPrefixedOptional(mc.NewArray[mc.Byte](256))
-	var messageCount mc.VarInt
-	var acknowledged = mc.NewFixedBitSet(20)
-	var checksum mc.Byte
-
-	if err := pkt.Decode(&message, &timestamp, &salt, signature, &messageCount, acknowledged, &checksum); err != nil {
-		log.Printf("Error decoding chat packet: %v", err)
-	}
-
-	chatMessage := tc.Translatable(
-		mcdata.ChatTypeText,
-		tc.PlayerName(string(c.Player.Name)),
-		tc.Text(string(message)),
-	)
-	pkt.Retain()
-	_ = pkt.ResetWith(packet.PlayClientboundSystemChat, chatMessage, mc.Boolean(false))
-	c.Server.Broadcaster.Broadcast(pkt)
-}
-
 func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 	var command mc.String
 
@@ -603,4 +586,57 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 
 	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
 	c.Send(pkt)
+}
+
+func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
+	if !c.Server.Properties.EnforceSecureProfile {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
+	}
+
+	var sessionId mc.UUID
+	var expiresAt mc.Long
+	var publicKey, keySignature mc.PrefixedArray[mc.Byte]
+
+	if err := pkt.Decode(&sessionId, &expiresAt, &publicKey, &keySignature); err != nil {
+		log.Printf("Error decoding chat session update packet: %v", err)
+		return
+	}
+
+	publicKeyBytes := mc.MapToSlice(&publicKey, func(b mc.Byte) byte { return byte(b) })
+	signatureBytes := mc.MapToSlice(&keySignature, func(b mc.Byte) byte { return byte(b) })
+
+	if err := internal.VerifyChatSessionKey(
+		c.Server.Keys.CertificateKeys,
+		c.Player.UUID,
+		int64(expiresAt),
+		publicKeyBytes,
+		signatureBytes,
+	); err != nil {
+		log.Printf("ChatSession session key verification failed: %v", err)
+		return
+	}
+
+	parsedKey, err := x509.ParsePKIXPublicKey(publicKeyBytes)
+	if err != nil {
+		log.Printf("Failed to parse public key: %v", err)
+		return
+	}
+
+	rsaKey, ok := parsedKey.(*rsa.PublicKey)
+	if !ok {
+		log.Printf("Public key is not of type RSA")
+		return
+	}
+
+	c.Player.ChatSession = &mc.ChatSession{
+		ID:           uuid.UUID(sessionId),
+		MessageIndex: -1,
+		ExpiresAt:    int64(expiresAt),
+		PublicKey:    rsaKey,
+		KeySignature: signatureBytes,
+	}
+
+	player := []*entities.Player{c.Player}
+	pkt, _ = packet.BuildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
+	c.Server.Broadcaster.Broadcast(pkt)
 }

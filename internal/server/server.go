@@ -17,6 +17,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
@@ -33,24 +34,29 @@ const (
 	KeepAliveTimeout  = 300
 )
 
-type Server struct {
-	World            *world.World
-	Ticker           *systems.Ticker
-	Broadcaster      *systems.Broadcaster[*Connection, *packet.Packet]
-	Router           *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
-	Properties       *systems.Properties
-	AccessControl    *player_registry.PlayerRegistry
-	RemoteConsole    *systems.RemoteConsole
-	Commander        *commander.Commander
-	ID               string
-	Key              *rsa.PrivateKey
+type Keys struct {
+	PrivateKey       *rsa.PrivateKey
 	EncodedPublicKey []byte
-	Icon             string
-	Addr             string
-	Connections      sync.Map
-	ctx              context.Context
-	cancel           context.CancelFunc
-	wg               sync.WaitGroup
+	CertificateKeys  []*rsa.PublicKey
+}
+
+type Server struct {
+	World         *world.World
+	Ticker        *systems.Ticker
+	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
+	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+	Properties    *systems.Properties
+	AccessControl *player_registry.PlayerRegistry
+	RemoteConsole *systems.RemoteConsole
+	Commander     *commander.Commander
+	ID            string
+	Keys          Keys
+	Icon          string
+	Addr          string
+	Connections   sync.Map
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 func NewServer() *Server {
@@ -67,7 +73,7 @@ func NewServer() *Server {
 	server.ctx = ctx
 	server.cancel = cancel
 
-	server.generateEncryptionKeys()
+	server.generateKeys()
 
 	server.loadServerIcon()
 
@@ -176,7 +182,7 @@ func (s *Server) Stop() {
 	// todo: save world
 }
 
-func (s *Server) generateEncryptionKeys() {
+func (s *Server) generateKeys() {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		logger.Fatal("Failed to generate RSA keypair: %v", err)
@@ -187,8 +193,16 @@ func (s *Server) generateEncryptionKeys() {
 		logger.Fatal("Error marshalling public key: %v", err)
 	}
 
-	s.Key = key
-	s.EncodedPublicKey = publicKeyDER
+	playerCertificateKeys, err := api.GetCertificateKeys()
+	if err != nil {
+		logger.Warn("Failed to fetch Mojang public keys: %v", err)
+	}
+
+	s.Keys = Keys{
+		PrivateKey:       key,
+		EncodedPublicKey: publicKeyDER,
+		CertificateKeys:  playerCertificateKeys,
+	}
 }
 
 func (s *Server) loadServerIcon() {
@@ -268,11 +282,12 @@ func processIncomingPackets(s *Server) {
 			select {
 			case pkt := <-c.InboundPackets:
 				{
-					if !c.Player.Loaded &&
+					// todo: This ignores some packets if they come before the player is loaded
+					/*if !c.Player.Loaded &&
 						!(pkt.ID == packet.PlayServerboundKeepAlive || pkt.ID == packet.PlayServerboundPlayerLoaded) {
 						pkt.Free()
 						continue
-					}
+					}*/
 					if !s.Router.Handle(c.State, pkt.ID, c, pkt) {
 						logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 					}

@@ -1,9 +1,13 @@
 package internal
 
 import (
+	"crypto"
 	"crypto/md5"
+	"crypto/rsa"
 	"crypto/sha1"
+	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"strings"
 
@@ -77,4 +81,19 @@ func GetOfflineUUID(name string) uuid.UUID {
 	var u uuid.UUID
 	copy(u[:], digest)
 	return u
+}
+
+func VerifyChatSessionKey(keys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
+	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
+	payload = append(payload, playerUUID[:]...)
+	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))
+	payload = append(payload, publicKeyBytes...)
+	hash := sha1.Sum(payload)
+
+	for _, key := range keys {
+		if err := rsa.VerifyPKCS1v15(key, crypto.SHA1, hash[:], keySignature); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }

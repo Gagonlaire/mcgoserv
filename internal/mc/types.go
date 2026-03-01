@@ -2,6 +2,7 @@ package mc
 
 import (
 	"context"
+	"crypto/rsa"
 	"go/types"
 	"io"
 
@@ -201,6 +202,44 @@ type Slot struct {
 
 	Components *map[int32]any
 	RemoveList *[]int32
+}
+
+type PreviousMessage struct {
+	MessageID int32
+	Signature []byte
+}
+
+type PreviousMessages struct {
+	entries [20]PreviousMessage
+	start   int
+	count   int
+}
+
+func (pm *PreviousMessages) Add(entry PreviousMessage) {
+	if pm.count < 20 {
+		pm.entries[(pm.start+pm.count)%20] = entry
+		pm.count++
+	} else {
+		pm.entries[pm.start] = entry
+		pm.start = (pm.start + 1) % 20
+	}
+}
+
+func (pm *PreviousMessages) Get(i int) PreviousMessage {
+	return pm.entries[(pm.start+i)%20]
+}
+
+func (pm *PreviousMessages) Len() int {
+	return pm.count
+}
+
+type ChatSession struct {
+	ID               uuid.UUID
+	ExpiresAt        int64
+	PublicKey        *rsa.PublicKey
+	KeySignature     []byte
+	MessageIndex     int32
+	PreviousMessages PreviousMessages
 }
 
 // todo: create a tuple to avoid this weird struct generation

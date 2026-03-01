@@ -40,7 +40,7 @@ func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 	}
 	c.ContextData["verifyToken"] = verifyToken
 
-	pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
+	pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.Keys.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
 	pArrayVerifyToken := mc.NewPrefixedArrayFromSlice(verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
 	_ = pkt.ResetWith(
 		packet.LoginClientboundHello,
@@ -60,8 +60,8 @@ func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
 		return
 	}
 
-	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Key, mc.MapToSlice(&encryptedSecret, func(b mc.Byte) byte { return byte(b) }))
-	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Key, mc.MapToSlice(&encryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
+	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&encryptedSecret, func(b mc.Byte) byte { return byte(b) }))
+	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&encryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
 	if !internal.EqualBytes(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		// todo: replace with correct message
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
@@ -80,7 +80,7 @@ func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
 	var session api.MojangSession
 
 	if c.Server.Properties.OnlineMode {
-		authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.EncodedPublicKey))
+		authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.Keys.EncodedPublicKey))
 		url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.ContextData["loginName"].(string), authHash)
 		if c.Server.Properties.PreventProxyConnections {
 			url += "&ip=" + c.Conn.RemoteAddr().String()

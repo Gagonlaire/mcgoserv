@@ -20,6 +20,8 @@ type Player struct {
 	FoodTickTimer       int32   `nbt:"foodTickTimer"`
 
 	// State
+	ChatSession       *mc.ChatSession
+	GlobalChatIndex   int32
 	Inventory         *mc.PlayerInventory
 	Movement          MovementTracker
 	Information       mc.PlayerInformation
@@ -61,6 +63,7 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 	player.Movement.LastTickY = player.Pos[1]
 	player.Information.ViewDistance = mc.Byte(properties.ViewDistance)
 	player.Information.AllowServerListings = true
+	player.GlobalChatIndex = 0
 
 	lastEntityID++
 

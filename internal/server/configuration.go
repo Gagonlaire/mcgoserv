@@ -34,7 +34,7 @@ func (c *Connection) HandleClientKnownPacks(pkt *packet.Packet) {
 // todo: we should move packet sent to methods
 func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
-	c.Server.World.AddPlayer(c.Player)
+	c.Server.World.AddPlayer(c.Player) // todo: move this to login -> avoid slot stealing
 	c.State = mc.StatePlay
 	dimensionsName := []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
 
@@ -62,7 +62,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 		mc.Boolean(false),
 		mc.VarInt(100),
 		mc.VarInt(64),
-		mc.Boolean(false),
+		mc.Boolean(c.Server.Properties.EnforceSecureProfile),
 	)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
@@ -91,7 +91,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 	c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], true, true)
 
-	players := []*entities.Player{c.Player}
+	me := []*entities.Player{c.Player}
 	var allPlayers []*entities.Player
 	for _, p := range c.Server.World.Players {
 		allPlayers = append(allPlayers, p)
@@ -99,9 +99,9 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 	// todo: should also send gamemode
 	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
-	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, players)
+	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, me)
 	c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
-	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions, allPlayers)
+	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
 	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 
 	_ = pkt.ResetWith(

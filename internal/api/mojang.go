@@ -1,6 +1,9 @@
 package api
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +32,42 @@ type MojangSession struct {
 	ID         string                  `json:"id"`
 	Name       string                  `json:"name"`
 	Properties []MojangSessionProperty `json:"properties"`
+}
+
+type MojangPublicKeys struct {
+	ProfilePropertyKeys   []map[string]string `json:"profilePropertyKeys"`
+	PlayerCertificateKeys []map[string]string `json:"playerCertificateKeys"`
+}
+
+func GetCertificateKeys() ([]*rsa.PublicKey, error) {
+	resp, err := http.Get("https://api.minecraftservices.com/publickeys")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Mojang public keys: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var rawKeys MojangPublicKeys
+	if err := json.NewDecoder(resp.Body).Decode(&rawKeys); err != nil {
+		return nil, fmt.Errorf("failed to decode Mojang public keys: %w", err)
+	}
+
+	var result []*rsa.PublicKey
+	for _, entry := range rawKeys.PlayerCertificateKeys {
+		der, err := base64.StdEncoding.DecodeString(entry["publicKey"])
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode key: %w", err)
+		}
+		parsed, err := x509.ParsePKIXPublicKey(der)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse key: %w", err)
+		}
+		rsaKey, ok := parsed.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("key is not RSA")
+		}
+		result = append(result, rsaKey)
+	}
+	return result, nil
 }
 
 func GetUserUUID(name string) (uuid.UUID, string, error) {
