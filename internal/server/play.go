@@ -12,7 +12,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -589,10 +588,6 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 }
 
 func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
-	if !c.Server.Properties.EnforceSecureProfile {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
-	}
-
 	var sessionId mc.UUID
 	var expiresAt mc.Long
 	var publicKey, keySignature mc.PrefixedArray[mc.Byte]
@@ -630,7 +625,8 @@ func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
 
 	c.Player.ChatSession = &mc.ChatSession{
 		ID:           uuid.UUID(sessionId),
-		MessageIndex: -1,
+		ChatIndex:    -1,
+		GlobalIndex:  0,
 		ExpiresAt:    int64(expiresAt),
 		PublicKey:    rsaKey,
 		KeySignature: signatureBytes,

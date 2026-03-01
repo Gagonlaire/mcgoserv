@@ -40,14 +40,12 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 		signatureBytes[i] = byte(b)
 	}
 
-	chatSession.MessageIndex++
-	lastSeenSigs, err := VerifyChatMessage(chatSession, c.Player.UUID, string(message), int64(timestamp), int64(salt), chatSession.MessageIndex, acknowledged, signatureBytes)
+	chatSession.ChatIndex++
+	lastSeenSigs, err := VerifyChatMessage(chatSession, c.Player.UUID, string(message), int64(timestamp), int64(salt), chatSession.ChatIndex, acknowledged, signatureBytes)
 	if err != nil {
 		log.Printf("ChatSession verification failed: %v", err)
 		return
 	}
-
-	chatSession.PreviousMessages.Add(mc.PreviousMessage{MessageID: -1, Signature: signatureBytes})
 
 	senderUUID := mc.UUID(c.Player.UUID)
 	c.Server.Connections.Range(func(k, v interface{}) bool {
@@ -56,13 +54,23 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 			return true
 		}
 
-		globalIndex := conn.Player.GlobalChatIndex
-		conn.Player.GlobalChatIndex++
+		globalIndex := conn.Player.ChatSession.GlobalIndex
+		conn.Player.ChatSession.GlobalIndex++
+
+		pm := &conn.Player.ChatSession.PreviousMessages
+		messageID := int32(pm.Len())
+		idBySig := make(map[string]int32, pm.Len())
+		for j := 0; j < pm.Len(); j++ {
+			entry := pm.Get(j)
+			idBySig[string(entry.Signature)] = int32(j)
+		}
+		pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
+
 		outPkt, _ := packet.NewPacket(
 			packet.PlayClientboundPlayerChat,
 			mc.VarInt(globalIndex),
 			&senderUUID,
-			mc.VarInt(chatSession.MessageIndex),
+			mc.VarInt(chatSession.ChatIndex),
 			mc.Boolean(true),
 		)
 
@@ -71,13 +79,8 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 		_ = outPkt.Encode(mc.VarInt(len(lastSeenSigs)))
 		for _, sig := range lastSeenSigs {
 			clientMessageID := int32(-1)
-			pm := &conn.Player.ChatSession.PreviousMessages
-			for j := 0; j < pm.Len(); j++ {
-				entry := pm.Get(j)
-				if bytes.Equal(entry.Signature, sig) {
-					clientMessageID = entry.MessageID
-					break
-				}
+			if id, ok := idBySig[string(sig)]; ok {
+				clientMessageID = id
 			}
 			idPlusOne := clientMessageID + 1
 			_ = outPkt.Encode(mc.VarInt(idPlusOne))
@@ -96,10 +99,6 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 		_ = outPkt.Encode(tc.Text(string(c.Player.Name)))
 		_ = outPkt.Encode(mc.Boolean(false))
 		conn.Send(outPkt)
-
-		if conn.Player.UUID != c.Player.UUID {
-			conn.Player.ChatSession.PreviousMessages.Add(mc.PreviousMessage{MessageID: globalIndex, Signature: signatureBytes})
-		}
 
 		return true
 	})
@@ -122,7 +121,7 @@ func VerifyChatMessage(
 
 	var lastSeenSigs [][]byte
 	n := session.PreviousMessages.Len()
-	for j := 0; j < n; j++ {
+	for j := n - 1; j >= 0; j-- {
 		bitIndex := 20 - n + j
 		seen, _ := acknowledged.Get(bitIndex)
 		if !seen {

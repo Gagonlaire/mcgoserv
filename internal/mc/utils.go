@@ -250,6 +250,22 @@ func (D *DataArray) Get(index int) int {
 	return int((D.Slice[cellIndex] >> bitIndex) & D.Mask)
 }
 
+func (pm *PreviousMessages) Add(entry PreviousMessage) {
+	pm.start = (pm.start - 1 + len(pm.entries)) % len(pm.entries)
+	pm.entries[pm.start] = entry
+	if pm.count < len(pm.entries) {
+		pm.count++
+	}
+}
+
+func (pm *PreviousMessages) Get(i int) PreviousMessage {
+	return pm.entries[(pm.start+i)%len(pm.entries)]
+}
+
+func (pm *PreviousMessages) Len() int {
+	return pm.count
+}
+
 func pack(value float64) int64 {
 	return int64(math.Round((value*0.5 + 0.5) * MaxQuantizedValue))
 }
