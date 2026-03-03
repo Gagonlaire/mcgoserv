@@ -1,12 +1,11 @@
 package server
 
 import (
-	"math"
-
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -34,7 +33,13 @@ func (c *Connection) HandleClientKnownPacks(pkt *packet.Packet) {
 // HandleFinishConfigurationAck todo: we should move packet sent to methods
 func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
-	c.Server.World.AddPlayer(c.Player) // todo: move this to login -> avoid slot stealing
+	// todo: move this to login -> avoid slot stealing and potential conflict
+	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
+		logger.Error("Failed to spawn player %s: %v", c.Player.Name, err)
+		c.close()
+		return
+	}
+	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	c.State = mc.StatePlay
 	dimensionsName := []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
 
@@ -92,10 +97,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], true, true)
 
 	me := []*entities.Player{c.Player}
-	var allPlayers []*entities.Player
-	for _, p := range c.Server.World.Players {
-		allPlayers = append(allPlayers, p)
-	}
+	allPlayers := c.Server.World.Players()
 
 	// todo: should also send gamemode
 	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
@@ -119,12 +121,11 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
-	cx := int(math.Floor(c.Player.Pos[0] / 16.0))
-	cz := int(math.Floor(c.Player.Pos[2] / 16.0))
+	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
 	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
-	dimension := c.Server.World.Dimensions["minecraft:overworld"]
+	dimension := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
@@ -133,7 +134,9 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
 			_ = pkt.Send(c.Conn, c.CompressionThreshold)
-			c.LoadedChunks[pos] = struct{}{}
+
+			chunk.Watchers[c.Player.EntityID] = struct{}{}
+			c.Player.Movement.VisibleChunks[pos] = struct{}{}
 		}
 	}
 	c.Player.Movement.LastChunkX = cx
@@ -168,31 +171,29 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 		&data,
 	)
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
-	c.Server.Connections.Range(func(k, v interface{}) bool {
-		conn := k.(*Connection)
-
-		if conn.Player != nil && conn.Player.UUID != c.Player.UUID {
-			uuid := mc.UUID(conn.Player.UUID)
-
-			pkt, _ := packet.NewPacket(
-				packet.PlayClientboundAddEntity,
-				mc.VarInt(conn.Player.EntityID),
-				&uuid,
-				mc.VarInt(mcdata.EntityPlayer),
-				mc.Double(conn.Player.Pos[0]),
-				mc.Double(conn.Player.Pos[1]),
-				mc.Double(conn.Player.Pos[2]),
-				&velocity,
-				&zeroAngle,
-				&zeroAngle,
-				&zeroAngle,
-				&data,
-			)
-
-			_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
+		if player.UUID == c.Player.UUID {
+			continue
 		}
-		return true
-	})
+
+		uuid := mc.UUID(player.UUID)
+		pkt, _ := packet.NewPacket(
+			packet.PlayClientboundAddEntity,
+			mc.VarInt(player.EntityID),
+			&uuid,
+			mc.VarInt(mcdata.EntityPlayer),
+			mc.Double(player.Pos[0]),
+			mc.Double(player.Pos[1]),
+			mc.Double(player.Pos[2]),
+			&velocity,
+			&zeroAngle,
+			&zeroAngle,
+			&zeroAngle,
+			&data,
+		)
+
+		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	}
 
 	joinMessage := tc.Translatable(
 		mcdata.MultiplayerPlayerJoined,

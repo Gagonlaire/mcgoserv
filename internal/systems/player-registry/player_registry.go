@@ -54,7 +54,7 @@ type PlayerRegistry struct {
 	userCacheFile     string
 }
 
-func NewAccessControl(whitelistFile, bannedPlayersFile, bannedIPsFile, opsFile, userCacheFile string) *PlayerRegistry {
+func NewPlayerRegistry(whitelistFile, bannedPlayersFile, bannedIPsFile, opsFile, userCacheFile string) *PlayerRegistry {
 	playerList := &PlayerRegistry{
 		whitelistFile:     whitelistFile,
 		bannedPlayersFile: bannedPlayersFile,

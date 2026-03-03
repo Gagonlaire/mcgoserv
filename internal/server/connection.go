@@ -27,7 +27,6 @@ type Connection struct {
 	LastKeepAlive        int64
 	LastKeepAliveID      int64
 	CompressionThreshold int
-	LoadedChunks         map[mc.ChunkPos]struct{}
 	ContextData          map[string]interface{}
 	ctx                  context.Context
 	cancel               context.CancelFunc
@@ -46,7 +45,6 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		LastKeepAlive:        s.World.Time,
 		ctx:                  ctx,
 		cancel:               cancel,
-		LoadedChunks:         make(map[mc.ChunkPos]struct{}),
 		ContextData:          make(map[string]interface{}),
 	}
 
@@ -138,6 +136,7 @@ func (c *Connection) close() {
 	c.closeOnce.Do(func() {
 		c.cancel()
 		if c.Player != nil {
+			delete(c.Server.ConnectionsByEID, c.Player.EntityID)
 			eID := mc.VarInt(c.Player.EntityID)
 			UUID := mc.UUID(c.Player.UUID)
 			pkt1, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), &UUID)
@@ -151,7 +150,7 @@ func (c *Connection) close() {
 			c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
 			c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 			c.Server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
-			c.Server.World.RemovePlayer(c.Player.UUID)
+			c.Server.World.RemoveEntityByUUID(c.Player.UUID)
 		}
 		c.Server.Connections.Delete(c)
 		_ = c.Conn.Close()

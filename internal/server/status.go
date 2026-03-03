@@ -9,18 +9,20 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
+type PlayerSample struct {
+	Name string `json:"name"`
+	ID   string `json:"id"`
+}
+
 type StatusResponse struct {
 	Version struct {
 		Name     string `json:"name"`
 		Protocol int    `json:"protocol"`
 	} `json:"version"`
 	Players struct {
-		Max    int `json:"max"`
-		Online int `json:"online"`
-		Sample []struct {
-			Name string `json:"name"`
-			ID   string `json:"id"`
-		} `json:"sample,omitempty"`
+		Max    int            `json:"max"`
+		Online int            `json:"online"`
+		Sample []PlayerSample `json:"sample,omitempty"`
 	} `json:"players"`
 	Description struct {
 		Text string `json:"text"`
@@ -35,18 +37,15 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 	data.Version.Name = mcdata.GameVersion
 	data.Version.Protocol = mcdata.ProtocolVersion
 	data.Players.Max = c.Server.Properties.MaxPlayers
-	data.Players.Online = len(c.Server.World.Players)
-	for _, p := range c.Server.World.Players {
+	data.Players.Online = c.Server.World.OnlinePlayersCount()
+	for _, player := range c.Server.World.PlayersByUUID {
 		if len(data.Players.Sample) >= 5 {
 			break
 		}
-		if p.Information.AllowServerListings {
-			data.Players.Sample = append(data.Players.Sample, struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}{
-				Name: string(p.Name),
-				ID:   p.UUID.String(),
+		if player.Information.AllowServerListings {
+			data.Players.Sample = append(data.Players.Sample, PlayerSample{
+				Name: player.Name,
+				ID:   player.UUID.String(),
 			})
 		}
 	}

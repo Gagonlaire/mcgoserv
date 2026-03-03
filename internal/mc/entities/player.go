@@ -2,6 +2,7 @@ package entities
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
@@ -31,24 +32,24 @@ type Player struct {
 }
 
 type MovementTracker struct {
-	PacketCount int
-	LastTickX   float64
-	LastTickY   float64
-	LastTickZ   float64
-	LastChunkX  int
-	LastChunkZ  int
+	PacketCount   int
+	LastTickX     float64
+	LastTickY     float64
+	LastTickZ     float64
+	LastChunkX    int
+	LastChunkZ    int
+	VisibleChunks map[mc.ChunkPos]struct{}
 }
-
-var lastEntityID int32 = 1
 
 func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProperty, properties *systems.Properties) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
 			BaseEntity: BaseEntity{
-				EntityID: lastEntityID,
+				EntityID: 0,
 				Pos:      [3]float64{0, 80, 0},
 				UUID:     UUID,
 				OnGround: true,
+				TypeID:   mcdata.EntityPlayer,
 			},
 			Health: 20.0,
 		},
@@ -60,11 +61,10 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 		ProfileProperties: profileProperties,
 	}
 	player.Movement.LastTickY = player.Pos[1]
+	player.Movement.VisibleChunks = make(map[mc.ChunkPos]struct{})
 	player.Information.ViewDistance = mc.Byte(properties.ViewDistance)
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
-
-	lastEntityID++
 
 	return player
 }

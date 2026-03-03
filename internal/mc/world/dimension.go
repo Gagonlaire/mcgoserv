@@ -57,7 +57,7 @@ func (d *Dimension) SetBlock(x, y, z int, blockState int32) error {
 	return chunk.SetBlock(x&15, y, z&15, d.Type.MinY, blockState)
 }
 
-func (d Dimension) tick() {
+func (d *Dimension) tick() {
 
 }
 

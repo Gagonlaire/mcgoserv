@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"reflect"
 	"text/template"
 	"unicode"
 )
@@ -99,6 +100,9 @@ func main() {
 					if g.Doc != nil && hasGenerateImpl(g.Doc.List) {
 						var fields []Field
 						for _, field := range st.Fields.List {
+							if hasFieldIgnoreTag(field) {
+								continue
+							}
 							for _, name := range field.Names {
 								// only keep exported fields
 								if name.Name != "" && unicode.IsUpper([]rune(name.Name)[0]) {
@@ -126,4 +130,13 @@ func hasGenerateImpl(comments []*ast.Comment) bool {
 		}
 	}
 	return false
+}
+
+func hasFieldIgnoreTag(field *ast.Field) bool {
+	if field.Tag == nil {
+		return false
+	}
+	// field.Tag.Value includes the backticks, e.g. `field:"-"`
+	tag := reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
+	return tag.Get("field") == "-"
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -148,6 +149,7 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	c.Player.Pos[2] = z
 	c.Player.OnGround = flags&0x01 != 0
 	c.Player.PushingAgainstWall = flags&0x02 != 0
+	c.Server.World.UpdateEntityChunk(c.Player.EntityID, c.Player.Movement.LastTickX, c.Player.Movement.LastTickZ, x, z)
 	c.updateChunkView(false)
 
 	return true
@@ -155,48 +157,110 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 
 func (c *Connection) updateChunkView(force bool) {
 	// todo: check chunk batch start/stop
-	cx := int(math.Floor(c.Player.Pos[0] / 16.0))
-	cz := int(math.Floor(c.Player.Pos[2] / 16.0))
+	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
 
 	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ && !force {
 		return
 	}
 
+	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+	loadRadius := int(c.Player.Information.ViewDistance) + 1
+	keepChunks := make(map[mc.ChunkPos]bool, (loadRadius*2+1)*(loadRadius*2+1))
+	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
+		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
+			keepChunks[mc.ChunkPos{X: x, Z: z}] = true
+		}
+	}
+
+	centerPkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	c.Send(centerPkt)
+	selfID := c.Player.EntityID
+
+	for pos := range c.Player.Movement.VisibleChunks {
+		if keepChunks[pos] {
+			continue
+		}
+		chunk := dim.GetChunk(pos.X, pos.Z)
+		if count := len(chunk.Entities); count > 0 {
+			removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(count))
+			for entityID := range chunk.Entities {
+				_ = removePkt.Encode(mc.VarInt(entityID))
+			}
+			c.Send(removePkt)
+		}
+		delete(chunk.Watchers, selfID)
+		delete(c.Player.Movement.VisibleChunks, pos)
+		forgetPkt, _ := packet.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
+		c.Send(forgetPkt)
+	}
+	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
+		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
+			pos := mc.ChunkPos{X: x, Z: z}
+			if _, known := c.Player.Movement.VisibleChunks[pos]; known {
+				continue
+			}
+			chunk := dim.GetChunk(x, z)
+			chunkPkt, _ := packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
+			c.Send(chunkPkt)
+			for entityID := range chunk.Entities {
+				if entityID == selfID {
+					continue
+				}
+				c.sendSpawnEntity(c.Server.World.EntitiesByID[entityID])
+			}
+			chunk.Watchers[selfID] = struct{}{}
+			c.Player.Movement.VisibleChunks[pos] = struct{}{}
+		}
+	}
+
+	oldChunk := dim.GetChunk(c.Player.Movement.LastChunkX, c.Player.Movement.LastChunkZ)
+	newChunk := dim.GetChunk(cx, cz)
+	selfEntity := &c.Player.LivingEntity.BaseEntity
+	removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
+
+	for watcherID := range oldChunk.Watchers {
+		if watcherID == selfID {
+			continue
+		}
+		if _, stillSees := newChunk.Watchers[watcherID]; stillSees {
+			continue
+		}
+		c.Server.ConnectionsByEID[watcherID].Send(removePkt)
+	}
+	for watcherID := range newChunk.Watchers {
+		if watcherID == selfID {
+			continue
+		}
+		if _, alreadySaw := oldChunk.Watchers[watcherID]; alreadySaw {
+			continue
+		}
+		c.Server.ConnectionsByEID[watcherID].sendSpawnEntity(selfEntity)
+	}
+
 	c.Player.Movement.LastChunkX = cx
 	c.Player.Movement.LastChunkZ = cz
+}
 
-	keepChunks := make(map[mc.ChunkPos]bool)
-	loadRadius := int(c.Player.Information.ViewDistance) + 1
-	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
-		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
-			pos := mc.ChunkPos{X: x, Z: z}
-			keepChunks[pos] = true
-		}
-	}
+func (c *Connection) sendSpawnEntity(entity *world.Entity) {
+	entityUUID := mc.UUID(entity.UUID)
+	yaw := mc.Angle(entity.Rot[0] / 360.0 * 256.0)
+	pitch := mc.Angle(entity.Rot[1] / 360.0 * 256.0)
+	vel := mc.LpVec3{X: entity.Motion[0], Y: entity.Motion[1], Z: entity.Motion[2]}
 
-	pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	// todo: check for head/body rotation
+	pkt, _ := packet.NewPacket(
+		packet.PlayClientboundAddEntity,
+		mc.VarInt(entity.EntityID),
+		&entityUUID,
+		mc.VarInt(entity.TypeID),
+		mc.Double(entity.Pos[0]), mc.Double(entity.Pos[1]), mc.Double(entity.Pos[2]),
+		&vel,
+		pitch,
+		yaw, // body yaw
+		yaw, // head yaw
+		mc.VarInt(0),
+	)
 	c.Send(pkt)
-
-	for pos := range c.LoadedChunks {
-		if !keepChunks[pos] {
-			pkt, _ := packet.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
-			c.Send(pkt)
-			delete(c.LoadedChunks, pos)
-		}
-	}
-
-	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
-		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
-			pos := mc.ChunkPos{X: x, Z: z}
-			if _, loaded := c.LoadedChunks[pos]; !loaded {
-				dim := c.Server.World.Dimensions["minecraft:overworld"]
-				c.LoadedChunks[pos] = struct{}{}
-				chunk := dim.GetChunk(x, z)
-				pkt, _ = packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
-				c.Send(pkt)
-			}
-		}
-	}
 }
 
 func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
@@ -426,7 +490,7 @@ func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
 	switch status {
 	case StatusStartDigging:
 		if c.Player.GameMode == 1 {
-			dim := c.Server.World.Dimensions["minecraft:overworld"]
+			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 			blockState, _ := dim.GetBlock(int(location.X), int(location.Y), int(location.Z))
 
 			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), 0)
@@ -556,7 +620,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 
 		if ok && item.BlockID != -1 {
 			block, _ := mcdata.GetBlock(item.BlockID)
-			dim := c.Server.World.Dimensions["minecraft:overworld"]
+			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), int32(block.DefaultStateID))
 
 			pkt, _ = packet.NewPacket(

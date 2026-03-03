@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+type EntityID = int32
+
 type ChunkPos struct {
 	X int
 	Z int
@@ -13,8 +15,10 @@ type ChunkPos struct {
 type Chunk struct {
 	X                   Int
 	Z                   Int
+	Entities            map[EntityID]struct{} `field:"-"`
+	Watchers            map[EntityID]struct{} `field:"-"`
 	HeightMaps          PrefixedArray[HeightMap]
-	Size                VarInt // todo: Size of data in bytes, need to be fixed !!
+	Size                VarInt
 	Data                Array[ChunkSection]
 	BlockEntities       PrefixedArray[BlockEntity]
 	SkyLightMask        BitSet
@@ -99,8 +103,12 @@ func CreateChunk(x int, z int) *Chunk {
 	}
 
 	return &Chunk{
-		X:    Int(x),
-		Z:    Int(z),
+		X: Int(x),
+		Z: Int(z),
+
+		Entities: make(map[EntityID]struct{}),
+		Watchers: make(map[EntityID]struct{}),
+
 		Size: VarInt(dataSize),
 		Data: Array[ChunkSection]{
 			Slice: &sections,
@@ -157,7 +165,7 @@ func (c *Chunk) ComputeSize() {
 	totalSize := 0
 	if c.Data.Slice != nil {
 		for _, section := range *c.Data.Slice {
-			totalSize += 2 // BlockCount size
+			totalSize += 2 // BlockCount size (short)
 			totalSize += section.BlockStates.Size()
 			totalSize += section.Biomes.Size()
 		}

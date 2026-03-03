@@ -55,6 +55,7 @@ type Server struct {
 	EnforceSecureChat bool // only true when online mode and enforce secure profile are both true
 	Addr              string
 	Connections       sync.Map
+	ConnectionsByEID  map[mc.EntityID]*Connection // todo: try to put the conn reference in the player
 	ctx               context.Context
 	cancel            context.CancelFunc
 	wg                sync.WaitGroup
@@ -70,6 +71,7 @@ func NewServer() *Server {
 		Properties:        props,
 		Addr:              fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
 		EnforceSecureChat: props.EnforceSecureProfile && props.OnlineMode,
+		ConnectionsByEID:  make(map[mc.EntityID]*Connection),
 	}
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", server))
 	server.ctx = ctx
@@ -88,7 +90,7 @@ func NewServer() *Server {
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.registerTickerSteps()
 
-	server.AccessControl = player_registry.NewAccessControl("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
+	server.AccessControl = player_registry.NewPlayerRegistry("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {

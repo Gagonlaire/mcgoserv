@@ -31,7 +31,8 @@ type BaseEntity struct {
 	CustomName   string            `nbt:"CustomName,omitempty"`
 
 	// State
-	EntityID int32
+	EntityID  int32
+	Dimension any // todo: maybe change to a array index or a more direct and less ambiguous access
 }
 
 func (e *BaseEntity) ID() int32            { return e.EntityID }

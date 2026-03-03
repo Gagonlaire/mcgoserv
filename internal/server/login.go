@@ -180,30 +180,26 @@ func (c *Connection) CanAccessServer() bool {
 		return false
 	}
 
-	isRejoining := false
-	c.Server.Connections.Range(func(k, v interface{}) bool {
-		conn := k.(*Connection)
-		if conn.Player != nil && conn.Player.UUID == c.ContextData["loginUUID"] {
-			isRejoining = true
-			return false
-		}
-		return true
-	})
+	player := c.Server.World.PlayersByUUID[UUID]
+	isRejoining := player != nil
 
-	if len(c.Server.World.Players) >= c.Server.Properties.MaxPlayers && !isRejoining {
+	if c.Server.World.OnlinePlayersCount() >= c.Server.Properties.MaxPlayers && !isRejoining {
 		if op, entry := c.Server.AccessControl.IsOp(UUID); !op || !entry.BypassesPlayerLimit {
 			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectServerFull))
 			return false
 		}
 	}
 
-	c.Server.Connections.Range(func(k, v interface{}) bool {
-		conn := k.(*Connection)
-		if conn.Player != nil && conn.Player.UUID == c.ContextData["loginUUID"] {
-			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectDuplicateLogin))
-		}
-		return true
-	})
+	if player != nil {
+		c.Server.Connections.Range(func(k, v interface{}) bool {
+			conn := k.(*Connection)
+			if conn.Player == player {
+				conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectDuplicateLogin))
+				return false
+			}
+			return true
+		})
+	}
 
 	return true
 }
