@@ -144,7 +144,7 @@ func (c *Connection) close() {
 			pkt2, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), eID)
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
-				tc.PlayerName(string(c.Player.Name)),
+				tc.PlayerName(c.Player.Name),
 			).SetColor(tc.ColorYellow)
 			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 

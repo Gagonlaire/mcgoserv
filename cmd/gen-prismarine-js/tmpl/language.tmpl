@@ -8,6 +8,7 @@ type TranslationKey string
 
 const (
 {{- range . }}
+    // {{ printf "%q" .Value }}
 	{{ .Identifier }} TranslationKey = "{{ .Key }}"
 {{- end }}
 )

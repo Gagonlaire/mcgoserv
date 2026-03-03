@@ -1,13 +1,9 @@
 package internal
 
 import (
-	"crypto"
 	"crypto/md5"
-	"crypto/rsa"
 	"crypto/sha1"
-	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"strings"
 
@@ -59,19 +55,6 @@ func twosComplement(p []byte) []byte {
 	return p
 }
 
-func EqualBytes(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func GetOfflineUUID(name string) uuid.UUID {
 	h := md5.New()
 	h.Write([]byte("OfflinePlayer:" + name))
@@ -83,17 +66,11 @@ func GetOfflineUUID(name string) uuid.UUID {
 	return u
 }
 
-func VerifyChatSessionKey(keys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
-	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
-	payload = append(payload, playerUUID[:]...)
-	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))
-	payload = append(payload, publicKeyBytes...)
-	hash := sha1.Sum(payload)
-
-	for _, key := range keys {
-		if err := rsa.VerifyPKCS1v15(key, crypto.SHA1, hash[:], keySignature); err == nil {
-			return nil
-		}
+// ArrayHash same logic as Java's Arrays.hashCode(byte[]) implementation.
+func ArrayHash(data []byte) int32 {
+	var result int32 = 1
+	for _, b := range data {
+		result = 31*result + int32(int8(b))
 	}
-	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
+	return result
 }

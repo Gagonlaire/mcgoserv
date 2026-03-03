@@ -216,12 +216,14 @@ type PreviousMessages struct {
 }
 
 type ChatSession struct {
+	Signed           bool
 	ID               uuid.UUID
 	ExpiresAt        int64
 	PublicKey        *rsa.PublicKey
 	KeySignature     []byte
-	ChatIndex        int32
+	Index            int32
 	GlobalIndex      int32
+	LastSeenCount    int32
 	PreviousMessages PreviousMessages
 }
 

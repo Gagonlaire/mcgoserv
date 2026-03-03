@@ -2,16 +2,20 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
+	"encoding/binary"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -329,7 +333,7 @@ func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
 		log.Printf("Error decoding player input packet: %v", err)
 	}
 
-	c.Player.Input = input
+	c.Player.Input = byte(input)
 
 	if input&mc.InputSneak != 0 {
 		pkt2, _ := packet.NewPacket(
@@ -588,51 +592,74 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 }
 
 func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
+	if !c.Server.Properties.OnlineMode {
+		c.Player.ChatSession.Signed = false
+		return
+	}
+
 	var sessionId mc.UUID
 	var expiresAt mc.Long
 	var publicKey, keySignature mc.PrefixedArray[mc.Byte]
 
 	if err := pkt.Decode(&sessionId, &expiresAt, &publicKey, &keySignature); err != nil {
-		log.Printf("Error decoding chat session update packet: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.DisconnectPacketError))
+		return
+	}
+
+	if time.Now().UnixMilli() > int64(expiresAt) {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectExpiredPublicKey))
 		return
 	}
 
 	publicKeyBytes := mc.MapToSlice(&publicKey, func(b mc.Byte) byte { return byte(b) })
 	signatureBytes := mc.MapToSlice(&keySignature, func(b mc.Byte) byte { return byte(b) })
 
-	if err := internal.VerifyChatSessionKey(
+	if err := VerifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
 		c.Player.UUID,
 		int64(expiresAt),
 		publicKeyBytes,
 		signatureBytes,
 	); err != nil {
-		log.Printf("ChatSession session key verification failed: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
 		return
 	}
 
 	parsedKey, err := x509.ParsePKIXPublicKey(publicKeyBytes)
 	if err != nil {
-		log.Printf("Failed to parse public key: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
 		return
 	}
 
 	rsaKey, ok := parsedKey.(*rsa.PublicKey)
 	if !ok {
-		log.Printf("Public key is not of type RSA")
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
 		return
 	}
 
-	c.Player.ChatSession = &mc.ChatSession{
-		ID:           uuid.UUID(sessionId),
-		ChatIndex:    -1,
-		GlobalIndex:  0,
-		ExpiresAt:    int64(expiresAt),
-		PublicKey:    rsaKey,
-		KeySignature: signatureBytes,
-	}
+	c.Player.ChatSession.ID = uuid.UUID(sessionId)
+	c.Player.ChatSession.ExpiresAt = int64(expiresAt)
+	c.Player.ChatSession.PublicKey = rsaKey
+	c.Player.ChatSession.KeySignature = signatureBytes
+	c.Player.ChatSession.Index = -1
+	c.Player.ChatSession.Signed = true
 
 	player := []*entities.Player{c.Player}
 	pkt, _ = packet.BuildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
 	c.Server.Broadcaster.Broadcast(pkt)
+}
+
+func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
+	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
+	payload = append(payload, playerUUID[:]...)
+	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))
+	payload = append(payload, publicKeyBytes...)
+	hash := sha1.Sum(payload)
+
+	for _, key := range mojangKeys {
+		if err := rsa.VerifyPKCS1v15(key, crypto.SHA1, hash[:], keySignature); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }

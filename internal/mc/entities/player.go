@@ -20,14 +20,14 @@ type Player struct {
 	FoodTickTimer       int32   `nbt:"foodTickTimer"`
 
 	// State
-	ChatSession       *mc.ChatSession
+	ChatSession       mc.ChatSession
 	Inventory         *mc.PlayerInventory
 	Movement          MovementTracker
 	Information       mc.PlayerInformation
 	ProfileProperties []mc.ProfileProperty
-	Name              mc.String
+	Name              string
 	Loaded            bool
-	Input             mc.UnsignedByte
+	Input             byte
 }
 
 type MovementTracker struct {
@@ -53,7 +53,7 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 			Health: 20.0,
 		},
 		Inventory:         mc.NewPlayerInventory(),
-		Name:              mc.String(name),
+		Name:              name,
 		Loaded:            false,
 		GameMode:          uint8(properties.GameMode), // todo: handle force-gamemode
 		PreviousGameMode:  -1,
@@ -62,6 +62,7 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 	player.Movement.LastTickY = player.Pos[1]
 	player.Information.ViewDistance = mc.Byte(properties.ViewDistance)
 	player.Information.AllowServerListings = true
+	player.ChatSession.Signed = false
 
 	lastEntityID++
 

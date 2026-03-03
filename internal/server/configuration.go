@@ -31,7 +31,7 @@ func (c *Connection) HandleClientKnownPacks(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
-// todo: we should move packet sent to methods
+// HandleFinishConfigurationAck todo: we should move packet sent to methods
 func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
 	c.Server.World.AddPlayer(c.Player) // todo: move this to login -> avoid slot stealing
@@ -62,7 +62,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 		mc.Boolean(false),
 		mc.VarInt(100),
 		mc.VarInt(64),
-		mc.Boolean(c.Server.Properties.EnforceSecureProfile),
+		mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
 	)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 
@@ -196,7 +196,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 	joinMessage := tc.Translatable(
 		mcdata.MultiplayerPlayerJoined,
-		tc.PlayerName(string(c.Player.Name)),
+		tc.PlayerName(c.Player.Name),
 	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))

@@ -17,45 +17,14 @@ type LanguageEntry struct {
 }
 
 // Ignore client side language keys to reduce binary size
-var ignoredPrefixes = []string{
-	"accessibility.",
-	"addServer.",
-	"advMode.",
-	"backup.",
-	"book.",
-	"burnTime.",
-	"chat.link.",
-	"connect.",
-	"controls.",
-	"createWorld.",
-	"demo.",
-	"difficulty.",
-	"download.",
-	"gui.",
-	"joystick.",
-	"key.",
-	"lanServer.",
-	"language.",
-	"menu.",
-	"merchant.",
-	"mount.",
-	"narrator.",
-	"optimizeWorld.",
-	"options.",
-	"pack.",
-	"realms.",
-	"recipies.",
-	"resourcePack.",
-	"screenshot.",
-	"selectServer.",
-	"selectWorld.",
-	"sign.",
-	"soundCategory.",
-	"structure_block.",
-	"symlink.",
-	"title.",
-	"tutorial.",
-	"wip.",
+var allowedPrefixes = []string{
+	"death.",
+	"chat.",
+	"multiplayer.",
+	"commands.",
+	"command.",
+	"advancements.",
+	"disconnect.",
 }
 
 func generateLanguage(rawLanguages io.ReadCloser, _ map[string]any) error {
@@ -71,14 +40,14 @@ func generateLanguage(rawLanguages io.ReadCloser, _ map[string]any) error {
 
 	keys := make([]string, 0, len(rawMap))
 	for k := range rawMap {
-		isIgnored := false
-		for _, prefix := range ignoredPrefixes {
+		isAllowed := false
+		for _, prefix := range allowedPrefixes {
 			if strings.HasPrefix(k, prefix) {
-				isIgnored = true
+				isAllowed = true
 				break
 			}
 		}
-		if !isIgnored {
+		if isAllowed {
 			keys = append(keys, k)
 		}
 	}

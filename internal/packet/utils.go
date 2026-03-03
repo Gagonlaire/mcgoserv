@@ -24,13 +24,13 @@ func BuildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 			if actions&currentAction != 0 {
 				switch currentAction {
 				case mc.ActionAddPlayer:
-					_ = packet.Encode(player.Name, mc.VarInt(len(player.ProfileProperties)))
+					_ = packet.Encode(mc.String(player.Name), mc.VarInt(len(player.ProfileProperties)))
 					for _, prop := range player.ProfileProperties {
 						_ = packet.Encode(prop)
 					}
 				case mc.ActionInitializeChat:
-					_ = packet.Encode(mc.Boolean(player.ChatSession != nil))
-					if player.ChatSession != nil {
+					_ = packet.Encode(mc.Boolean(player.ChatSession.Signed))
+					if player.ChatSession.Signed {
 						sessionID := mc.UUID(player.ChatSession.ID)
 
 						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)

@@ -41,22 +41,23 @@ type Keys struct {
 }
 
 type Server struct {
-	World         *world.World
-	Ticker        *systems.Ticker
-	Broadcaster   *systems.Broadcaster[*Connection, *packet.Packet]
-	Router        *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
-	Properties    *systems.Properties
-	AccessControl *player_registry.PlayerRegistry
-	RemoteConsole *systems.RemoteConsole
-	Commander     *commander.Commander
-	ID            string
-	Keys          Keys
-	Icon          string
-	Addr          string
-	Connections   sync.Map
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
+	World             *world.World
+	Ticker            *systems.Ticker
+	Broadcaster       *systems.Broadcaster[*Connection, *packet.Packet]
+	Router            *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+	Properties        *systems.Properties
+	AccessControl     *player_registry.PlayerRegistry
+	RemoteConsole     *systems.RemoteConsole
+	Commander         *commander.Commander
+	ID                string
+	Keys              Keys
+	Icon              string
+	EnforceSecureChat bool // only true when online mode and enforce secure profile are both true
+	Addr              string
+	Connections       sync.Map
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
 }
 
 func NewServer() *Server {
@@ -66,8 +67,9 @@ func NewServer() *Server {
 	}
 
 	server := &Server{
-		Properties: props,
-		Addr:       fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
+		Properties:        props,
+		Addr:              fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
+		EnforceSecureChat: props.EnforceSecureProfile && props.OnlineMode,
 	}
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", server))
 	server.ctx = ctx
