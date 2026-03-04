@@ -226,8 +226,9 @@ func (s *Server) sendCommands(c *Connection) {
 				_, _ = node.Parser.WriteTo(pkt.Buffer)
 			}
 		}
-
-		// todo: encode suggestion type
+		if node.Suggestion != commander.SuggestNothing {
+			_ = pkt.Encode(mc.String(node.Suggestion))
+		}
 	}
 	_ = pkt.Encode(mc.VarInt(0))
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)

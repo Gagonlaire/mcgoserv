@@ -727,3 +727,25 @@ func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, exp
 	}
 	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }
+
+func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
+	var TransactionID mc.VarInt
+	var Text mc.String
+
+	if err := pkt.Decode(&TransactionID, &Text); err != nil {
+		log.Printf("Error decoding command suggestion packet: %v", err)
+		return
+	}
+
+	fmt.Println(TransactionID, Text)
+	/*pkt, _ = packet.NewPacket(
+		packet.PlayClientboundCommandSuggestions,
+		TransactionID,
+		mc.VarInt(7),
+		mc.VarInt(len(testCompletion)),
+		mc.VarInt(1),
+		mc.String(testCompletion),
+		mc.Boolean(false),
+	)
+	c.Send(pkt)*/
+}
