@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -20,6 +19,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
+	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/google/uuid"
 )
 
@@ -539,15 +539,37 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 		return
 	}
 
+	src := &commander.CommandSource{
+		PermissionLevel: c.Player.PermissionLevel,
+		Server:          c.Server,
+		Entity:          c.Player,
+		Position:        c.Player.Pos,
+		Rotation:        c.Player.Rot,
+		SendMessage: func(msg any) {
+			if comp, ok := msg.(tc.Component); ok {
+				pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
+				c.Send(pkt)
+			}
+		},
+	}
+
 	// todo: commands should maybe ran in a separate routine
-	resp := c.Server.Commander.Execute(
-		context.WithValue(c.Server.ctx, "connection", c),
+	_, err := c.Server.Commander.ExecuteInput(
+		c.ctx,
+		src,
 		string(command),
 	)
 
-	if resp != nil {
-		pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, resp, mc.Boolean(false))
-		c.Send(pkt)
+	// todo: fix this weird pattern
+	if err != nil {
+		var msg tc.Component
+		switch e := err.(type) {
+		case interface{ ToComponent() tc.Component }:
+			msg = e.ToComponent()
+		default:
+			msg = tc.Text(err.Error()).SetColor(tc.ColorRed)
+		}
+		src.SendMessage(msg)
 	}
 }
 
@@ -737,6 +759,7 @@ func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
 		return
 	}
 
+	// todo: implement server suggestions
 	fmt.Println(TransactionID, Text)
 	/*pkt, _ = packet.NewPacket(
 		packet.PlayClientboundCommandSuggestions,

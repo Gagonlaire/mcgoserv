@@ -3,33 +3,27 @@ package commander
 import (
 	"context"
 	"fmt"
-	"io"
-	"strings"
 
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 )
 
-type Commander struct {
+type Dispatcher struct {
 	Root *Node
 }
 
-type CommandContext struct {
-	context.Context
-	Args  map[string]interface{}
-	Input string
+type ParsedCommand struct {
+	Source  *CommandSource
+	Reader  *CommandReader
+	Nodes   []ParsedNode
+	Args    ParsedArgs
+	Command Command
+	Forks   bool
+	Errors  []*CommandParseError
 }
 
-type ArgumentParser interface {
-	Parse(reader *strings.Reader) (interface{}, tc.Component)
-	ID() int
-	WriteTo(w io.Writer) (n int64, err error)
-}
-
-type Command func(ctx *CommandContext) tc.Component
-
-func NewCommander() *Commander {
-	return &Commander{
+func NewDispatcher() *Dispatcher {
+	return &Dispatcher{
 		Root: &Node{
 			Kind:     RootNode,
 			Children: make(map[string]*Node),
@@ -37,110 +31,195 @@ func NewCommander() *Commander {
 	}
 }
 
-func (d *Commander) Register(nodes ...*Node) {
+func (d *Dispatcher) Register(nodes ...*Node) {
 	for _, n := range nodes {
 		if n.Kind != LiteralNode {
-			panic(fmt.Errorf("root command '%s' must be a Literal, got %d", n.Name, n.Kind))
+			panic(fmt.Errorf("commander: root command '%s' must be a Literal, got %d", n.Name, n.Kind))
 		}
 		d.Root.Children[n.Name] = n
 	}
 }
 
-func (d *Commander) Resolve(cmdName string) *Node {
-	if child, ok := d.Root.Children[cmdName]; ok {
+func (d *Dispatcher) Resolve(name string) *Node {
+	if child, ok := d.Root.Children[name]; ok {
 		return child
 	}
 	return nil
 }
 
-func (d *Commander) Execute(ctx context.Context, input string) tc.Component {
-	reader := strings.NewReader(input)
-	cmdCtx := &CommandContext{
-		Context: ctx,
-		Args:    make(map[string]interface{}),
-		Input:   input,
+func (d *Dispatcher) Parse(src *CommandSource, input string) *ParsedCommand {
+	reader := NewCommandReader(input)
+	result := &ParsedCommand{
+		Source: src,
+		Reader: reader,
+		Args:   make(ParsedArgs),
 	}
-	current := d.Root
 
-	for reader.Len() > 0 {
-		if err := cmdCtx.Err(); err != nil {
-			return nil
+	d.parseNodes(d.Root, reader, result)
+	return result
+}
+
+func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *ParsedCommand) {
+	for reader.CanRead() && reader.Peek() == ' ' {
+		reader.Skip()
+	}
+
+	if !reader.CanRead() {
+		if node.Run != nil {
+			result.Command = node.Run
+		}
+		return
+	}
+
+	start := reader.Cursor()
+	token := reader.PeekWord()
+	if child, ok := node.Children[token]; ok && child.Kind == LiteralNode {
+		if child.PermissionLevel > 0 && !result.Source.HasPermission(child.PermissionLevel) {
+			result.Errors = append(result.Errors, NewParseError(
+				tc.Text("permission level too low"),
+				reader.Input(), reader.Cursor(),
+			))
+			return
 		}
 
-		startLen := reader.Len()
-		token := peekWord(reader)
-		var found *Node
+		reader.ReadWord()
+		end := reader.Cursor()
+		result.Nodes = append(result.Nodes, ParsedNode{
+			Node:  child,
+			Range: StringRange{Start: start, End: end},
+		})
 
-		if child, ok := current.Children[token]; ok && child.Kind == LiteralNode {
-			readWord(reader)
-			found = child
-		} else {
-			for _, child := range current.Children {
-				if child.Kind == ArgumentNode {
-					_, _ = reader.Seek(int64(len(input)-startLen), 0)
+		if child.Redirect != nil {
+			if child.Fork {
+				result.Forks = true
+			}
+			d.parseNodes(child.Redirect, reader, result)
+			return
+		}
 
-					val, err := child.Parser.Parse(reader)
-					if err == nil {
-						cmdCtx.Args[child.Name] = val
-						found = child
-						break
-					} else {
-						return err
+		d.parseNodes(child, reader, result)
+		return
+	}
+
+	for _, child := range node.Children {
+		if child.Kind != ArgumentNode {
+			continue
+		}
+		if child.PermissionLevel > 0 && !result.Source.HasPermission(child.PermissionLevel) {
+			continue
+		}
+
+		reader.SetCursor(start)
+		val, err := child.Parser.Parse(reader)
+		if err != nil {
+			var pe *CommandParseError
+			if e, ok := err.(*CommandParseError); ok {
+				pe = e
+			} else {
+				pe = NewParseError(tc.Text(err.Error()), reader.Input(), reader.Cursor())
+			}
+			result.Errors = append(result.Errors, pe)
+			reader.SetCursor(start)
+			continue
+		}
+
+		end := reader.Cursor()
+		result.Args[child.Name] = val
+		result.Nodes = append(result.Nodes, ParsedNode{
+			Node:  child,
+			Range: StringRange{Start: start, End: end},
+		})
+
+		if child.Redirect != nil {
+			if child.Fork {
+				result.Forks = true
+			}
+			d.parseNodes(child.Redirect, reader, result)
+			return
+		}
+
+		d.parseNodes(child, reader, result)
+		return
+	}
+
+	if len(result.Errors) == 0 {
+		result.Errors = append(result.Errors, NewParseError(
+			tc.Translatable(mcdata.CommandUnknownCommand),
+			reader.Input(), reader.Cursor(),
+		))
+	}
+}
+
+func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*CommandResult, error) {
+	if parsed.Command == nil {
+		if len(parsed.Errors) > 0 {
+			return nil, parsed.Errors[0]
+		}
+		return nil, NewParseError(
+			tc.Translatable(mcdata.CommandUnknownCommand),
+			parsed.Reader.Input(), parsed.Reader.Cursor(),
+		)
+	}
+
+	sources := []*CommandSource{parsed.Source}
+	if parsed.Forks {
+		for _, pn := range parsed.Nodes {
+			if pn.Node.Fork && pn.Node.RedirectModifier != nil {
+				var nextSources []*CommandSource
+				for _, src := range sources {
+					derived, err := pn.Node.RedirectModifier(ctx, src)
+					if err != nil {
+						return nil, err
 					}
+					nextSources = append(nextSources, derived...)
+				}
+				sources = nextSources
+				if len(sources) == 0 {
+					// Early termination — branch count is zero.
+					return &CommandResult{Success: 0, Result: 0}, nil
 				}
 			}
 		}
-
-		if found == nil {
-			_, _ = reader.Seek(int64(len(input)-startLen), 0)
-			badToken := readWord(reader)
-
-			return tc.Translatable(mcdata.CommandUnknownCommand).AddExtra(
-				tc.Container(
-					tc.Text("\n"+badToken).SetUnderlined(true),
-					tc.Translatable(mcdata.CommandContextHere),
-				).SuggestCommand(badToken),
-			).SetColor(tc.ColorRed)
-		}
-
-		current = found
-		if current.Redirect != nil {
-			current = current.Redirect
-		}
-
-		skipWhitespace(reader)
 	}
 
-	if current.Run == nil {
-		start := len(input) - 10
-		prefix := "..."
-
-		if start <= 0 {
-			start = 0
-			prefix = ""
+	aggregate := &CommandResult{}
+	var lastErr error
+	for _, src := range sources {
+		if err := ctx.Err(); err != nil {
+			return aggregate, err // context cancelled
 		}
 
-		return tc.Translatable(mcdata.CommandUnknownCommand).AddExtra(
-			tc.Container(
-				tc.Text("\n"+prefix+input[start:]).SetColor(tc.ColorGray),
-				tc.Translatable(mcdata.CommandContextHere),
-			).SuggestCommand("/" + input),
-		).SetColor(tc.ColorRed)
+		res, err := parsed.Command(ctx, src, parsed.Args)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if res != nil {
+			aggregate.Success += res.Success
+			aggregate.Result = res.Result
+		}
+	}
+	if aggregate.Success == 0 && lastErr != nil {
+		return aggregate, lastErr
 	}
 
-	return current.Run(cmdCtx)
+	return aggregate, nil
 }
 
-func (d *Commander) FlattenGraph() ([]*Node, map[*Node]int) {
+func (d *Dispatcher) ExecuteInput(ctx context.Context, src *CommandSource, input string) (*CommandResult, error) {
+	parsed := d.Parse(src, input)
+	return d.Execute(ctx, parsed)
+}
+
+func (d *Dispatcher) FlattenGraph() ([]*Node, map[*Node]int) {
 	var nodes []*Node
-	var walk func(n *Node)
 	indices := make(map[*Node]int)
 
+	var walk func(n *Node)
 	walk = func(n *Node) {
 		if _, visited := indices[n]; visited {
 			return
 		}
-
 		indices[n] = len(nodes)
 		nodes = append(nodes, n)
 		for _, child := range n.Children {
@@ -153,33 +232,4 @@ func (d *Commander) FlattenGraph() ([]*Node, map[*Node]int) {
 	walk(d.Root)
 
 	return nodes, indices
-}
-
-func peekWord(r *strings.Reader) string {
-	start, _ := r.Seek(0, 1)
-	word := readWord(r)
-	_, _ = r.Seek(start, 0)
-	return word
-}
-
-func readWord(r *strings.Reader) string {
-	var sb strings.Builder
-	for r.Len() > 0 {
-		ch, _, _ := r.ReadRune()
-		if ch == ' ' {
-			break
-		}
-		sb.WriteRune(ch)
-	}
-	return sb.String()
-}
-
-func skipWhitespace(r *strings.Reader) {
-	for r.Len() > 0 {
-		ch, _, _ := r.ReadRune()
-		if ch != ' ' {
-			_ = r.UnreadRune()
-			break
-		}
-	}
 }

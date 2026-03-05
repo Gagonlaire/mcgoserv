@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strings"
+	"strconv"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 )
 
 type BooleanType struct{}
@@ -43,6 +43,11 @@ type StringType struct {
 }
 
 const (
+	FlagMin = 0x01
+	FlagMax = 0x02
+)
+
+const (
 	SingleWord StringBehavior = iota
 	QuotablePhrase
 	GreedyPhrase
@@ -76,55 +81,75 @@ var String = StringType{
 
 func (b BooleanType) ID() int { return 0 } // brigadier:bool
 
-func (b BooleanType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
-	var val bool
-
-	_, err := fmt.Fscan(r, &val)
-	if err != nil {
-		return nil, text_component.Text(err.Error()).SetColor("red")
+func (b BooleanType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
+	word := r.ReadUnquotedString()
+	switch word {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("expected 'true' or 'false', got '%s'", word)),
+			r.Input(), start,
+		)
 	}
-	return val, nil
 }
 
 func (b BooleanType) WriteTo(_ io.Writer) (int64, error) { return 0, nil }
 
 func (f FloatType) Min(min float32) FloatType {
 	f.min = min
-	f.flags |= 0x01
+	f.flags |= FlagMin
 	return f
 }
 
 func (f FloatType) Max(max float32) FloatType {
 	f.max = max
-	f.flags |= 0x02
+	f.flags |= FlagMax
 	return f
 }
 
 func (f FloatType) ID() int { return 1 } // brigadier:float
 
-func (f FloatType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
-	var val float32
-
-	_, err := fmt.Fscan(r, &val)
-	switch {
-	case err != nil:
-		return nil, text_component.Text(err.Error()).SetColor("red")
-	case f.flags&0x01 != 0 && val < f.min:
-		return nil, text_component.Text(fmt.Sprintf("float too small: must be >= %g", f.min)).SetColor("red")
-	case f.flags&0x02 != 0 && val > f.max:
-		return nil, text_component.Text(fmt.Sprintf("float too big: must be <= %g", f.max)).SetColor("red")
-	default:
-		return val, nil
+func (f FloatType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
+	raw := r.ReadUnquotedString()
+	val, err := strconv.ParseFloat(raw, 32)
+	if err != nil {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("invalid float '%s'", raw)),
+			r.Input(), start,
+		)
 	}
+	v := float32(val)
+	if f.flags&FlagMin != 0 && v < f.min {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("float must be at least %g, found %g", f.min, v)),
+			r.Input(), start,
+		)
+	}
+	if f.flags&FlagMax != 0 && v > f.max {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("float must be at most %g, found %g", f.max, v)),
+			r.Input(), start,
+		)
+	}
+	return v, nil
 }
 
 func (f FloatType) WriteTo(w io.Writer) (int64, error) {
 	n, _ := mc.Byte(f.flags).WriteTo(w)
-	if f.flags&0x01 != 0 {
+	if f.flags&FlagMin != 0 {
 		nn, _ := mc.Float(f.min).WriteTo(w)
 		n += nn
 	}
-	if f.flags&0x02 != 0 {
+	if f.flags&FlagMax != 0 {
 		nn, _ := mc.Float(f.max).WriteTo(w)
 		n += nn
 	}
@@ -133,41 +158,53 @@ func (f FloatType) WriteTo(w io.Writer) (int64, error) {
 
 func (d DoubleType) Min(min float64) DoubleType {
 	d.min = min
-	d.flags |= 0x01
+	d.flags |= FlagMin
 	return d
 }
 
 func (d DoubleType) Max(max float64) DoubleType {
 	d.max = max
-	d.flags |= 0x02
+	d.flags |= FlagMax
 	return d
 }
 
 func (d DoubleType) ID() int { return 2 } // brigadier:double
 
-func (d DoubleType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
-	var val float64
-
-	_, err := fmt.Fscan(r, &val)
-	switch {
-	case err != nil:
-		return nil, text_component.Text(err.Error()).SetColor("red")
-	case d.flags&0x01 != 0 && val < d.min:
-		return nil, text_component.Text(fmt.Sprintf("double too small: must be >= %g", d.min)).SetColor("red")
-	case d.flags&0x02 != 0 && val > d.max:
-		return nil, text_component.Text(fmt.Sprintf("double too big: must be <= %g", d.max)).SetColor("red")
-	default:
-		return val, nil
+func (d DoubleType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
+	raw := r.ReadUnquotedString()
+	val, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("invalid double '%s'", raw)),
+			r.Input(), start,
+		)
 	}
+	if d.flags&FlagMin != 0 && val < d.min {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("double must be at least %g, found %g", d.min, val)),
+			r.Input(), start,
+		)
+	}
+	if d.flags&FlagMax != 0 && val > d.max {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("double must be at most %g, found %g", d.max, val)),
+			r.Input(), start,
+		)
+	}
+	return val, nil
 }
 
 func (d DoubleType) WriteTo(w io.Writer) (int64, error) {
 	n, _ := mc.Byte(d.flags).WriteTo(w)
-	if d.flags&0x01 != 0 {
+	if d.flags&FlagMin != 0 {
 		nn, _ := mc.Double(d.min).WriteTo(w)
 		n += nn
 	}
-	if d.flags&0x02 != 0 {
+	if d.flags&FlagMax != 0 {
 		nn, _ := mc.Double(d.max).WriteTo(w)
 		n += nn
 	}
@@ -176,42 +213,54 @@ func (d DoubleType) WriteTo(w io.Writer) (int64, error) {
 
 func (i IntType) Min(min int32) IntType {
 	i.min = min
-	i.flags |= 0x01
+	i.flags |= FlagMin
 	return i
 }
 
 func (i IntType) Max(max int32) IntType {
 	i.max = max
-	i.flags |= 0x02
+	i.flags |= FlagMax
 	return i
 }
 
 func (i IntType) ID() int { return 3 } // brigadier:integer
 
-func (i IntType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
-	var val int32
-
-	_, err := fmt.Fscan(r, &val)
-	// todo: change error messages
-	switch {
-	case err != nil:
-		return nil, text_component.Text(err.Error()).SetColor("red")
-	case i.flags&0x01 != 0 && val < i.min:
-		return nil, text_component.Text(fmt.Sprintf("integer too small: must be >= %d", i.min)).SetColor("red")
-	case i.flags&0x02 != 0 && val > i.max:
-		return nil, text_component.Text(fmt.Sprintf("integer too big: must be <= %d", i.max)).SetColor("red")
-	default:
-		return val, nil
+func (i IntType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
+	raw := r.ReadUnquotedString()
+	val, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("invalid integer '%s'", raw)),
+			r.Input(), start,
+		)
 	}
+	v := int32(val)
+	if i.flags&FlagMin != 0 && v < i.min {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("integer must be at least %d, found %d", i.min, v)),
+			r.Input(), start,
+		)
+	}
+	if i.flags&FlagMax != 0 && v > i.max {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("integer must be at most %d, found %d", i.max, v)),
+			r.Input(), start,
+		)
+	}
+	return v, nil
 }
 
 func (i IntType) WriteTo(w io.Writer) (int64, error) {
 	n, _ := mc.Byte(i.flags).WriteTo(w)
-	if i.flags&0x01 != 0 {
+	if i.flags&FlagMin != 0 {
 		nn, _ := mc.Int(i.min).WriteTo(w)
 		n += nn
 	}
-	if i.flags&0x02 != 0 {
+	if i.flags&FlagMax != 0 {
 		nn, _ := mc.Int(i.max).WriteTo(w)
 		n += nn
 	}
@@ -220,41 +269,53 @@ func (i IntType) WriteTo(w io.Writer) (int64, error) {
 
 func (l LongType) Min(min int64) LongType {
 	l.min = min
-	l.flags |= 0x01
+	l.flags |= FlagMin
 	return l
 }
 
 func (l LongType) Max(max int64) LongType {
 	l.max = max
-	l.flags |= 0x02
+	l.flags |= FlagMax
 	return l
 }
 
 func (l LongType) ID() int { return 4 } // brigadier:long
 
-func (l LongType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
-	var val int64
-
-	_, err := fmt.Fscan(r, &val)
-	switch {
-	case err != nil:
-		return nil, text_component.Text(err.Error()).SetColor("red")
-	case l.flags&0x01 != 0 && val < l.min:
-		return nil, text_component.Text(fmt.Sprintf("long too small: must be >= %d", l.min)).SetColor("red")
-	case l.flags&0x02 != 0 && val > l.max:
-		return nil, text_component.Text(fmt.Sprintf("long too big: must be <= %d", l.max)).SetColor("red")
-	default:
-		return val, nil
+func (l LongType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
+	raw := r.ReadUnquotedString()
+	val, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("invalid long '%s'", raw)),
+			r.Input(), start,
+		)
 	}
+	if l.flags&FlagMin != 0 && val < l.min {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("long must be at least %d, found %d", l.min, val)),
+			r.Input(), start,
+		)
+	}
+	if l.flags&FlagMax != 0 && val > l.max {
+		r.SetCursor(start)
+		return nil, NewParseError(
+			tc.Text(fmt.Sprintf("long must be at most %d, found %d", l.max, val)),
+			r.Input(), start,
+		)
+	}
+	return val, nil
 }
 
 func (l LongType) WriteTo(w io.Writer) (int64, error) {
-	n, _ := mc.UnsignedByte(l.flags).WriteTo(w)
-	if l.flags&0x01 != 0 {
+	n, _ := mc.Byte(l.flags).WriteTo(w)
+	if l.flags&FlagMin != 0 {
 		nn, _ := mc.Long(l.min).WriteTo(w)
 		n += nn
 	}
-	if l.flags&0x02 != 0 {
+	if l.flags&FlagMax != 0 {
 		nn, _ := mc.Long(l.max).WriteTo(w)
 		n += nn
 	}
@@ -268,64 +329,33 @@ func (s StringType) Behavior(behavior StringBehavior) StringType {
 
 func (s StringType) ID() int { return 5 } // brigadier:string
 
-func (s StringType) Parse(r *strings.Reader) (interface{}, text_component.Component) {
+func (s StringType) Parse(r *CommandReader) (any, error) {
+	start := r.Cursor()
 	switch s.behavior {
 	case GreedyPhrase:
-		var b strings.Builder
-		for r.Len() > 0 {
-			ch, _, _ := r.ReadRune()
-			b.WriteRune(ch)
+		remaining := r.GetRemaining()
+		if len(remaining) == 0 {
+			return nil, NewParseError(tc.Text("expected a string"), r.Input(), start)
 		}
-		val := b.String()
-		if len(val) == 0 {
-			return nil, text_component.Text("expected a string").SetColor("red")
+		r.SetCursor(r.TotalLength())
+		return remaining, nil
+	case QuotablePhrase:
+		val, err := r.ReadString()
+		if err != nil {
+			return nil, err
+		}
+		if len(val) == 0 && r.Cursor() == start {
+			return nil, NewParseError(tc.Text("expected a string"), r.Input(), start)
 		}
 		return val, nil
-	case QuotablePhrase:
-		ch, _, err := r.ReadRune()
-		if err != nil {
-			return nil, text_component.Text("expected a string").SetColor("red")
-		}
-		if ch == '"' {
-			var b strings.Builder
-			for {
-				c, _, err := r.ReadRune()
-				if err != nil {
-					return nil, text_component.Text("unclosed quoted string").SetColor("red")
-				}
-				if c == '\\' {
-					next, _, err := r.ReadRune()
-					if err != nil {
-						return nil, text_component.Text("unexpected end of escape sequence").SetColor("red")
-					}
-					b.WriteRune(next)
-					continue
-				}
-				if c == '"' {
-					return b.String(), nil
-				}
-				b.WriteRune(c)
-			}
-		}
-		_ = r.UnreadRune()
-		fallthrough
 	case SingleWord:
-		var b strings.Builder
-		for r.Len() > 0 {
-			ch, _, _ := r.ReadRune()
-			if ch == ' ' {
-				_ = r.UnreadRune()
-				break
-			}
-			b.WriteRune(ch)
-		}
-		val := b.String()
+		val := r.ReadUnquotedString()
 		if len(val) == 0 {
-			return nil, text_component.Text("expected a string").SetColor("red")
+			return nil, NewParseError(tc.Text("expected a string"), r.Input(), start)
 		}
 		return val, nil
 	default:
-		panic("invalid string behavior")
+		panic("commander: invalid string behavior")
 	}
 }
 

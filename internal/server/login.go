@@ -129,6 +129,10 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		return
 	}
 
+	permissionLevel := 0
+	if ok, opEntry := c.Server.PlayerRegistry.IsOp(c.ContextData["loginUUID"].(uuid.UUID)); ok {
+		permissionLevel = opEntry.Level
+	}
 	pArraySession := mc.NewPrefixedArrayFromSlice(properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
 		return mc.ProfileProperty{
 			Name:      p.Name,
@@ -136,13 +140,13 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 			Signature: p.Signature,
 		}
 	})
-	newPlayer := entities.NewPlayer(
+	c.Player = entities.NewPlayer(
 		c.ContextData["loginUUID"].(uuid.UUID),
 		c.ContextData["loginName"].(string),
+		permissionLevel,
 		*pArraySession.Slice,
 		c.Server.Properties,
 	)
-	c.Player = newPlayer
 
 	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
 		pkt, _ := packet.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
@@ -165,17 +169,17 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 func (c *Connection) CanAccessServer() bool {
 	UUID := c.ContextData["loginUUID"].(uuid.UUID)
 
-	if banned, entry := c.Server.AccessControl.IsIPBanned(c.Conn.RemoteAddr().String()); banned {
+	if banned, entry := c.Server.PlayerRegistry.IsIPBanned(c.Conn.RemoteAddr().String()); banned {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBannedIpReason, tc.Text(entry.Reason)))
 		return false
 	}
 
-	if banned, entry := c.Server.AccessControl.IsBanned(UUID); banned {
+	if banned, entry := c.Server.PlayerRegistry.IsBanned(UUID); banned {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBannedReason, tc.Text(entry.Reason)))
 		return false
 	}
 
-	if c.Server.Properties.WhiteList && !c.Server.AccessControl.IsWhitelisted(UUID) {
+	if c.Server.Properties.WhiteList && !c.Server.PlayerRegistry.IsWhitelisted(UUID) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 		return false
 	}
@@ -184,7 +188,7 @@ func (c *Connection) CanAccessServer() bool {
 	isRejoining := player != nil
 
 	if c.Server.World.OnlinePlayersCount() >= c.Server.Properties.MaxPlayers && !isRejoining {
-		if op, entry := c.Server.AccessControl.IsOp(UUID); !op || !entry.BypassesPlayerLimit {
+		if op, entry := c.Server.PlayerRegistry.IsOp(UUID); !op || !entry.BypassesPlayerLimit {
 			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectServerFull))
 			return false
 		}

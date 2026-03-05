@@ -46,9 +46,9 @@ type Server struct {
 	Broadcaster       *systems.Broadcaster[*Connection, *packet.Packet]
 	Router            *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
 	Properties        *systems.Properties
-	AccessControl     *player_registry.PlayerRegistry
+	PlayerRegistry    *player_registry.PlayerRegistry
 	RemoteConsole     *systems.RemoteConsole
-	Commander         *commander.Commander
+	Commander         *commander.Dispatcher
 	ID                string
 	Keys              Keys
 	Icon              string
@@ -84,13 +84,13 @@ func NewServer() *Server {
 	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
 	server.registerPacketHandlers()
 
-	server.Commander = commander.NewCommander()
+	server.Commander = commander.NewDispatcher()
 	server.registerCommands()
 
 	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	server.registerTickerSteps()
 
-	server.AccessControl = player_registry.NewPlayerRegistry("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
+	server.PlayerRegistry = player_registry.NewPlayerRegistry("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
 
 	server.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {
@@ -118,12 +118,32 @@ func NewServer() *Server {
 				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
 				server.Properties.RconPassword,
 				func(s string) string {
-					resp := server.Commander.Execute(server.ctx, s)
-
-					if resp == nil {
-						return ""
+					// todo: maybe rework rcon to pass a channel for return values
+					var buf strings.Builder
+					src := &commander.CommandSource{
+						PermissionLevel: 4,
+						Server:          server,
+						SendMessage: func(msg any) {
+							if comp, ok := msg.(tc.Component); ok {
+								if buf.Len() > 0 {
+									buf.WriteByte('\n')
+								}
+								buf.WriteString(comp.String())
+							}
+						},
 					}
-					return resp.String()
+					_, err := server.Commander.ExecuteInput(server.ctx, src, s)
+					if err != nil {
+						if buf.Len() > 0 {
+							buf.WriteByte('\n')
+						}
+						if ce, ok := err.(interface{ ToComponent() tc.Component }); ok {
+							buf.WriteString(ce.ToComponent().String())
+						} else {
+							buf.WriteString(err.Error())
+						}
+					}
+					return buf.String()
 				},
 			)
 		}
@@ -325,10 +345,27 @@ func (s *Server) handleStdin() {
 	for scanner.Scan() {
 		command := scanner.Text()
 		if strings.TrimSpace(command) != "" {
-			resp := s.Commander.Execute(s.ctx, command)
-			if resp != nil {
-				logger.Component(logger.INFO, resp)
+			src := s.consoleSource()
+			_, err := s.Commander.ExecuteInput(s.ctx, src, command)
+			if err != nil {
+				if ce, ok := err.(interface{ ToComponent() tc.Component }); ok {
+					logger.Component(logger.ERROR, ce.ToComponent())
+				} else {
+					logger.Error("%v", err)
+				}
 			}
 		}
+	}
+}
+
+func (s *Server) consoleSource() *commander.CommandSource {
+	return &commander.CommandSource{
+		PermissionLevel: 4,
+		Server:          s,
+		SendMessage: func(msg any) {
+			if comp, ok := msg.(tc.Component); ok {
+				logger.Component(logger.INFO, comp)
+			}
+		},
 	}
 }

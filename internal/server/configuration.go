@@ -204,6 +204,8 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 }
 
 func (s *Server) sendCommands(c *Connection) {
+	// todo: we should maybe ignore commands that the client doesn't have permission to execute
+	// todo: idk if vanilla sends the whole graph
 	flattenGraph, idMap := s.Commander.FlattenGraph()
 	pkt, _ := packet.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
 

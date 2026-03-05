@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
@@ -18,27 +19,26 @@ func (s *Server) registerTickerSteps() {
 
 func (s *Server) registerCommands() {
 	s.Commander.Register(
-		Literal("stop").Executes(func(ctx *CommandContext) tc.Component {
-			server := ctx.Value("server").(*Server)
+		Literal("stop").Executes(func(ctx context.Context, src *CommandSource, args ParsedArgs) (*CommandResult, error) {
+			server := src.Server.(*Server)
 			logger.Component(logger.INFO, tc.Text("Stopping the server"))
 			server.Stop()
 
-			return nil
+			return &CommandResult{Success: 1, Result: 0}, nil
 		}),
 
-		Literal("list").Executes(func(ctx *CommandContext) tc.Component {
-			server := ctx.Value("server").(*Server)
+		Literal("list").Executes(func(ctx context.Context, src *CommandSource, args ParsedArgs) (*CommandResult, error) {
+			server := src.Server.(*Server)
 			players := make([]string, 0)
 			playerList := tc.Container()
 
 			server.Connections.Range(func(k, v interface{}) bool {
 				conn := k.(*Connection)
 
-				if conn.Player != nil && conn.State == mc.StatePlay {
-					// todo: check if listed
-					players = append(players, string(conn.Player.Name))
+				if conn.Player != nil && conn.State == mc.StatePlay && conn.Player.Information.AllowServerListings {
+					players = append(players, conn.Player.Name)
 					playerList.AddExtra(
-						tc.PlayerName(string(conn.Player.Name)),
+						tc.PlayerName(conn.Player.Name),
 						tc.Text(", "),
 					)
 				}
@@ -48,12 +48,17 @@ func (s *Server) registerCommands() {
 				playerList.Extra = playerList.Extra[:len(playerList.Extra)-1]
 			}
 
-			return tc.Translatable(
-				mcdata.CommandsListPlayers,
-				tc.Text(strconv.Itoa(len(players))),
-				tc.Text(strconv.Itoa(server.Properties.MaxPlayers)),
-				playerList,
-			)
+			// todo: create a function to avoid repeating this pattern
+			if src.SendMessage != nil {
+				src.SendMessage(tc.Translatable(
+					mcdata.CommandsListPlayers,
+					tc.Text(strconv.Itoa(len(players))),
+					tc.Text(strconv.Itoa(server.Properties.MaxPlayers)),
+					playerList,
+				))
+			}
+
+			return &CommandResult{Success: 1, Result: len(players)}, nil
 		}),
 	)
 }

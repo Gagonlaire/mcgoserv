@@ -26,6 +26,7 @@ type Player struct {
 	Movement          MovementTracker
 	Information       mc.PlayerInformation
 	ProfileProperties []mc.ProfileProperty
+	PermissionLevel   int
 	Name              string
 	Loaded            bool
 	Input             byte
@@ -41,7 +42,13 @@ type MovementTracker struct {
 	VisibleChunks map[mc.ChunkPos]struct{}
 }
 
-func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProperty, properties *systems.Properties) *Player {
+func NewPlayer(
+	UUID uuid.UUID,
+	name string,
+	permissionLevel int,
+	profileProperties []mc.ProfileProperty,
+	properties *systems.Properties,
+) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
 			BaseEntity: BaseEntity{
@@ -56,6 +63,7 @@ func NewPlayer(UUID uuid.UUID, name string, profileProperties []mc.ProfileProper
 		Inventory:         mc.NewPlayerInventory(),
 		Name:              name,
 		Loaded:            false,
+		PermissionLevel:   permissionLevel,
 		GameMode:          uint8(properties.GameMode), // todo: handle force-gamemode
 		PreviousGameMode:  -1,
 		ProfileProperties: profileProperties,

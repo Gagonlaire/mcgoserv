@@ -33,6 +33,7 @@ type Properties struct {
 	NetworkCompressionThreshold int    `property:"network-compression-threshold" default:"256" min:"-1"`
 	PreventProxyConnections     bool   `property:"prevent-proxy-connections" default:"false"`
 	EnforceSecureProfile        bool   `property:"enforce-secure-profile" default:"true"`
+	OpPermissionLevel           int    `property:"op-permission-level" default:"4" min:"1" max:"4"`
 }
 
 func LoadProperties(path string) (*Properties, error) {

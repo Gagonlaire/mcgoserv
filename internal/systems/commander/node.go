@@ -1,7 +1,46 @@
 package commander
 
+import (
+	"context"
+	"fmt"
+	"io"
+)
+
 type NodeType int
 type SuggestionType string
+
+type ArgumentParser interface {
+	Parse(reader *CommandReader) (any, error)
+	ID() int
+	WriteTo(w io.Writer) (n int64, err error)
+}
+
+type Command func(ctx context.Context, src *CommandSource, args ParsedArgs) (*CommandResult, error)
+
+type ParsedArgs map[string]any
+
+type Node struct {
+	Kind             NodeType
+	Name             string
+	Children         map[string]*Node
+	Run              Command
+	Parser           ArgumentParser
+	Suggestion       SuggestionType
+	PermissionLevel  int
+	Redirect         *Node
+	RedirectModifier RedirectModifier
+	Fork             bool
+}
+
+type ParsedNode struct {
+	Node  *Node
+	Range StringRange
+}
+
+type StringRange struct {
+	Start int
+	End   int
+}
 
 const (
 	RootNode NodeType = iota
@@ -10,24 +49,20 @@ const (
 )
 
 const (
-	// implement suggest ask server
+	NodeTypeMask           = 0x03
+	IsExecutableMask       = 0x04
+	HasRedirectMask        = 0x08
+	HasSuggestionsTypeMask = 0x10
+	IsRestrictedMask       = 0x20
+)
+
+const (
 	SuggestNothing            SuggestionType = "" // default
 	SuggestAskServer          SuggestionType = "ask_server"
 	SuggestAllRecipes         SuggestionType = "all_recipes"
 	SuggestAvailableSounds    SuggestionType = "available_sounds"
 	SuggestSummonableEntities SuggestionType = "summonable_entities"
 )
-
-type Node struct {
-	Kind       NodeType
-	Name       string
-	Children   map[string]*Node
-	Run        Command
-	Parser     ArgumentParser
-	Suggestion SuggestionType
-	Restricted bool
-	Redirect   *Node
-}
 
 func Literal(name string) *Node {
 	return &Node{
@@ -51,7 +86,16 @@ func (n *Node) Connect(children ...*Node) *Node {
 		n.Children = make(map[string]*Node)
 	}
 	for _, child := range children {
-		// todo: this should handle merge
+		if child.Kind == ArgumentNode {
+			for _, existing := range n.Children {
+				if existing.Kind == ArgumentNode {
+					panic(fmt.Sprintf(
+						"commander: node '%s' already has argument child '%s', cannot add '%s'",
+						n.Name, existing.Name, child.Name,
+					))
+				}
+			}
+		}
 		n.Children[child.Name] = child
 	}
 	return n
@@ -59,10 +103,16 @@ func (n *Node) Connect(children ...*Node) *Node {
 
 func (n *Node) RedirectTo(target *Node) *Node {
 	if target.Kind != LiteralNode {
-		panic("Redirect target must be a literal node")
+		panic("commander: redirect target must be a literal node")
 	}
-
 	n.Redirect = target
+	return n
+}
+
+func (n *Node) ForkTo(target *Node, modifier RedirectModifier) *Node {
+	n.Redirect = target
+	n.RedirectModifier = modifier
+	n.Fork = true
 	return n
 }
 
@@ -73,33 +123,31 @@ func (n *Node) Executes(cmd Command) *Node {
 
 func (n *Node) SetSuggestion(suggestType SuggestionType) *Node {
 	if n.Kind != ArgumentNode {
-		panic("Only argument nodes can have suggestions")
+		panic("commander: only argument nodes can have suggestions")
 	}
 	n.Suggestion = suggestType
 	return n
 }
 
-func (n *Node) SetRestricted() *Node {
-	// todo: maybe use a op level instead and set the restricted if level is above 0?
-	n.Restricted = true
+func (n *Node) Requires(level int) *Node {
+	n.PermissionLevel = level
 	return n
 }
 
 func (n *Node) GetFlags() byte {
-	flags := byte(0)
+	flags := byte(n.Kind) & NodeTypeMask
 
-	flags |= byte(n.Kind) & 0x03
 	if n.Run != nil {
-		flags |= 0x04
+		flags |= IsExecutableMask
 	}
 	if n.Redirect != nil {
-		flags |= 0x08
+		flags |= HasRedirectMask
 	}
 	if n.Suggestion != "" {
-		flags |= 0x10
+		flags |= HasSuggestionsTypeMask
 	}
-	if n.Restricted {
-		flags |= 0x20
+	if n.PermissionLevel != 0 {
+		flags |= IsRestrictedMask
 	}
 
 	return flags
