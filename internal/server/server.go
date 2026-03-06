@@ -137,11 +137,7 @@ func NewServer() *Server {
 						if buf.Len() > 0 {
 							buf.WriteByte('\n')
 						}
-						if ce, ok := err.(interface{ ToComponent() tc.Component }); ok {
-							buf.WriteString(ce.ToComponent().String())
-						} else {
-							buf.WriteString(err.Error())
-						}
+						buf.WriteString(commander.AsCommandError(err).ToComponent().String())
 					}
 					return buf.String()
 				},
@@ -348,11 +344,7 @@ func (s *Server) handleStdin() {
 			src := s.consoleSource()
 			_, err := s.Commander.ExecuteInput(s.ctx, src, command)
 			if err != nil {
-				if ce, ok := err.(interface{ ToComponent() tc.Component }); ok {
-					logger.Component(logger.ERROR, ce.ToComponent())
-				} else {
-					logger.Error("%v", err)
-				}
+				logger.Component(logger.ERROR, commander.AsCommandError(err).ToComponent())
 			}
 		}
 	}

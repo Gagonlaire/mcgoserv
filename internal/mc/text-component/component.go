@@ -13,7 +13,6 @@ type Component interface {
 	WriteTo(w io.Writer) (int64, error)
 	ToJSON() []byte
 	String() string
-
 	AnsiString() string
 	AnsiLines() []string
 	renderAnsi(parentStyle string) string

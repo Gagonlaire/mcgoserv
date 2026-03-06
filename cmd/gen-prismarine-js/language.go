@@ -25,6 +25,8 @@ var allowedPrefixes = []string{
 	"command.",
 	"advancements.",
 	"disconnect.",
+	"argument.",
+	"parsing.",
 }
 
 func generateLanguage(rawLanguages io.ReadCloser, _ map[string]any) error {

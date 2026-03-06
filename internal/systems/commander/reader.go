@@ -2,6 +2,7 @@ package commander
 
 import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 )
 
 type CommandReader struct {
@@ -49,7 +50,7 @@ func (r *CommandReader) SkipWhitespace() {
 
 func (r *CommandReader) ReadUnquotedString() string {
 	start := r.cursor
-	for r.CanRead() && isAllowedInUnquotedString(r.Peek()) {
+	for r.CanRead() && IsAllowedInUnquotedString(r.Peek()) {
 		r.Skip()
 	}
 	return r.input[start:r.cursor]
@@ -61,7 +62,7 @@ func (r *CommandReader) ReadQuotedString() (string, error) {
 	}
 	quote := r.Peek()
 	if quote != '"' && quote != '\'' {
-		return "", r.makeError("expected a quote to start a string")
+		return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.input, r.cursor)
 	}
 	r.Skip()
 	return r.readStringUntil(quote)
@@ -69,7 +70,7 @@ func (r *CommandReader) ReadQuotedString() (string, error) {
 
 func (r *CommandReader) ReadString() (string, error) {
 	if !r.CanRead() {
-		return "", r.makeError("expected a string")
+		return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.input, r.cursor)
 	}
 	if ch := r.Peek(); ch == '"' || ch == '\'' {
 		return r.ReadQuotedString()
@@ -92,14 +93,10 @@ func (r *CommandReader) PeekWord() string {
 	return word
 }
 
-func (r *CommandReader) Expect(expected byte) error {
-	if !r.CanRead() {
-		return r.makeError("expected '" + string(expected) + "'")
+func (r *CommandReader) ExpectSeparator() error {
+	if r.CanRead() && r.Peek() != ' ' {
+		return NewParsingErrorAt(tc.Translatable(mcdata.CommandExpectedSeparator), r.input, r.cursor)
 	}
-	if r.Peek() != expected {
-		return r.makeError("expected '" + string(expected) + "' but got '" + string(r.Peek()) + "'")
-	}
-	r.Skip()
 	return nil
 }
 
@@ -111,7 +108,10 @@ func (r *CommandReader) readStringUntil(terminator byte) (string, error) {
 		if escaped {
 			if ch != terminator && ch != '\\' {
 				r.cursor--
-				return "", r.makeError("invalid escape sequence '\\" + string(ch) + "'")
+				return "", NewParsingErrorAt(
+					tc.Translatable(mcdata.ParsingQuoteEscape, tc.Text(string(ch))),
+					r.input, r.cursor,
+				)
 			}
 			buf = append(buf, ch)
 			escaped = false
@@ -123,16 +123,16 @@ func (r *CommandReader) readStringUntil(terminator byte) (string, error) {
 			buf = append(buf, ch)
 		}
 	}
-	return "", r.makeError("unclosed quoted string")
+	return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedEnd), r.input, r.cursor)
 }
 
-func (r *CommandReader) makeError(message string) *CommandParseError {
-	return NewParseError(tc.Text(message), r.input, r.cursor)
+func IsAllowedInNumericUnquotedString(c byte) bool {
+	return (c >= '0' && c <= '9') || c == '-' || c == '.'
 }
 
-func isAllowedInUnquotedString(c byte) bool {
-	return (c >= '0' && c <= '9') ||
+func IsAllowedInUnquotedString(c byte) bool {
+	return IsAllowedInNumericUnquotedString(c) ||
 		(c >= 'A' && c <= 'Z') ||
 		(c >= 'a' && c <= 'z') ||
-		c == '_' || c == '-' || c == '.' || c == '+'
+		c == '_' || c == '+'
 }

@@ -560,16 +560,8 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 		string(command),
 	)
 
-	// todo: fix this weird pattern
 	if err != nil {
-		var msg tc.Component
-		switch e := err.(type) {
-		case interface{ ToComponent() tc.Component }:
-			msg = e.ToComponent()
-		default:
-			msg = tc.Text(err.Error()).SetColor(tc.ColorRed)
-		}
-		src.SendMessage(msg)
+		src.SendMessage(commander.AsCommandError(err).ToComponent())
 	}
 }
 

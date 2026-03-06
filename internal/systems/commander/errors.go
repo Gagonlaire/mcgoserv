@@ -1,65 +1,90 @@
 package commander
 
 import (
-	"fmt"
+	"errors"
 
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 )
 
-type CommandParseError struct {
-	Component tc.Component
-	Input     string
-	Cursor    int
+type CommandError interface {
+	error
+	ToComponent() tc.Component
 }
 
-func NewParseError(component tc.Component, input string, cursor int) *CommandParseError {
-	return &CommandParseError{
-		Component: component,
-		Input:     input,
-		Cursor:    cursor,
+func AsCommandError(err error) CommandError {
+	var ce CommandError
+	if errors.As(err, &ce) {
+		return ce
 	}
+	panic("commander: trying to convert non-command error to CommandError")
 }
 
-func (e *CommandParseError) Error() string {
-	return fmt.Sprintf("parse error at position %d: %s", e.Cursor, e.Component.String())
+func formatError(component tc.Component, input string, cursor int, hasCursor bool) tc.Component {
+	var context tc.Component
+	if hasCursor {
+		c := max(0, min(cursor, len(input)))
+		before := input[:c]
+		after := input[c:]
+		if len(before) > 10 {
+			before = "..." + before[len(before)-10:]
+		}
+		context = tc.Container(
+			tc.Text("\n"+before).SetColor(tc.ColorGray),
+			tc.Text(after).SetUnderlined(true),
+			tc.Translatable(mcdata.CommandContextHere),
+		).SuggestCommand("/" + input)
+	} else {
+		preview := input
+		if len(preview) > 10 {
+			preview = "..." + preview[len(preview)-10:]
+		}
+		context = tc.Container(
+			tc.Text("\n"+preview).SetColor(tc.ColorGray),
+			tc.Translatable(mcdata.CommandContextHere),
+		).SuggestCommand("/" + input)
+	}
+	return tc.Container(component, context).SetColor(tc.ColorRed)
 }
 
-func (e *CommandParseError) ToComponent() tc.Component {
-	context := e.Input
-	suffix := ""
-	if e.Cursor >= 0 && e.Cursor <= len(e.Input) {
-		context = e.Input[:e.Cursor]
-		suffix = e.Input[e.Cursor:]
-	}
+type CommandParsingError struct {
+	component tc.Component
+	input     string
+	cursor    int
+	hasCursor bool
+}
 
-	msg := tc.Container(e.Component).SetColor(tc.ColorRed)
-	if len(context) > 0 || len(suffix) > 0 {
-		msg.AddExtra(
-			tc.Text("\n"+context).SetColor(tc.ColorGray),
-			tc.Text(suffix).SetUnderlined(true).SetColor(tc.ColorRed),
-			tc.Text("<--[HERE]").SetColor(tc.ColorRed).SetItalic(true),
-		)
-	}
-	return msg
+func NewParsingError(component tc.Component, input string) *CommandParsingError {
+	return &CommandParsingError{component: component, input: input}
+}
+
+func NewParsingErrorAt(component tc.Component, input string, cursor int) *CommandParsingError {
+	return &CommandParsingError{component: component, input: input, cursor: cursor, hasCursor: true}
+}
+
+func (e *CommandParsingError) Error() string { return e.component.String() }
+
+func (e *CommandParsingError) ToComponent() tc.Component {
+	return formatError(e.component, e.input, e.cursor, e.hasCursor)
 }
 
 type CommandExecutionError struct {
-	Component tc.Component
-	Cause     error
+	component tc.Component
+	input     string
+	cursor    int
+	hasCursor bool
 }
 
-func NewCommandError(component tc.Component) *CommandExecutionError {
-	return &CommandExecutionError{Component: component}
+func NewExecutionError(component tc.Component, input string) *CommandExecutionError {
+	return &CommandExecutionError{component: component, input: input}
 }
 
-func (e *CommandExecutionError) Error() string {
-	msg := e.Component.String()
-	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", msg, e.Cause)
-	}
-	return msg
+func NewExecutionErrorAt(component tc.Component, input string, cursor int) *CommandExecutionError {
+	return &CommandExecutionError{component: component, input: input, cursor: cursor, hasCursor: true}
 }
+
+func (e *CommandExecutionError) Error() string { return e.component.String() }
 
 func (e *CommandExecutionError) ToComponent() tc.Component {
-	return tc.Container(e.Component).SetColor(tc.ColorRed)
+	return formatError(e.component, e.input, e.cursor, e.hasCursor)
 }

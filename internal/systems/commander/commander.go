@@ -19,7 +19,7 @@ type ParsedCommand struct {
 	Args    ParsedArgs
 	Command Command
 	Forks   bool
-	Errors  []*CommandParseError
+	Errors  []*CommandParsingError
 }
 
 func NewDispatcher() *Dispatcher {
@@ -74,14 +74,6 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 	start := reader.Cursor()
 	token := reader.PeekWord()
 	if child, ok := node.Children[token]; ok && child.Kind == LiteralNode {
-		if child.PermissionLevel > 0 && !result.Source.HasPermission(child.PermissionLevel) {
-			result.Errors = append(result.Errors, NewParseError(
-				tc.Text("permission level too low"),
-				reader.Input(), reader.Cursor(),
-			))
-			return
-		}
-
 		reader.ReadWord()
 		end := reader.Cursor()
 		result.Nodes = append(result.Nodes, ParsedNode{
@@ -105,20 +97,17 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 		if child.Kind != ArgumentNode {
 			continue
 		}
-		if child.PermissionLevel > 0 && !result.Source.HasPermission(child.PermissionLevel) {
-			continue
-		}
 
 		reader.SetCursor(start)
 		val, err := child.Parser.Parse(reader)
 		if err != nil {
-			var pe *CommandParseError
-			if e, ok := err.(*CommandParseError); ok {
-				pe = e
-			} else {
-				pe = NewParseError(tc.Text(err.Error()), reader.Input(), reader.Cursor())
-			}
-			result.Errors = append(result.Errors, pe)
+			result.Errors = append(result.Errors, err.(*CommandParsingError))
+			reader.SetCursor(start)
+			continue
+		}
+
+		if err := reader.ExpectSeparator(); err != nil {
+			result.Errors = append(result.Errors, err.(*CommandParsingError))
 			reader.SetCursor(start)
 			continue
 		}
@@ -143,9 +132,9 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 	}
 
 	if len(result.Errors) == 0 {
-		result.Errors = append(result.Errors, NewParseError(
+		result.Errors = append(result.Errors, NewParsingError(
 			tc.Translatable(mcdata.CommandUnknownCommand),
-			reader.Input(), reader.Cursor(),
+			reader.Input(),
 		))
 	}
 }
@@ -153,11 +142,16 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*CommandResult, error) {
 	if parsed.Command == nil {
 		if len(parsed.Errors) > 0 {
+			// If the parsing never got past the root node, we consider it
+			// an execution error instead of a parsing error, to match vanilla's behavior
+			if len(parsed.Nodes) == 0 {
+				return nil, NewExecutionError(parsed.Errors[0].component, parsed.Errors[0].input)
+			}
 			return nil, parsed.Errors[0]
 		}
-		return nil, NewParseError(
+		return nil, NewExecutionError(
 			tc.Translatable(mcdata.CommandUnknownCommand),
-			parsed.Reader.Input(), parsed.Reader.Cursor(),
+			parsed.Reader.Input(),
 		)
 	}
 
@@ -169,7 +163,7 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 				for _, src := range sources {
 					derived, err := pn.Node.RedirectModifier(ctx, src)
 					if err != nil {
-						return nil, err
+						return nil, AsCommandError(err)
 					}
 					nextSources = append(nextSources, derived...)
 				}
@@ -186,12 +180,12 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 	var lastErr error
 	for _, src := range sources {
 		if err := ctx.Err(); err != nil {
-			return aggregate, err // context cancelled
+			return aggregate, AsCommandError(err)
 		}
 
 		res, err := parsed.Command(ctx, src, parsed.Args)
 		if err != nil {
-			lastErr = err
+			lastErr = AsCommandError(err)
 			continue
 		}
 		if res != nil {
