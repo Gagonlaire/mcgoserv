@@ -3,6 +3,8 @@ package commander
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -73,7 +75,7 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 
 	start := reader.Cursor()
 	token := reader.PeekWord()
-	if child, ok := node.Children[token]; ok && child.Kind == LiteralNode {
+	if child, ok := node.Children[token]; ok && child.Kind == LiteralNode && result.Source.HasPermission(child.PermissionLevel) {
 		reader.ReadWord()
 		end := reader.Cursor()
 		result.Nodes = append(result.Nodes, ParsedNode{
@@ -95,6 +97,9 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 
 	for _, child := range node.Children {
 		if child.Kind != ArgumentNode {
+			continue
+		}
+		if !result.Source.HasPermission(child.PermissionLevel) {
 			continue
 		}
 
@@ -210,9 +215,101 @@ func (d *Dispatcher) ExecuteInput(ctx context.Context, src *CommandSource, input
 	return d.Execute(ctx, parsed)
 }
 
-func (d *Dispatcher) FlattenGraph() ([]*Node, map[*Node]int) {
+type SuggestionContext struct {
+	Node   *Node
+	Start  int
+	Length int
+}
+
+func (d *Dispatcher) ParseForSuggestion(src *CommandSource, input string) *SuggestionContext {
+	reader := NewCommandReader(input)
+	return d.parseNodeForSuggestion(d.Root, reader, src)
+}
+
+func (d *Dispatcher) parseNodeForSuggestion(node *Node, reader *CommandReader, src *CommandSource) *SuggestionContext {
+	for reader.CanRead() && reader.Peek() == ' ' {
+		reader.Skip()
+	}
+
+	// Helper to ensure deterministic order of argument nodes
+	getSortedArgChildren := func() []*Node {
+		var args []*Node
+		for _, child := range node.Children {
+			if child.Kind == ArgumentNode && src.HasPermission(child.PermissionLevel) {
+				args = append(args, child)
+			}
+		}
+		slices.SortFunc(args, func(a, b *Node) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		return args
+	}
+
+	if !reader.CanRead() {
+		for _, child := range getSortedArgChildren() {
+			if child.Suggestion == SuggestAskServer {
+				return &SuggestionContext{
+					Node:   child,
+					Start:  reader.Cursor(),
+					Length: 0,
+				}
+			}
+		}
+		return nil
+	}
+
+	start := reader.Cursor()
+	token := reader.PeekWord()
+
+	if child, ok := node.Children[token]; ok && child.Kind == LiteralNode && src.HasPermission(child.PermissionLevel) {
+		reader.ReadWord()
+
+		if !reader.CanRead() {
+			return nil
+		}
+
+		if child.Redirect != nil {
+			return d.parseNodeForSuggestion(child.Redirect, reader, src)
+		}
+		return d.parseNodeForSuggestion(child, reader, src)
+	}
+
+	for _, child := range getSortedArgChildren() {
+		reader.SetCursor(start)
+		_, err := child.Parser.Parse(reader)
+		sepErr := reader.ExpectSeparator()
+		canRead := reader.CanRead()
+
+		failed := err != nil || sepErr != nil || !canRead
+
+		if failed {
+			if child.Suggestion == SuggestAskServer {
+				// suggestion covers from start of this argument to end of input
+				return &SuggestionContext{
+					Node:   child,
+					Start:  start,
+					Length: reader.TotalLength() - start,
+				}
+			}
+			if err != nil || sepErr != nil {
+				continue
+			}
+			return nil
+		}
+
+		if child.Redirect != nil {
+			return d.parseNodeForSuggestion(child.Redirect, reader, src)
+		}
+		return d.parseNodeForSuggestion(child, reader, src)
+	}
+
+	return nil
+}
+
+func (d *Dispatcher) FlattenGraph(permissionLevel int) ([]*Node, map[*Node]int, map[*Node][]*Node) {
 	var nodes []*Node
 	indices := make(map[*Node]int)
+	filteredChildren := make(map[*Node][]*Node)
 
 	var walk func(n *Node)
 	walk = func(n *Node) {
@@ -221,14 +318,30 @@ func (d *Dispatcher) FlattenGraph() ([]*Node, map[*Node]int) {
 		}
 		indices[n] = len(nodes)
 		nodes = append(nodes, n)
+
+		var children []*Node
 		for _, child := range n.Children {
+			if child.PermissionLevel > 0 && child.PermissionLevel > permissionLevel {
+				continue
+			}
+			children = append(children, child)
+		}
+
+		slices.SortFunc(children, func(a, b *Node) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+
+		filteredChildren[n] = children
+
+		for _, child := range children {
 			walk(child)
 		}
+
 		if n.Redirect != nil {
 			walk(n.Redirect)
 		}
 	}
 	walk(d.Root)
 
-	return nodes, indices
+	return nodes, indices, filteredChildren
 }

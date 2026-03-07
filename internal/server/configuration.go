@@ -204,17 +204,16 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 }
 
 func (s *Server) sendCommands(c *Connection) {
-	// todo: we should maybe ignore commands that the client doesn't have permission to execute
-	// todo: idk if vanilla sends the whole graph
-	flattenGraph, idMap := s.Commander.FlattenGraph()
+	flattenGraph, idMap, filteredChildren := s.Commander.FlattenGraph(c.Player.PermissionLevel)
 	pkt, _ := packet.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
 
 	for _, node := range flattenGraph {
 		flags := node.GetFlags()
+		children := filteredChildren[node]
 
-		_ = pkt.Encode(mc.Byte(flags), mc.VarInt(len(node.Children)))
-		for _, node := range node.Children {
-			_ = pkt.Encode(mc.VarInt(idMap[node]))
+		_ = pkt.Encode(mc.Byte(flags), mc.VarInt(len(children)))
+		for _, child := range children {
+			_ = pkt.Encode(mc.VarInt(idMap[child]))
 		}
 
 		if node.Redirect != nil {

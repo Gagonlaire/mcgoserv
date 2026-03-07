@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -598,6 +599,31 @@ func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
 	} else {
 
 	}
+
+	src := &commander.CommandSource{
+		PermissionLevel: c.Player.PermissionLevel,
+		Server:          c.Server,
+		Entity:          c.Player,
+		Position:        c.Player.Pos,
+		Rotation:        c.Player.Rot,
+		SendMessage: func(msg any) {
+			if comp, ok := msg.(tc.Component); ok {
+				pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
+				c.Send(pkt)
+			}
+		},
+	}
+
+	// todo: commands should maybe ran in a separate routine
+	_, err := c.Server.Commander.ExecuteInput(
+		c.ctx,
+		src,
+		string(command),
+	)
+
+	if err != nil {
+		src.SendMessage(commander.AsCommandError(err).ToComponent())
+	}
 }
 
 func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
@@ -786,16 +812,44 @@ func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
 		return
 	}
 
-	// todo: implement server suggestions
-	fmt.Println(TransactionID, Text)
-	/*pkt, _ = packet.NewPacket(
+	raw := string(Text)
+	input := strings.TrimPrefix(raw, "/")
+	src := &commander.CommandSource{
+		PermissionLevel: c.Player.PermissionLevel,
+		Server:          c.Server,
+		Entity:          c.Player,
+		Position:        c.Player.Pos,
+		Rotation:        c.Player.Rot,
+	}
+
+	ctx := c.Server.Commander.ParseForSuggestion(src, input)
+	if ctx == nil || ctx.Node.SuggestFn == nil {
+		resp, _ := packet.NewPacket(
+			packet.PlayClientboundCommandSuggestions,
+			TransactionID,
+			mc.VarInt(0),
+			mc.VarInt(0),
+			mc.VarInt(0),
+		)
+		c.Send(resp)
+		return
+	}
+
+	// +1 to account for the leading '/' that was trimmed for parsing
+	startIndex := ctx.Start + 1
+	entries := ctx.Node.SuggestFn(src, input[ctx.Start:ctx.Start+ctx.Length])
+	resp, _ := packet.NewPacket(
 		packet.PlayClientboundCommandSuggestions,
 		TransactionID,
-		mc.VarInt(7),
-		mc.VarInt(len(testCompletion)),
-		mc.VarInt(1),
-		mc.String(testCompletion),
-		mc.Boolean(false),
+		mc.VarInt(startIndex),
+		mc.VarInt(ctx.Length),
+		mc.VarInt(len(entries)),
 	)
-	c.Send(pkt)*/
+	for _, entry := range entries {
+		_ = resp.Encode(mc.String(entry.Text), mc.Boolean(entry.Tooltip != nil))
+		if entry.Tooltip != nil {
+			_ = resp.Encode(entry.Tooltip)
+		}
+	}
+	c.Send(resp)
 }

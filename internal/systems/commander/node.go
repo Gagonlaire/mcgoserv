@@ -3,6 +3,8 @@ package commander
 import (
 	"fmt"
 	"io"
+
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 )
 
 type NodeType int
@@ -16,6 +18,13 @@ type ArgumentParser interface {
 
 type Command func(cc *CommandContext) (*CommandResult, error)
 
+type SuggestFunc func(src *CommandSource, input string) []SuggestionEntry
+
+type SuggestionEntry struct {
+	Text    string
+	Tooltip tc.Component
+}
+
 type ParsedArgs map[string]any
 
 type Node struct {
@@ -25,6 +34,7 @@ type Node struct {
 	Run              Command
 	Parser           ArgumentParser
 	Suggestion       SuggestionType
+	SuggestFn        SuggestFunc
 	PermissionLevel  int
 	Redirect         *Node
 	RedirectModifier RedirectModifier
@@ -125,6 +135,12 @@ func (n *Node) SetSuggestion(suggestType SuggestionType) *Node {
 		panic("commander: only argument nodes can have suggestions")
 	}
 	n.Suggestion = suggestType
+	return n
+}
+
+func (n *Node) ServerSuggestion(fn SuggestFunc) *Node {
+	n.SetSuggestion(SuggestAskServer)
+	n.SuggestFn = fn
 	return n
 }
 

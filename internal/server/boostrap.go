@@ -9,7 +9,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
-	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
 )
 
 func (s *Server) registerTickerSteps() {
@@ -57,10 +56,6 @@ func (s *Server) registerCommands() {
 
 			return &CommandResult{Success: 1, Result: len(players)}, nil
 		}),
-
-		Literal("test").Connect(Argument("value", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-			return &CommandResult{Success: 1, Result: 0}, nil
-		})),
 	)
 }
 
