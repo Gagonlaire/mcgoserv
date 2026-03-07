@@ -1,4 +1,4 @@
-package commander
+package parsers
 
 import (
 	"io"
@@ -8,6 +8,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
 type BooleanType struct{}
@@ -81,10 +82,10 @@ var String = StringType{
 
 func (b BooleanType) ID() int { return 0 } // brigadier:bool
 
-func (b BooleanType) Parse(r *CommandReader) (any, error) {
+func (b BooleanType) Parse(r *commander.CommandReader) (any, error) {
 	// to match brigadier's behavior with primitive types
-	if !r.CanRead() || !IsAllowedInUnquotedString(r.Peek()) {
-		return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingBoolExpected), r.Input(), r.Cursor())
+	if !r.CanRead() || !commander.IsAllowedInUnquotedString(r.Peek()) {
+		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingBoolExpected), r.Input(), r.Cursor())
 	}
 
 	start := r.Cursor()
@@ -96,7 +97,7 @@ func (b BooleanType) Parse(r *CommandReader) (any, error) {
 		return false, nil
 	default:
 		r.SetCursor(start)
-		return nil, NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingBoolInvalid, tc.Text(raw)),
 			r.Input(), start,
 		)
@@ -119,10 +120,10 @@ func (f FloatType) Max(max float32) FloatType {
 
 func (f FloatType) ID() int { return 1 } // brigadier:float
 
-func (f FloatType) Parse(r *CommandReader) (any, error) {
+func (f FloatType) Parse(r *commander.CommandReader) (any, error) {
 	// to match brigadier's behavior with primitive types
-	if !r.CanRead() || !IsAllowedInNumericUnquotedString(r.Peek()) {
-		return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingFloatExpected), r.Input(), r.Cursor())
+	if !r.CanRead() || !commander.IsAllowedInNumericUnquotedString(r.Peek()) {
+		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingFloatExpected), r.Input(), r.Cursor())
 	}
 
 	start := r.Cursor()
@@ -130,7 +131,7 @@ func (f FloatType) Parse(r *CommandReader) (any, error) {
 	val, err := strconv.ParseFloat(raw, 32)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingFloatInvalid, tc.Text(raw)),
 			r.Input(), start,
 		)
@@ -138,7 +139,7 @@ func (f FloatType) Parse(r *CommandReader) (any, error) {
 	v := float32(val)
 	if f.flags&FlagMin != 0 && v < f.min {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentFloatLow,
 				tc.Text(strconv.FormatFloat(float64(f.min), 'f', -1, 32)),
@@ -149,7 +150,7 @@ func (f FloatType) Parse(r *CommandReader) (any, error) {
 	}
 	if f.flags&FlagMax != 0 && v > f.max {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentFloatBig,
 				tc.Text(strconv.FormatFloat(float64(f.max), 'f', -1, 32)),
@@ -188,10 +189,10 @@ func (d DoubleType) Max(max float64) DoubleType {
 
 func (d DoubleType) ID() int { return 2 } // brigadier:double
 
-func (d DoubleType) Parse(r *CommandReader) (any, error) {
+func (d DoubleType) Parse(r *commander.CommandReader) (any, error) {
 	// to match brigadier's behavior with primitive types
-	if !r.CanRead() || !IsAllowedInNumericUnquotedString(r.Peek()) {
-		return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingDoubleExpected), r.Input(), r.Cursor())
+	if !r.CanRead() || !commander.IsAllowedInNumericUnquotedString(r.Peek()) {
+		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingDoubleExpected), r.Input(), r.Cursor())
 	}
 
 	start := r.Cursor()
@@ -199,14 +200,14 @@ func (d DoubleType) Parse(r *CommandReader) (any, error) {
 	val, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
 			r.Input(), start,
 		)
 	}
 	if d.flags&FlagMin != 0 && val < d.min {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentDoubleLow,
 				tc.Text(strconv.FormatFloat(d.min, 'f', -1, 64)),
@@ -217,7 +218,7 @@ func (d DoubleType) Parse(r *CommandReader) (any, error) {
 	}
 	if d.flags&FlagMax != 0 && val > d.max {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentDoubleBig,
 				tc.Text(strconv.FormatFloat(d.max, 'f', -1, 64)),
@@ -256,10 +257,10 @@ func (i IntType) Max(max int32) IntType {
 
 func (i IntType) ID() int { return 3 } // brigadier:integer
 
-func (i IntType) Parse(r *CommandReader) (any, error) {
+func (i IntType) Parse(r *commander.CommandReader) (any, error) {
 	// to match brigadier's behavior with primitive types
-	if !r.CanRead() || !IsAllowedInNumericUnquotedString(r.Peek()) {
-		return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingIntExpected), r.Input(), r.Cursor())
+	if !r.CanRead() || !commander.IsAllowedInNumericUnquotedString(r.Peek()) {
+		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingIntExpected), r.Input(), r.Cursor())
 	}
 
 	start := r.Cursor()
@@ -267,7 +268,7 @@ func (i IntType) Parse(r *CommandReader) (any, error) {
 	val, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)),
 			r.Input(), start,
 		)
@@ -275,7 +276,7 @@ func (i IntType) Parse(r *CommandReader) (any, error) {
 	v := int32(val)
 	if i.flags&FlagMin != 0 && v < i.min {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentIntegerLow,
 				tc.Text(strconv.Itoa(int(i.min))),
@@ -286,7 +287,7 @@ func (i IntType) Parse(r *CommandReader) (any, error) {
 	}
 	if i.flags&FlagMax != 0 && v > i.max {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentIntegerBig,
 				tc.Text(strconv.Itoa(int(i.max))),
@@ -325,10 +326,10 @@ func (l LongType) Max(max int64) LongType {
 
 func (l LongType) ID() int { return 4 } // brigadier:long
 
-func (l LongType) Parse(r *CommandReader) (any, error) {
+func (l LongType) Parse(r *commander.CommandReader) (any, error) {
 	// to match brigadier's behavior with primitive types
-	if !r.CanRead() || !IsAllowedInNumericUnquotedString(r.Peek()) {
-		return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingLongExpected), r.Input(), r.Cursor())
+	if !r.CanRead() || !commander.IsAllowedInNumericUnquotedString(r.Peek()) {
+		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingLongExpected), r.Input(), r.Cursor())
 	}
 
 	start := r.Cursor()
@@ -336,14 +337,14 @@ func (l LongType) Parse(r *CommandReader) (any, error) {
 	val, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingLongInvalid, tc.Text(raw)),
 			r.Input(), start,
 		)
 	}
 	if l.flags&FlagMin != 0 && val < l.min {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentLongLow,
 				tc.Text(strconv.FormatInt(l.min, 10)),
@@ -354,7 +355,7 @@ func (l LongType) Parse(r *CommandReader) (any, error) {
 	}
 	if l.flags&FlagMax != 0 && val > l.max {
 		r.SetCursor(start)
-		return nil, NewParsingError(
+		return nil, commander.NewParsingError(
 			tc.Translatable(
 				mcdata.ArgumentLongBig,
 				tc.Text(strconv.FormatInt(l.max, 10)),
@@ -386,7 +387,7 @@ func (s StringType) Behavior(behavior StringBehavior) StringType {
 
 func (s StringType) ID() int { return 5 } // brigadier:string
 
-func (s StringType) Parse(r *CommandReader) (any, error) {
+func (s StringType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
 	switch s.behavior {
 	case GreedyPhrase:
@@ -399,13 +400,13 @@ func (s StringType) Parse(r *CommandReader) (any, error) {
 			return nil, err
 		}
 		if len(val) == 0 && r.Cursor() == start {
-			return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.Input(), start)
+			return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.Input(), start)
 		}
 		return val, nil
 	case SingleWord:
 		val := r.ReadUnquotedString()
 		if len(val) == 0 {
-			return nil, NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.Input(), start)
+			return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.Input(), start)
 		}
 		return val, nil
 	default:

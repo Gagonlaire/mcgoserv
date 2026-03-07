@@ -19,3 +19,6 @@ build: gen
 clean:
 	@rm -f $(BINARY_NAME) server-*.jar
 	@rm -rf versions logs libraries internal/mcdata
+
+field-alignment:
+	@fieldalignment ./...

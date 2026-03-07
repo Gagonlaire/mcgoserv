@@ -2,6 +2,9 @@ package commander
 
 import (
 	"fmt"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/google/uuid"
 )
 
 func GetArgument[T any](args ParsedArgs, name string) T {
@@ -39,4 +42,12 @@ func (p ParsedArgs) GetLong(name string) int64 {
 
 func (p ParsedArgs) GetString(name string) string {
 	return GetArgument[string](p, name)
+}
+
+func (p ParsedArgs) GetEntityTarget(name string) *mc.EntityTarget {
+	return GetArgument[*mc.EntityTarget](p, name)
+}
+
+func (p ParsedArgs) GetUUID(name string) uuid.UUID {
+	return GetArgument[uuid.UUID](p, name)
 }
