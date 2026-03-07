@@ -565,6 +565,41 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 	}
 }
 
+func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
+	var command mc.String
+	var timestamp, salt mc.Long
+	var signaturesCount mc.VarInt
+	var messageCount mc.VarInt
+	var acknowledged = mc.NewFixedBitSet(20)
+	var checksum mc.Byte
+
+	if err := pkt.Decode(&command, &timestamp, &salt, &signaturesCount); err != nil {
+		log.Printf("Error decoding signed chat command packet: %v", err)
+	}
+
+	type ArgumentSignature struct {
+		name      mc.String
+		signature *mc.Array[mc.Byte]
+	}
+	signatures := make([]ArgumentSignature, signaturesCount)
+	for i := 0; i < int(signaturesCount); i++ {
+		signatures[i].signature = mc.NewArray[mc.Byte](256)
+		if err := pkt.Decode(&signatures[i].name, signatures[i].signature); err != nil {
+			log.Printf("Error decoding signed chat command packet signatures: %v", err)
+		}
+	}
+	if err := pkt.Decode(&messageCount, acknowledged, &checksum); err != nil {
+		log.Printf("Error decoding signed chat command packet: %v", err)
+	}
+
+	// todo: create a parse method that stores raw arguments for signature verification
+	if c.Server.EnforceSecureChat {
+		// todo: validate signatures
+	} else {
+
+	}
+}
+
 func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 	var slot mc.Short
 

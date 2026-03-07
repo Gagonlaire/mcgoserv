@@ -19,13 +19,13 @@ const (
 type RemoteConsole struct {
 	addr           string
 	password       string
-	messageHandler func(string) string
+	messageHandler func(string, func(string))
 	listener       net.Listener
 	mu             sync.Mutex
 	connections    map[net.Conn]bool
 }
 
-func NewRemoteConsole(addr, password string, messageHandler func(string) string) *RemoteConsole {
+func NewRemoteConsole(addr, password string, messageHandler func(string, func(string))) *RemoteConsole {
 	return &RemoteConsole{
 		addr:           addr,
 		password:       password,
@@ -113,10 +113,16 @@ func (s *RemoteConsole) handleConnection(conn net.Conn) {
 			}
 		} else {
 			if pType == PacketTypeCommand {
-				response := s.messageHandler(payload)
+				responded := false
+				s.messageHandler(payload, func(response string) {
+					responded = true
+					_ = writePacket(conn, reqID, PacketTypeResponse, response)
+				})
 
-				if err := writePacket(conn, reqID, PacketTypeResponse, response); err != nil {
-					return
+				if !responded {
+					if err := writePacket(conn, reqID, PacketTypeResponse, ""); err != nil {
+						return
+					}
 				}
 			}
 		}

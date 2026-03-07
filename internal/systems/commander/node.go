@@ -1,7 +1,6 @@
 package commander
 
 import (
-	"context"
 	"fmt"
 	"io"
 )
@@ -15,7 +14,7 @@ type ArgumentParser interface {
 	WriteTo(w io.Writer) (n int64, err error)
 }
 
-type Command func(ctx context.Context, src *CommandSource, args ParsedArgs) (*CommandResult, error)
+type Command func(cc *CommandContext) (*CommandResult, error)
 
 type ParsedArgs map[string]any
 

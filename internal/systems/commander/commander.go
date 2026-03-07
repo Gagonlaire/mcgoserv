@@ -183,7 +183,12 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 			return aggregate, AsCommandError(err)
 		}
 
-		res, err := parsed.Command(ctx, src, parsed.Args)
+		cc := &CommandContext{
+			Ctx:    ctx,
+			Source: src,
+			Args:   parsed.Args,
+		}
+		res, err := parsed.Command(cc)
 		if err != nil {
 			lastErr = AsCommandError(err)
 			continue

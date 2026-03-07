@@ -117,29 +117,20 @@ func NewServer() *Server {
 			server.RemoteConsole = systems.NewRemoteConsole(
 				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
 				server.Properties.RconPassword,
-				func(s string) string {
-					// todo: maybe rework rcon to pass a channel for return values
-					var buf strings.Builder
+				func(s string, respond func(string)) {
 					src := &commander.CommandSource{
 						PermissionLevel: 4,
 						Server:          server,
 						SendMessage: func(msg any) {
 							if comp, ok := msg.(tc.Component); ok {
-								if buf.Len() > 0 {
-									buf.WriteByte('\n')
-								}
-								buf.WriteString(comp.String())
+								respond(comp.String())
 							}
 						},
 					}
-					_, err := server.Commander.ExecuteInput(server.ctx, src, s)
-					if err != nil {
-						if buf.Len() > 0 {
-							buf.WriteByte('\n')
-						}
-						buf.WriteString(commander.AsCommandError(err).ToComponent().String())
+
+					if _, err := server.Commander.ExecuteInput(server.ctx, src, s); err != nil {
+						respond(commander.AsCommandError(err).ToComponent().String())
 					}
-					return buf.String()
 				},
 			)
 		}

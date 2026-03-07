@@ -22,6 +22,18 @@ func (s *CommandSource) Clone() *CommandSource {
 	return &c
 }
 
+type CommandContext struct {
+	Ctx    context.Context
+	Source *CommandSource
+	Args   ParsedArgs
+}
+
+func (cc *CommandContext) SendMessage(msg any) {
+	if cc.Source.SendMessage != nil {
+		cc.Source.SendMessage(msg)
+	}
+}
+
 type CommandResult struct {
 	Success int
 	Result  int
