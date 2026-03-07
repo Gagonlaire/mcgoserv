@@ -81,6 +81,13 @@ type (
 	// Notes:
 	//  - UTF-8 string prefixed with its size in bytes as a VarInt. Maximum length of n characters, which varies by context; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Type:String.
 	String string
+	// Identifier Encodes:
+	//  - A namespaced identifier; https://minecraft.wiki/w/Java_Edition_protocol/Packets#Identifier.
+	// Size:
+	//  - ≥ 1 and ≤ (32767×3) + 3
+	// Notes:
+	//  - Encoded as a String with max length of 32767.
+	Identifier string
 	// VarInt (n) Encodes:
 	//  - An integer between -2147483648 and 2147483647.
 	// Size:

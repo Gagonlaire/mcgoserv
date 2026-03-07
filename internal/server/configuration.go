@@ -41,7 +41,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	}
 	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	c.State = mc.StatePlay
-	dimensionsName := []mc.String{"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
+	dimensionsName := []mc.Identifier{"overworld", "the_nether", "the_end"}
 
 	_ = pkt.ResetWith(
 		packet.PlayClientboundLogin,
@@ -56,7 +56,7 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 		mc.Boolean(false),
 		// todo: get the correct dimension type and name from player
 		mc.VarInt(0),
-		mc.String("minecraft:overworld"),
+		mc.Identifier("overworld"),
 		// todo: hash world seed
 		mc.Long(1),
 		mc.UnsignedByte(c.Player.GameMode),
@@ -143,7 +143,6 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 	c.Player.Movement.LastChunkZ = cz
 
 	// todo: following packets must be sent in response of the Player loaded packet
-
 	// todo: send player inventory, rework inventory system
 
 	velocity := mc.LpVec3{
