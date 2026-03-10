@@ -74,6 +74,7 @@ func registerCommon(s *server.Server) {
 			)
 
 			cc.SendMessage(tc.Container(
+				tc.Text("\n"),
 				header,
 				tc.Text("\n"),
 				link,
@@ -90,6 +91,7 @@ func registerCommon(s *server.Server) {
 					tc.Text("stable: ").SetColor(tc.ColorGold),
 					stableComponent(),
 				),
+				tc.Text("\n"),
 			))
 
 			return &CommandResult{Success: 1, Result: 0}, nil

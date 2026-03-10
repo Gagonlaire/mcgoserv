@@ -101,9 +101,9 @@ func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
 
 	// todo: should also send gamemode
 	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
-	pkt1, _ := packet.BuildPlayerInfoUpdatePacket(actions, me)
+	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
 	c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
-	pkt1, _ = packet.BuildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
+	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
 	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 
 	_ = pkt.ResetWith(

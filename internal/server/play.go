@@ -8,47 +8,17 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
-	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/google/uuid"
 )
-
-const (
-	fixedPointMultiplier = 4096.0
-	maxDelta             = 32767
-	minDelta             = -32768
-)
-
-func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32) {
-	// todo: correct usage of tp id and flags, also add velocity
-	pkt, _ := packet.NewPacket(
-		packet.PlayClientboundPlayerPosition,
-		mc.Double(x), mc.Double(y), mc.Double(z),
-		mc.Float(yaw), mc.Float(pitch),
-		mc.Byte(0),
-		mc.VarInt(0),
-	)
-	c.Send(pkt)
-}
-
-func (c *Connection) HandleConfirmTeleportation(pkt *packet.Packet) {
-	var teleportId mc.VarInt
-
-	if err := pkt.Decode(&teleportId); err != nil {
-		return
-	}
-}
 
 func (c *Connection) HandleKeepAlive(pkt *packet.Packet) {
 	var keepAliveId mc.Long
@@ -64,185 +34,7 @@ func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
 	// Used for some specific logic
 }
 
-func (c *Connection) HandleMovePlayerPos(pkt *packet.Packet) {
-	var x, y, z mc.Double
-	var flags mc.Byte
-
-	if err := pkt.Decode(&x, &y, &z, &flags); err != nil {
-		log.Printf("Error decoding move player pos packet: %v", err)
-		return
-	}
-	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	if c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags)) {
-		c.syncMovement(oldX, oldY, oldZ, true, false)
-	}
-}
-
-func (c *Connection) HandleMovePlayerPosRot(pkt *packet.Packet) {
-	var x, y, z mc.Double
-	var yaw, pitch mc.Float
-	var flags mc.Byte
-
-	if err := pkt.Decode(&x, &y, &z, &yaw, &pitch, &flags); err != nil {
-		log.Printf("Error decoding move player pos rot packet: %v", err)
-		return
-	}
-
-	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	posValid := c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags))
-	rotValid := c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags))
-
-	if posValid || rotValid {
-		c.syncMovement(oldX, oldY, oldZ, posValid, rotValid)
-	}
-}
-
-func (c *Connection) HandleMovePlayerRot(pkt *packet.Packet) {
-	var yaw, pitch mc.Float
-	var flags mc.Byte
-
-	if err := pkt.Decode(&yaw, &pitch, &flags); err != nil {
-		log.Printf("Error decoding move player rot: %v", err)
-		return
-	}
-
-	if c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags)) {
-		c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], false, true)
-	}
-}
-
-func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
-	// todo: implement logic for vehicule, sleeping and flying.
-	// todo: ignore movement packets if there is a teleportation pending
-
-	if math.IsNaN(x) || math.IsNaN(y) || math.IsNaN(z) ||
-		math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(z, 0) {
-		// todo: disconnect for invalid movement
-		return false
-	}
-
-	x = math.Max(-30000000, math.Min(30000000, x))
-	z = math.Max(-30000000, math.Min(30000000, z))
-	y = math.Max(-20000000, math.Min(20000000, y))
-
-	dx := x - c.Player.Movement.LastTickX
-	dy := y - c.Player.Movement.LastTickY
-	dz := z - c.Player.Movement.LastTickZ
-	distSq := dx*dx + dy*dy + dz*dz
-
-	velocitySq := 0.0
-
-	c.Player.Movement.PacketCount++
-	multiplier := c.Player.Movement.PacketCount
-	if c.Player.Movement.PacketCount > 5 {
-		multiplier = 1
-	}
-
-	maxDistSq := 100.0 * float64(multiplier)
-	if distSq-velocitySq > maxDistSq {
-		log.Printf("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
-		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1])
-		return false
-	}
-
-	c.Player.Pos[0] = x
-	c.Player.Pos[1] = y
-	c.Player.Pos[2] = z
-	c.Player.OnGround = flags&0x01 != 0
-	c.Player.PushingAgainstWall = flags&0x02 != 0
-	c.Server.World.UpdateEntityChunk(c.Player.EntityID, c.Player.Movement.LastTickX, c.Player.Movement.LastTickZ, x, z)
-	c.updateChunkView(false)
-
-	return true
-}
-
-func (c *Connection) updateChunkView(force bool) {
-	// todo: check chunk batch start/stop
-	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
-
-	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ && !force {
-		return
-	}
-
-	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
-	loadRadius := int(c.Player.Information.ViewDistance) + 1
-	keepChunks := make(map[mc.ChunkPos]bool, (loadRadius*2+1)*(loadRadius*2+1))
-	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
-		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
-			keepChunks[mc.ChunkPos{X: x, Z: z}] = true
-		}
-	}
-
-	centerPkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
-	c.Send(centerPkt)
-	selfID := c.Player.EntityID
-
-	for pos := range c.Player.Movement.VisibleChunks {
-		if keepChunks[pos] {
-			continue
-		}
-		chunk := dim.GetChunk(pos.X, pos.Z)
-		if count := len(chunk.Entities); count > 0 {
-			removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(count))
-			for entityID := range chunk.Entities {
-				_ = removePkt.Encode(mc.VarInt(entityID))
-			}
-			c.Send(removePkt)
-		}
-		delete(chunk.Watchers, selfID)
-		delete(c.Player.Movement.VisibleChunks, pos)
-		forgetPkt, _ := packet.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
-		c.Send(forgetPkt)
-	}
-	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
-		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
-			pos := mc.ChunkPos{X: x, Z: z}
-			if _, known := c.Player.Movement.VisibleChunks[pos]; known {
-				continue
-			}
-			chunk := dim.GetChunk(x, z)
-			chunkPkt, _ := packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
-			c.Send(chunkPkt)
-			for entityID := range chunk.Entities {
-				if entityID == selfID {
-					continue
-				}
-				c.sendSpawnEntity(c.Server.World.EntitiesByID[entityID])
-			}
-			chunk.Watchers[selfID] = struct{}{}
-			c.Player.Movement.VisibleChunks[pos] = struct{}{}
-		}
-	}
-
-	oldChunk := dim.GetChunk(c.Player.Movement.LastChunkX, c.Player.Movement.LastChunkZ)
-	newChunk := dim.GetChunk(cx, cz)
-	selfEntity := &c.Player.LivingEntity.BaseEntity
-	removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
-
-	for watcherID := range oldChunk.Watchers {
-		if watcherID == selfID {
-			continue
-		}
-		if _, stillSees := newChunk.Watchers[watcherID]; stillSees {
-			continue
-		}
-		c.Server.ConnectionsByEID[watcherID].Send(removePkt)
-	}
-	for watcherID := range newChunk.Watchers {
-		if watcherID == selfID {
-			continue
-		}
-		if _, alreadySaw := oldChunk.Watchers[watcherID]; alreadySaw {
-			continue
-		}
-		c.Server.ConnectionsByEID[watcherID].sendSpawnEntity(selfEntity)
-	}
-
-	c.Player.Movement.LastChunkX = cx
-	c.Player.Movement.LastChunkZ = cz
-}
-
-func (c *Connection) sendSpawnEntity(entity *world.Entity) {
+func (c *Connection) SendSpawnEntity(entity *world.Entity) {
 	entityUUID := mc.UUID(entity.UUID)
 	yaw := mc.Angle(entity.Rot[0] / 360.0 * 256.0)
 	pitch := mc.Angle(entity.Rot[1] / 360.0 * 256.0)
@@ -264,72 +56,6 @@ func (c *Connection) sendSpawnEntity(entity *world.Entity) {
 	c.Send(pkt)
 }
 
-func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
-	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
-		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
-		// todo: change to a disconnect method with a reason
-		c.close()
-		return false
-	}
-
-	c.Player.Rot[0] = yaw
-	c.Player.Rot[1] = pitch
-	c.Player.OnGround = flags&0x01 != 0
-	c.Player.PushingAgainstWall = flags&0x02 != 0
-
-	return true
-}
-
-func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChanged bool) {
-	deltaX := int64(c.Player.Pos[0]*fixedPointMultiplier - oldX*fixedPointMultiplier)
-	deltaY := int64(c.Player.Pos[1]*fixedPointMultiplier - oldY*fixedPointMultiplier)
-	deltaZ := int64(c.Player.Pos[2]*fixedPointMultiplier - oldZ*fixedPointMultiplier)
-	needsTeleport := deltaX > maxDelta || deltaX < minDelta ||
-		deltaY > maxDelta || deltaY < minDelta ||
-		deltaZ > maxDelta || deltaZ < minDelta
-
-	if needsTeleport {
-		c.broadcastTeleport()
-		return
-	}
-
-	yaw := mc.Angle(c.Player.Rot[0] / 360.0 * 256.0)
-	pitch := mc.Angle(c.Player.Rot[1] / 360.0 * 256.0)
-	var pkt *packet.Packet
-
-	switch {
-	case posChanged && rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPosRot,
-			mc.VarInt(c.Player.EntityID),
-			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
-			yaw, pitch,
-			mc.Boolean(c.Player.OnGround),
-		)
-	case posChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPos,
-			mc.VarInt(c.Player.EntityID),
-			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
-			mc.Boolean(c.Player.OnGround),
-		)
-	case rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityRot,
-			mc.VarInt(c.Player.EntityID),
-			yaw, pitch,
-			mc.Boolean(c.Player.OnGround),
-		)
-	}
-
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
-
-	if rotChanged {
-		pktHead, _ := packet.NewPacket(packet.PlayClientboundRotateHead,
-			mc.VarInt(c.Player.EntityID),
-			yaw,
-		)
-		c.Server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
-	}
-}
-
 func (c *Connection) SendKeepAlive() {
 	var packetId int
 
@@ -344,51 +70,6 @@ func (c *Connection) SendKeepAlive() {
 	c.LastKeepAliveID = c.Server.World.Time
 	pkt, _ := packet.NewPacket(packetId, mc.Long(c.Server.World.Time))
 	c.Send(pkt)
-}
-
-func (c *Connection) broadcastTeleport() {
-	pkt, _ := packet.NewPacket(packet.PlayClientboundTeleportEntity,
-		mc.VarInt(c.Player.EntityID),
-		mc.Double(c.Player.Pos[0]), mc.Double(c.Player.Pos[1]), mc.Double(c.Player.Pos[2]),
-		mc.Double(0), mc.Double(0), mc.Double(0),
-		mc.Float(c.Player.Rot[0]*256/360), mc.Float(c.Player.Rot[1]*256/360),
-		mc.Boolean(c.Player.OnGround),
-	)
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
-}
-
-func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
-	var eID mc.VarInt
-	var actionID mc.VarInt
-	var jumpBoost mc.VarInt
-
-	if err := pkt.Decode(&eID, &actionID, &jumpBoost); err != nil {
-		log.Printf("Error decoding player command packet: %v", err)
-	}
-
-	// todo: jumping seems to stop sprinting animation particles
-	switch mc.PlayerCommand(actionID) {
-	case mc.ActionStartSprinting:
-		pkt2, _ := packet.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0x08),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
-	case mc.ActionStopSprinting:
-		pkt2, _ := packet.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
-	}
 }
 
 func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
@@ -433,21 +114,38 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.Packet) {
 	c.Player.Loaded = true
 }
 
-func (c *Connection) HandleMovePlayerStatusOnly(pkt *packet.Packet) {
-	var newFlags mc.Byte
+func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
+	var eID mc.VarInt
+	var actionID mc.VarInt
+	var jumpBoost mc.VarInt
 
-	if err := pkt.Decode(&newFlags); err != nil {
-		log.Printf("Error decoding move player status only packet: %v", err)
-		return
+	if err := pkt.Decode(&eID, &actionID, &jumpBoost); err != nil {
+		log.Printf("Error decoding player command packet: %v", err)
 	}
-	c.Player.OnGround = newFlags&0x01 != 0
-	c.syncMovement(
-		c.Player.Pos[0],
-		c.Player.Pos[1],
-		c.Player.Pos[2],
-		false,
-		true,
-	)
+
+	// todo: jumping seems to stop sprinting animation particles
+	switch mc.PlayerCommand(actionID) {
+	case mc.ActionStartSprinting:
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			mc.VarInt(c.Player.EntityID),
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0x08),
+			mc.UnsignedByte(0xff),
+		)
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	case mc.ActionStopSprinting:
+		pkt2, _ := packet.NewPacket(
+			packet.PlayClientboundSetEntityData,
+			mc.VarInt(c.Player.EntityID),
+			mc.UnsignedByte(0),
+			mc.VarInt(0),
+			mc.Byte(0),
+			mc.UnsignedByte(0xff),
+		)
+		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+	}
 }
 
 func (c *Connection) HandleSwingArm(pkt *packet.Packet) {
@@ -530,100 +228,6 @@ func (c *Connection) AnimateEntity(animationID int) {
 		mc.UnsignedByte(animationID),
 	)
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
-}
-
-func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
-	var command mc.String
-
-	if err := pkt.Decode(&command); err != nil {
-		log.Printf("Error decoding chat command packet: %v", err)
-		return
-	}
-
-	src := &commander.CommandSource{
-		PermissionLevel: c.Player.PermissionLevel,
-		Server:          c.Server,
-		Entity:          c.Player,
-		Position:        c.Player.Pos,
-		Rotation:        c.Player.Rot,
-		SendMessage: func(msg any) {
-			if comp, ok := msg.(tc.Component); ok {
-				pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
-				c.Send(pkt)
-			}
-		},
-	}
-
-	// todo: commands should maybe ran in a separate routine
-	_, err := c.Server.Commander.ExecuteInput(
-		c.ctx,
-		src,
-		string(command),
-	)
-
-	if err != nil {
-		src.SendMessage(commander.AsCommandError(err).ToComponent())
-	}
-}
-
-func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
-	var command mc.String
-	var timestamp, salt mc.Long
-	var signaturesCount mc.VarInt
-	var messageCount mc.VarInt
-	var acknowledged = mc.NewFixedBitSet(20)
-	var checksum mc.Byte
-
-	if err := pkt.Decode(&command, &timestamp, &salt, &signaturesCount); err != nil {
-		log.Printf("Error decoding signed chat command packet: %v", err)
-	}
-
-	type ArgumentSignature struct {
-		name      mc.String
-		signature *mc.Array[mc.Byte]
-	}
-	signatures := make([]ArgumentSignature, signaturesCount)
-	for i := 0; i < int(signaturesCount); i++ {
-		signatures[i].signature = mc.NewArray[mc.Byte](256)
-		if err := pkt.Decode(&signatures[i].name, signatures[i].signature); err != nil {
-			log.Printf("Error decoding signed chat command packet signatures: %v", err)
-		}
-	}
-	if err := pkt.Decode(&messageCount, acknowledged, &checksum); err != nil {
-		log.Printf("Error decoding signed chat command packet: %v", err)
-	}
-
-	// todo: create a parse method that stores raw arguments for signature verification
-	if c.Server.EnforceSecureChat {
-		// todo: validate signatures
-	} else {
-
-	}
-
-	src := &commander.CommandSource{
-		PermissionLevel: c.Player.PermissionLevel,
-		Server:          c.Server,
-		Entity:          c.Player,
-		Position:        c.Player.Pos,
-		Rotation:        c.Player.Rot,
-		SendMessage: func(msg any) {
-			if comp, ok := msg.(tc.Component); ok {
-				pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
-				c.Send(pkt)
-			}
-		},
-	}
-
-	// todo: commands should maybe ran in a separate routine
-	_, err := c.Server.Commander.ExecuteInput(
-		c.ctx,
-		src,
-		string(command),
-	)
-
-	if err != nil {
-		src.SendMessage(commander.AsCommandError(err).ToComponent())
-	}
 }
 
 func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
@@ -730,64 +334,6 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 	c.Send(pkt)
 }
 
-func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
-	if !c.Server.Properties.OnlineMode {
-		c.Player.ChatSession.Signed = false
-		return
-	}
-
-	var sessionId mc.UUID
-	var expiresAt mc.Long
-	var publicKey, keySignature mc.PrefixedArray[mc.Byte]
-
-	if err := pkt.Decode(&sessionId, &expiresAt, &publicKey, &keySignature); err != nil {
-		c.Disconnect(tc.Translatable(mcdata.DisconnectPacketError))
-		return
-	}
-
-	if time.Now().UnixMilli() > int64(expiresAt) {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectExpiredPublicKey))
-		return
-	}
-
-	publicKeyBytes := mc.MapToSlice(&publicKey, func(b mc.Byte) byte { return byte(b) })
-	signatureBytes := mc.MapToSlice(&keySignature, func(b mc.Byte) byte { return byte(b) })
-
-	if err := VerifyChatSessionKey(
-		c.Server.Keys.CertificateKeys,
-		c.Player.UUID,
-		int64(expiresAt),
-		publicKeyBytes,
-		signatureBytes,
-	); err != nil {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
-		return
-	}
-
-	parsedKey, err := x509.ParsePKIXPublicKey(publicKeyBytes)
-	if err != nil {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
-		return
-	}
-
-	rsaKey, ok := parsedKey.(*rsa.PublicKey)
-	if !ok {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
-		return
-	}
-
-	c.Player.ChatSession.ID = uuid.UUID(sessionId)
-	c.Player.ChatSession.ExpiresAt = int64(expiresAt)
-	c.Player.ChatSession.PublicKey = rsaKey
-	c.Player.ChatSession.KeySignature = signatureBytes
-	c.Player.ChatSession.Index = -1
-	c.Player.ChatSession.Signed = true
-
-	player := []*entities.Player{c.Player}
-	pkt, _ = packet.BuildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
-	c.Server.Broadcaster.Broadcast(pkt)
-}
-
 func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
 	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
 	payload = append(payload, playerUUID[:]...)
@@ -803,53 +349,54 @@ func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, exp
 	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }
 
-func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
-	var TransactionID mc.VarInt
-	var Text mc.String
+func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.Packet, error) {
+	pkt, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
 
-	if err := pkt.Decode(&TransactionID, &Text); err != nil {
-		log.Printf("Error decoding command suggestion packet: %v", err)
-		return
-	}
+	_ = pkt.Encode(&actions)
+	playerCount := mc.VarInt(len(players))
+	_ = pkt.Encode(&playerCount)
+	for _, player := range players {
+		UUID := mc.UUID(player.UUID)
+		_ = pkt.Encode(&UUID)
 
-	raw := string(Text)
-	input := strings.TrimPrefix(raw, "/")
-	src := &commander.CommandSource{
-		PermissionLevel: c.Player.PermissionLevel,
-		Server:          c.Server,
-		Entity:          c.Player,
-		Position:        c.Player.Pos,
-		Rotation:        c.Player.Rot,
-	}
+		for bit := 0; bit < 8; bit++ {
+			currentAction := mc.PlayerAction(1 << bit)
 
-	ctx := c.Server.Commander.ParseForSuggestion(src, input)
-	if ctx == nil || ctx.Node.SuggestFn == nil {
-		resp, _ := packet.NewPacket(
-			packet.PlayClientboundCommandSuggestions,
-			TransactionID,
-			mc.VarInt(0),
-			mc.VarInt(0),
-			mc.VarInt(0),
-		)
-		c.Send(resp)
-		return
-	}
+			if actions&currentAction != 0 {
+				switch currentAction {
+				case mc.ActionAddPlayer:
+					_ = pkt.Encode(mc.String(player.Name), mc.VarInt(len(player.ProfileProperties)))
+					for _, prop := range player.ProfileProperties {
+						_ = pkt.Encode(prop)
+					}
+				case mc.ActionInitializeChat:
+					_ = pkt.Encode(mc.Boolean(player.ChatSession.Signed))
+					if player.ChatSession.Signed {
+						sessionID := mc.UUID(player.ChatSession.ID)
 
-	// +1 to account for the leading '/' that was trimmed for parsing
-	startIndex := ctx.Start + 1
-	entries := ctx.Node.SuggestFn(src, input[ctx.Start:ctx.Start+ctx.Length])
-	resp, _ := packet.NewPacket(
-		packet.PlayClientboundCommandSuggestions,
-		TransactionID,
-		mc.VarInt(startIndex),
-		mc.VarInt(ctx.Length),
-		mc.VarInt(len(entries)),
-	)
-	for _, entry := range entries {
-		_ = resp.Encode(mc.String(entry.Text), mc.Boolean(entry.Tooltip != nil))
-		if entry.Tooltip != nil {
-			_ = resp.Encode(entry.Tooltip)
+						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)
+						if err != nil {
+							pubKeyBytes = []byte{}
+						}
+						pArrayPublicKey := mc.NewPrefixedArrayFromSlice(pubKeyBytes, func(b byte) mc.Byte {
+							return mc.Byte(b)
+						})
+						pArraySignature := mc.NewPrefixedArrayFromSlice(player.ChatSession.KeySignature, func(b byte) mc.Byte {
+							return mc.Byte(b)
+						})
+						_ = pkt.Encode(
+							&sessionID,
+							mc.Long(player.ChatSession.ExpiresAt),
+							pArrayPublicKey,
+							pArraySignature,
+						)
+					}
+				case mc.ActionUpdateListed:
+					_ = pkt.Encode(player.Information.AllowServerListings)
+				}
+			}
 		}
 	}
-	c.Send(resp)
+
+	return pkt, nil
 }

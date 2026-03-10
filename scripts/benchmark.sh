@@ -1,7 +1,8 @@
 #!/bin/bash
 
 BENCH_DIR=".benchmark"
-BENCH_CMD=(go test -run='^$' -bench=. -count=6 ./...)
+TARGET=${1:-./...}
+BENCH_CMD=(go test -run='^$' -bench=. -count=10 "$TARGET")
 
 # Ensure the benchmark directory exists
 mkdir -p $BENCH_DIR

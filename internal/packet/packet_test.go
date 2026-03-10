@@ -7,21 +7,35 @@ import (
 	"testing"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/google/uuid"
 )
 
+func ptr[T any](v T) *T { return &v }
+
 var (
-	field1           = mc.String("Hello, World!")
-	field2           = mc.VarInt(100)
-	field3           = mc.Long(200)
-	field4           = mc.String("Another string field")
-	field5           = mc.UnsignedShort(10)
-	testPacketID     = mc.VarInt(0x03)
-	testPacketFields = []mc.Field{
-		&field1,
-		&field2,
-		&field3,
-		&field4,
-		&field5,
+	testPacketID    = mc.VarInt(0x03)
+	benchPrimitives = []mc.Field{
+		ptr(mc.Boolean(true)),
+		ptr(mc.Byte(127)),
+		ptr(mc.Short(32000)),
+		ptr(mc.Int(2147483647)),
+		ptr(mc.Long(9223372036854775807)),
+		ptr(mc.Float(3.14159)),
+		ptr(mc.Double(2.718281828459)),
+		ptr(mc.Position{X: 100, Y: 64, Z: -100}), // Packed 64-bit int
+	}
+	benchVariable = []mc.Field{
+		ptr(mc.VarInt(0)),          // 1 byte fast path
+		ptr(mc.VarInt(2147483647)), // 5 byte slow path
+		ptr(mc.String("Short")),
+		ptr(mc.String("A significantly longer string that forces the buffer to allocate and copy more memory during encoding and decoding.")),
+	}
+	longSlice    = []mc.Long{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	benchComplex = []mc.Field{
+		ptr(mc.UUID(uuid.New())),
+		ptr(mc.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
+		ptr(mc.Slot{Count: 64, ItemID: 1}),
+		&mc.PrefixedArray[mc.Long]{Slice: &longSlice}, // Triggers reflect block in fields.go
 	}
 )
 
@@ -34,6 +48,7 @@ func fieldsToWriters(fields []mc.Field) []io.WriterTo {
 }
 
 func TestPacket_RoundTrip(t *testing.T) {
+	allFields := append(append(benchPrimitives, benchVariable...), benchComplex...)
 	tests := []struct {
 		name      string
 		threshold int
@@ -50,7 +65,7 @@ func TestPacket_RoundTrip(t *testing.T) {
 			defer clientConn.Close()
 
 			go func() {
-				p, err := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
+				p, err := NewPacket(int(testPacketID), fieldsToWriters(allFields)...)
 				if err != nil {
 					t.Errorf("NewPacket error: %v", err)
 					return
@@ -73,7 +88,7 @@ func TestPacket_RoundTrip(t *testing.T) {
 			}
 
 			expectedBuf := new(bytes.Buffer)
-			for _, f := range testPacketFields {
+			for _, f := range allFields {
 				_, _ = f.WriteTo(expectedBuf)
 			}
 
@@ -88,55 +103,70 @@ func TestPacket_RoundTrip(t *testing.T) {
 	}
 }
 
-func BenchmarkPacket_Receive(b *testing.B) {
+func BenchmarkEncode(b *testing.B) {
 	benchmarks := []struct {
-		name      string
-		threshold int
+		name   string
+		fields []mc.Field
 	}{
-		{"Uncompressed", -1},
-		{"Compressed", 10},
+		{"Primitives", benchPrimitives},
+		{"Variable", benchVariable},
+		{"Complex", benchComplex},
 	}
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			serverConn, clientConn := net.Pipe()
-			defer serverConn.Close()
-			defer clientConn.Close()
-
-			genIn, genOut := net.Pipe()
-			wireDataBuf := new(bytes.Buffer)
-			go func() {
-				p, _ := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
-				defer p.Free()
-				_ = p.Send(genIn, bm.threshold)
-				_ = genIn.Close()
-			}()
-			_, _ = io.Copy(wireDataBuf, genOut)
-			wireBytes := wireDataBuf.Bytes()
-
-			go func() {
-				for {
-					if _, err := clientConn.Write(wireBytes); err != nil {
-						return
-					}
-				}
-			}()
+			p := &Packet{
+				ID:     testPacketID,
+				Buffer: new(bytes.Buffer),
+			}
+			writers := fieldsToWriters(bm.fields)
 
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				p, err := Receive(serverConn, bm.threshold)
-				if err != nil {
-					b.Fatalf("Receive failed: %v", err)
-				}
-				p.Free()
+				p.Buffer.Reset()
+				_ = p.Encode(writers...)
 			}
 		})
 	}
 }
 
-func BenchmarkPacket_Send(b *testing.B) {
+func BenchmarkDecode(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		fields []mc.Field
+	}{
+		{"Primitives", benchPrimitives},
+		{"Variable", benchVariable},
+		{"Complex", benchComplex},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			p := &Packet{
+				ID:     testPacketID,
+				Buffer: new(bytes.Buffer),
+			}
+
+			_ = p.Encode(fieldsToWriters(bm.fields)...)
+			encodedBytes := append([]byte(nil), p.Buffer.Bytes()...)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				p.Buffer = bytes.NewBuffer(encodedBytes)
+				_ = p.Decode(bm.fields...)
+			}
+		})
+	}
+}
+
+func BenchmarkNetwork_Send(b *testing.B) {
+	p, _ := NewPacket(int(testPacketID), fieldsToWriters(benchPrimitives)...)
+	defer p.Free()
+
 	benchmarks := []struct {
 		name      string
 		threshold int
@@ -155,9 +185,6 @@ func BenchmarkPacket_Send(b *testing.B) {
 				_, _ = io.Copy(io.Discard, clientConn)
 			}()
 
-			p, _ := NewPacket(int(testPacketID), fieldsToWriters(testPacketFields)...)
-			defer p.Free()
-
 			b.ReportAllocs()
 			b.ResetTimer()
 
@@ -167,39 +194,5 @@ func BenchmarkPacket_Send(b *testing.B) {
 				}
 			}
 		})
-	}
-}
-
-func BenchmarkPacket_Decode(b *testing.B) {
-	pkt := &Packet{
-		ID:     testPacketID,
-		Buffer: new(bytes.Buffer),
-	}
-	_ = pkt.Encode(fieldsToWriters(testPacketFields)...)
-	encodedBytes := pkt.Buffer.Bytes()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		pkt.Buffer = bytes.NewBuffer(encodedBytes)
-		_ = pkt.Decode(testPacketFields...)
-	}
-}
-
-func BenchmarkPacket_Encode(b *testing.B) {
-	p := &Packet{
-		ID:     testPacketID,
-		Buffer: new(bytes.Buffer),
-	}
-
-	writers := fieldsToWriters(testPacketFields)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		p.Buffer.Reset()
-		_ = p.Encode(writers...)
 	}
 }
