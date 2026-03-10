@@ -41,6 +41,15 @@ const (
 	TicksPerDay    = 24000
 )
 
+var gameModeNames = [4]string{"SURVIVAL", "CREATIVE", "ADVENTURE", "SPECTATOR"}
+
+func GameModeString(mode int) string {
+	if mode >= 0 && mode < len(gameModeNames) {
+		return gameModeNames[mode]
+	}
+	return "UNKNOWN"
+}
+
 const (
 	ActionAddPlayer          PlayerAction = 1 << 0 // 1
 	ActionInitializeChat     PlayerAction = 1 << 1 // 2

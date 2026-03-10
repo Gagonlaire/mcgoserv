@@ -1,62 +1,13 @@
 package server
 
 import (
-	"strconv"
-
-	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
 func (s *Server) registerTickerSteps() {
 	s.Ticker.Register(func() { updateTime(s) })
 	s.Ticker.Register(func() { processIncomingPackets(s) })
-}
-
-func (s *Server) registerCommands() {
-	s.Commander.Register(
-		Literal("stop").Executes(func(cc *CommandContext) (*CommandResult, error) {
-			server := cc.Source.Server.(*Server)
-			logger.Component(logger.INFO, tc.Text("Stopping the server"))
-			server.Stop()
-
-			return &CommandResult{Success: 1, Result: 0}, nil
-		}),
-
-		Literal("list").Executes(func(cc *CommandContext) (*CommandResult, error) {
-			server := cc.Source.Server.(*Server)
-			players := make([]string, 0)
-			playerList := tc.Container()
-
-			server.Connections.Range(func(k, v interface{}) bool {
-				conn := k.(*Connection)
-
-				if conn.Player != nil && conn.State == mc.StatePlay && conn.Player.Information.AllowServerListings {
-					players = append(players, conn.Player.Name)
-					playerList.AddExtra(
-						tc.PlayerName(conn.Player.Name),
-						tc.Text(", "),
-					)
-				}
-				return true
-			})
-			if len(players) > 0 {
-				playerList.Extra = playerList.Extra[:len(playerList.Extra)-1]
-			}
-
-			cc.SendMessage(tc.Translatable(
-				mcdata.CommandsListPlayers,
-				tc.Text(strconv.Itoa(len(players))),
-				tc.Text(strconv.Itoa(server.Properties.MaxPlayers)),
-				playerList,
-			))
-
-			return &CommandResult{Success: 1, Result: len(players)}, nil
-		}),
-	)
 }
 
 func (s *Server) registerPacketHandlers() {

@@ -9,10 +9,12 @@ package main
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/server"
+	"github.com/Gagonlaire/mcgoserv/internal/server/commands"
 )
 
 func main() {
 	serv := server.NewServer()
 
+	commands.RegisterAll(serv)
 	serv.Start()
 }

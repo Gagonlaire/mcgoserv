@@ -16,12 +16,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -62,39 +64,31 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	props, err := systems.LoadProperties("server.properties")
-	if err != nil {
-		logger.Fatal("Failed to load server.properties: %v", err)
+	s := &Server{
+		PlayerRegistry: player_registry.NewPlayerRegistry(
+			"whitelist.json",
+			"banned-players.json",
+			"banned-ips.json",
+			"ops.json",
+			"usercache.json",
+		),
+		ConnectionsByEID: make(map[mc.EntityID]*Connection),
 	}
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", s))
+	s.ctx = ctx
+	s.cancel = cancel
 
-	server := &Server{
-		Properties:        props,
-		Addr:              fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort),
-		EnforceSecureChat: props.EnforceSecureProfile && props.OnlineMode,
-		ConnectionsByEID:  make(map[mc.EntityID]*Connection),
-	}
-	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", server))
-	server.ctx = ctx
-	server.cancel = cancel
+	s.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
+	s.registerPacketHandlers()
 
-	server.generateKeys()
+	s.Commander = commander.NewDispatcher()
 
-	server.loadServerIcon()
+	s.Ticker = systems.NewTicker(mc.TicksPerSecond)
+	s.registerTickerSteps()
 
-	server.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
-	server.registerPacketHandlers()
-
-	server.Commander = commander.NewDispatcher()
-	server.registerCommands()
-
-	server.Ticker = systems.NewTicker(mc.TicksPerSecond)
-	server.registerTickerSteps()
-
-	server.PlayerRegistry = player_registry.NewPlayerRegistry("whitelist.json", "banned-players.json", "banned-ips.json", "ops.json", "usercache.json")
-
-	server.Broadcaster = systems.NewBroadcaster(
+	s.Broadcaster = systems.NewBroadcaster(
 		func(yield func(*Connection) bool) {
-			server.Connections.Range(func(key, value any) bool {
+			s.Connections.Range(func(key, value any) bool {
 				conn := key.(*Connection)
 				if conn.State == mc.StatePlay {
 					return yield(conn)
@@ -108,41 +102,41 @@ func NewServer() *Server {
 		},
 	)
 
-	server.World = world.NewWorld()
-
-	if server.Properties.EnableRcon {
-		if server.Properties.RconPassword == "" {
-			logger.Warn("No rcon password set in server.properties, rcon disabled!")
-		} else {
-			server.RemoteConsole = systems.NewRemoteConsole(
-				fmt.Sprintf("0.0.0.0:%d", server.Properties.RconPort),
-				server.Properties.RconPassword,
-				func(s string, respond func(string)) {
-					src := &commander.CommandSource{
-						PermissionLevel: 4,
-						Server:          server,
-						SendMessage: func(msg any) {
-							if comp, ok := msg.(tc.Component); ok {
-								respond(comp.String())
-							}
-						},
-					}
-
-					if _, err := server.Commander.ExecuteInput(server.ctx, src, s); err != nil {
-						respond(commander.AsCommandError(err).ToComponent().String())
-					}
-				},
-			)
-		}
-	}
-
-	return server
+	return s
 }
 
 func (s *Server) Start() {
+	startTime := time.Now()
+
+	logger.Info("Starting Minecraft server version %s", mcdata.GameVersion)
+
+	logger.Info("Loading properties")
+	props, err := systems.LoadProperties("server.properties")
+	if err != nil {
+		logger.Fatal("Failed to load server.properties: %v", err)
+	}
+	s.Properties = props
+	s.Addr = fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort)
+	s.EnforceSecureChat = props.EnforceSecureProfile && props.OnlineMode
+	logger.Info("Default game type: %s", mc.GameModeString(props.GameMode))
+
+	logger.Info("Generating keypair")
+	s.generateKeys()
+
+	s.loadServerIcon()
+
+	logger.Info("Starting Minecraft server on %s", s.Addr)
 	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		panic(err)
+		logger.Fatal("Failed to bind to %s: %v", s.Addr, err)
+	}
+
+	logger.Info("Preparing level \"%s\"", props.LevelName)
+	s.World = world.NewWorld()
+	logger.Info("Done (%s)! For help, type \"help\"", time.Since(startTime).Round(time.Millisecond))
+
+	if props.EnableRcon {
+		s.startRCON()
 	}
 
 	go func() {
@@ -158,14 +152,6 @@ func (s *Server) Start() {
 	go s.handleStdin()
 	go s.Ticker.Start()
 
-	if s.RemoteConsole != nil {
-		if err := s.RemoteConsole.Start(); err != nil {
-			logger.Error("Failed to start RCON server: %v", err)
-		} else {
-			defer s.RemoteConsole.Stop()
-		}
-	}
-
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -180,9 +166,44 @@ func (s *Server) Start() {
 	}
 }
 
+func (s *Server) startRCON() {
+	if s.Properties.RconPassword == "" {
+		logger.Warn("No rcon password set in server.properties, rcon disabled!")
+		return
+	}
+
+	s.RemoteConsole = systems.NewRemoteConsole(
+		fmt.Sprintf("0.0.0.0:%d", s.Properties.RconPort),
+		s.Properties.RconPassword,
+		func(input string, respond func(string)) {
+			src := &commander.CommandSource{
+				PermissionLevel: 4,
+				Server:          s,
+				SendMessage: func(msg any) {
+					if comp, ok := msg.(tc.Component); ok {
+						respond(comp.String())
+					}
+				},
+			}
+
+			if _, err := s.Commander.ExecuteInput(s.ctx, src, input); err != nil {
+				respond(commander.AsCommandError(err).ToComponent().String())
+			}
+		},
+	)
+
+	logger.Info("Starting remote control listener")
+	if err := s.RemoteConsole.Start(); err != nil {
+		logger.Error("Failed to start RCON server: %v", err)
+	}
+}
+
 func (s *Server) Stop() {
 	logger.Info("Stopping server")
 	s.Ticker.Stop()
+	if s.RemoteConsole != nil {
+		s.RemoteConsole.Stop()
+	}
 	s.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
 		conn.Disconnect(tc.Text("Server closed"))
