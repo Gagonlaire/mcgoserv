@@ -46,7 +46,7 @@ type Server struct {
 	World             *world.World
 	Ticker            *systems.Ticker
 	Broadcaster       *systems.Broadcaster[*Connection, *packet.Packet]
-	Router            *systems.DoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]
+	Router            *Router
 	Properties        *systems.Properties
 	PlayerRegistry    *player_registry.PlayerRegistry
 	RemoteConsole     *systems.RemoteConsole
@@ -78,7 +78,7 @@ func NewServer() *Server {
 	s.ctx = ctx
 	s.cancel = cancel
 
-	s.Router = systems.NewDoubleRouter[mc.State, mc.VarInt, *Connection, *packet.Packet]()
+	s.Router = NewRouter(int(mc.StateMax))
 	s.registerPacketHandlers()
 
 	s.Commander = commander.NewDispatcher()
@@ -320,10 +320,10 @@ func processIncomingPackets(s *Server) {
 						pkt.Free()
 						continue
 					}*/
-					if !s.Router.Handle(c.State, pkt.ID, c, pkt) {
-						logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
-					}
-					pkt.Free()
+
+					//---- NEW ROUTER ----//
+					pkt.Process(c, pkt.Data)
+					pkt.Raw.Free()
 				}
 			default:
 				goto keepAlive

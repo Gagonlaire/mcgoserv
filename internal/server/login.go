@@ -17,21 +17,12 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/google/uuid"
 )
 
-func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
-	var (
-		Name       mc.String
-		PlayerUUID mc.UUID
-	)
-
-	if err := pkt.Decode(&Name, &PlayerUUID); err != nil {
-		logger.Error("Error decoding loginStart packet: %v", err)
-		return
-	}
-
-	c.ContextData["loginName"] = string(Name)
+func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
+	c.ContextData["loginName"] = string(data.Name)
 	if !c.Server.Properties.OnlineMode {
 		offlineUUID := internal.GetOfflineUUID(c.ContextData["loginName"].(string))
 		c.ContextData["loginUUID"] = offlineUUID
@@ -49,7 +40,7 @@ func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 
 	pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.Keys.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
 	pArrayVerifyToken := mc.NewPrefixedArrayFromSlice(verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
-	_ = pkt.ResetWith(
+	pkt, _ := packet.NewPacket(
 		packet.LoginClientboundHello,
 		mc.String(c.Server.ID),
 		pArrayPublicKey,
@@ -59,21 +50,15 @@ func (c *Connection) HandleLoginStart(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
-func (c *Connection) HandleLoginEncryptionResponse(pkt *packet.Packet) {
+func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse) {
 	// As of 1.21, the vanilla server never uses encryption in offline mode.
 	if !c.Server.Properties.OnlineMode {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 	}
 
-	var encryptedSecret, encryptedVerifyToken mc.PrefixedArray[mc.Byte]
-
-	if err := pkt.Decode(&encryptedSecret, &encryptedVerifyToken); err != nil {
-		logger.Error("Error decoding encryption response packet: %v", err)
-		return
-	}
-
-	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&encryptedSecret, func(b mc.Byte) byte { return byte(b) }))
-	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&encryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
+	// todo: deprecated functions
+	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&data.EncryptedSecret, func(b mc.Byte) byte { return byte(b) }))
+	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&data.EncryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		// todo: replace with correct message
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
@@ -208,10 +193,10 @@ func (c *Connection) CanAccessServer() bool {
 	return true
 }
 
-func (c *Connection) HandleLoginAck(pkt *packet.Packet) {
+func (c *Connection) HandleLoginAcknowledged(_ *packet.Packet) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.Server.World.Time
 
-	_ = pkt.ResetWith(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
+	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }

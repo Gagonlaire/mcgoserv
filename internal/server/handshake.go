@@ -1,26 +1,12 @@
 package server
 
 import (
-	"log"
-
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 )
 
-func (c *Connection) HandleHandshake(pkt *packet.Packet) {
-	var (
-		ProtocolVersion mc.VarInt
-		ServerAddress   mc.String
-		ServerPort      mc.UnsignedShort
-		Intent          mc.VarInt
-	)
-
-	if err := pkt.Decode(&ProtocolVersion, &ServerAddress, &ServerPort, &Intent); err != nil {
-		log.Println("Error decoding handshake packet:", err)
-		return
-	}
-
-	if Intent == mc.VarInt(mc.StateStatus) || Intent == mc.VarInt(mc.StateLogin) {
-		c.State = mc.State(Intent)
+func (c *Connection) HandleHandshake(data *decoders.Handshake) {
+	if data.Intent == mc.VarInt(mc.StateStatus) || data.Intent == mc.VarInt(mc.StateLogin) {
+		c.State = mc.State(data.Intent)
 	}
 }

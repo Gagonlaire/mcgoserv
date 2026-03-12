@@ -244,7 +244,7 @@ type DataPackIdentifier struct {
 }
 
 //go:generate-field-impl
-type PlayerInformation struct {
+type ClientInformation struct {
 	Locale              String
 	ViewDistance        Byte
 	ChatMode            VarInt

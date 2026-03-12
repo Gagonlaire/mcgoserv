@@ -12,26 +12,19 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
-func (c *Connection) HandleClientKnownPacks(pkt *packet.Packet) {
-	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier]
-
-	if err := pkt.Decode(&knownPacks); err != nil {
-		logger.Error("Error decoding clientKnownPacks packet: %v", err)
-		return
-	}
-
+func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc.DataPackIdentifier]) {
 	for _, registryData := range mc.RegistriesData {
-		_ = pkt.ResetWith(packet.ConfigurationClientboundRegistryData, &registryData)
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		pkt, _ := packet.NewPacket(packet.ConfigurationClientboundRegistryData, &registryData)
+		c.Send(pkt)
 	}
 
 	// todo: send the update tags (optional but cause enchantment registry to not work)
-	_ = pkt.ResetWith(packet.ConfigurationClientboundFinishConfiguration)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundFinishConfiguration)
+	c.Send(pkt)
 }
 
-// HandleFinishConfigurationAck todo: we should move packet sent to methods
-func (c *Connection) HandleFinishConfigurationAck(pkt *packet.Packet) {
+// HandleAcknowledgeFinishConfiguration todo: we should move packet sent to methods
+func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
 	// todo: move this to login -> avoid slot stealing and potential conflict
 	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
@@ -235,15 +228,9 @@ func (s *Server) sendCommands(c *Connection) {
 	pkt.Free()
 }
 
-func (c *Connection) HandleClientInformation(pkt *packet.Packet) {
+func (c *Connection) HandleClientInformation(information *mc.ClientInformation) {
 	// NOTE: this packet can be sent in configuration and play state
-	var information mc.PlayerInformation
 	shouldUpdateChunks := false
-
-	if err := pkt.Decode(&information); err != nil {
-		logger.Error("Error decoding clientInformation packet: %v", err)
-		return
-	}
 
 	switch {
 	case information.ViewDistance < 2:
@@ -257,7 +244,7 @@ func (c *Connection) HandleClientInformation(pkt *packet.Packet) {
 			shouldUpdateChunks = true
 		}
 	}
-	c.Player.Information = information
+	c.Player.Information = *information
 
 	if shouldUpdateChunks {
 		pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))

@@ -13,6 +13,17 @@ const (
 	StateLogin
 	StateConfiguration
 	StatePlay
+	StateMax
+)
+
+const (
+	StatusStartDigging   = 0
+	StatusCancelDigging  = 1
+	StatusFinishDigging  = 2
+	StatusDropItemStack  = 3
+	StatusDropItem       = 4
+	StatusReleaseUseItem = 5
+	StatusSwapHand       = 6
 )
 
 const (

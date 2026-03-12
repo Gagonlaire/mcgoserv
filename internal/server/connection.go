@@ -17,12 +17,18 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
+type QueuedPacket struct {
+	Process func(*Connection, any)
+	Data    any
+	Raw     *packet.Packet
+}
+
 type Connection struct {
 	Server               *Server
 	Player               *entities.Player
 	Conn                 net.Conn
 	State                mc.State
-	InboundPackets       chan *packet.Packet
+	InboundPackets       chan QueuedPacket
 	OutboundPackets      chan *packet.Packet
 	LastKeepAlive        int64
 	LastKeepAliveID      int64
@@ -39,7 +45,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		Server:               s,
 		Conn:                 conn,
 		State:                mc.StateHandshake,
-		InboundPackets:       make(chan *packet.Packet, ChannelSize),
+		InboundPackets:       make(chan QueuedPacket, ChannelSize),
 		OutboundPackets:      make(chan *packet.Packet, ChannelSize),
 		CompressionThreshold: -1,
 		LastKeepAlive:        s.World.Time,
@@ -68,13 +74,33 @@ func (c *Connection) ReadLoop() {
 			}
 			return
 		}
-		// If not in play state, we don't use the ticking system to avoid artificial delay of packets
-		if c.State == mc.StatePlay {
-			c.InboundPackets <- pkt
-		} else {
-			if !c.Server.Router.Handle(c.State, pkt.ID, c, pkt) {
-				logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+
+		if handler, ok := c.Server.Router.Get(c.State, int(pkt.ID)); ok {
+			var data any
+
+			if handler.Decode != nil {
+				data, err = handler.Decode(pkt)
+				if err != nil {
+					// todo: disconnect with clean reason
+					continue
+				}
+				// todo: check if data remains, if so, disconnect with clean reason
+			} else {
+				data = pkt
 			}
+
+			if handler.Ticked {
+				c.InboundPackets <- QueuedPacket{
+					Process: handler.Process,
+					Data:    data,
+					Raw:     pkt,
+				}
+			} else {
+				handler.Process(c, data)
+				pkt.Free()
+			}
+		} else {
+			logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
 			pkt.Free()
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
@@ -16,22 +15,14 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
 
-func (c *Connection) HandleKeepAlive(pkt *packet.Packet) {
-	var keepAliveId mc.Long
-
-	if err := pkt.Decode(&keepAliveId); err != nil {
-		return
-	}
-	c.LastKeepAliveID = int64(keepAliveId)
+func (c *Connection) HandleKeepAlive(id *mc.Long) {
+	c.LastKeepAliveID = int64(*id)
 	c.LastKeepAlive = c.Server.World.Time
-}
-
-func (c *Connection) HandleClientTickEnd(_ *packet.Packet) {
-	// Used for some specific logic
 }
 
 func (c *Connection) SendSpawnEntity(entity *world.Entity) {
@@ -72,16 +63,10 @@ func (c *Connection) SendKeepAlive() {
 	c.Send(pkt)
 }
 
-func (c *Connection) HandlePlayerInput(pkt *packet.Packet) {
-	var input mc.UnsignedByte
+func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
+	c.Player.Input = byte(*flags)
 
-	if err := pkt.Decode(&input); err != nil {
-		log.Printf("Error decoding player input packet: %v", err)
-	}
-
-	c.Player.Input = byte(input)
-
-	if input&mc.InputSneak != 0 {
+	if (*flags)&mc.InputSneak != 0 {
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
@@ -114,17 +99,9 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.Packet) {
 	c.Player.Loaded = true
 }
 
-func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
-	var eID mc.VarInt
-	var actionID mc.VarInt
-	var jumpBoost mc.VarInt
-
-	if err := pkt.Decode(&eID, &actionID, &jumpBoost); err != nil {
-		log.Printf("Error decoding player command packet: %v", err)
-	}
-
+func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	// todo: jumping seems to stop sprinting animation particles
-	switch mc.PlayerCommand(actionID) {
+	switch mc.PlayerCommand(data.ActionID) {
 	case mc.ActionStartSprinting:
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
@@ -148,15 +125,10 @@ func (c *Connection) HandlePlayerCommand(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) HandleSwingArm(pkt *packet.Packet) {
-	var arm mc.VarInt
-
-	if err := pkt.Decode(&arm); err != nil {
-		log.Printf("Error decoding swing arm packet: %v", err)
-	}
+func (c *Connection) HandleSwingArm(hand *mc.VarInt) {
 	var animationID int
 
-	if arm == 0 {
+	if *hand == 0 {
 		animationID = 0
 	} else {
 		animationID = 3
@@ -165,59 +137,39 @@ func (c *Connection) HandleSwingArm(pkt *packet.Packet) {
 	c.AnimateEntity(animationID)
 }
 
-func (c *Connection) HandlePlayerAction(pkt *packet.Packet) {
-	const (
-		StatusStartDigging   = 0
-		StatusCancelDigging  = 1
-		StatusFinishDigging  = 2
-		StatusDropItemStack  = 3
-		StatusDropItem       = 4
-		StatusReleaseUseItem = 5
-		StatusSwapHand       = 6
-	)
-
-	var status mc.VarInt
-	var location mc.Position
-	var face mc.Byte
-	var sequence mc.VarInt
-
-	if err := pkt.Decode(&status, &location, &face, &sequence); err != nil {
-		log.Printf("Error decoding player action packet: %v", err)
-		return
-	}
-
-	switch status {
-	case StatusStartDigging:
+func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
+	switch data.Status {
+	case mc.StatusStartDigging:
 		if c.Player.GameMode == 1 {
 			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
-			blockState, _ := dim.GetBlock(int(location.X), int(location.Y), int(location.Z))
+			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
 
-			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), 0)
+			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), 0)
 			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundBlockUpdate,
-				location,
+				data.Location,
 				mc.VarInt(0),
 			)
 			eventPkt, _ := packet.NewPacket(
 				packet.PlayClientboundLevelEvent,
 				mc.Int(2001),
-				location,
+				data.Location,
 				mc.Int(blockState),
 				mc.Boolean(false),
 			)
 			c.Server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
 			c.Server.Broadcaster.Broadcast(pkt)
 		}
-	case StatusFinishDigging:
+	case mc.StatusFinishDigging:
 		pkt, _ := packet.NewPacket(
 			packet.PlayClientboundBlockUpdate,
-			location,
+			data.Location,
 			mc.VarInt(0),
 		)
 		c.Server.Broadcaster.Broadcast(pkt)
 	}
 
-	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
+	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
 }
 
@@ -230,19 +182,12 @@ func (c *Connection) AnimateEntity(animationID int) {
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 }
 
-func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
-	var slot mc.Short
-
-	if err := pkt.Decode(&slot); err != nil {
-		log.Printf("Error decoding set carried item packet: %v", err)
-		return
-	}
-
-	c.Player.SelectedItemSlot = int32(slot)
-	inventoryId := mc.HotbarToInternal(int(slot))
+func (c *Connection) HandleSetHeldItem(slot *mc.Short) {
+	c.Player.SelectedItemSlot = int32(*slot)
+	inventoryId := mc.HotbarToInternal(int(*slot))
 	item := c.Player.Inventory.Get(inventoryId)
 	if item.Count > 0 {
-		pkt, _ = packet.NewPacket(
+		pkt, _ := packet.NewPacket(
 			packet.PlayClientboundSetEquipment,
 			mc.VarInt(c.Player.EntityID),
 			// todo: check item slot to know if main or off hand
@@ -253,42 +198,24 @@ func (c *Connection) HandleSetCarriedItem(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) HandleSetCreativeModeSlot(pkt *packet.Packet) {
-	var slot mc.Short
-	var slotData mc.Slot
-
-	if err := pkt.Decode(&slot, &slotData); err != nil {
-		log.Printf("Error decoding set creative mode slot packet: %v", err)
-		return
-	}
-
-	_ = c.Player.Inventory.Set(int(slot), slotData)
+func (c *Connection) HandleSetCreativeModeSlot(data *decoders.SetCreativeModeSlot) {
+	_ = c.Player.Inventory.Set(int(data.Slot), data.ClickedItem)
 }
 
-func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
-	var hand, face, sequence mc.VarInt
-	var location mc.Position
-	var cursorX, cursorY, cursorZ mc.Float
-	var insideBlock, worldBorderHit mc.Boolean
-
-	if err := pkt.Decode(&hand, &location, &face, &cursorX, &cursorY, &cursorZ, &insideBlock, &worldBorderHit, &sequence); err != nil {
-		log.Printf("Error decoding use item on packet: %v", err)
-		return
-	}
-
-	switch face {
+func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
+	switch data.Face {
 	case 0: // Bottom
-		location.Y--
+		data.Location.Y--
 	case 1: // Top
-		location.Y++
+		data.Location.Y++
 	case 2: // North
-		location.Z--
+		data.Location.Z--
 	case 3: // South
-		location.Z++
+		data.Location.Z++
 	case 4: // West
-		location.X--
+		data.Location.X--
 	case 5: // East
-		location.X++
+		data.Location.X++
 	}
 
 	var slotId = mc.HotbarToInternal(int(c.Player.SelectedItemSlot))
@@ -300,11 +227,11 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 		if ok && item.BlockID != -1 {
 			block, _ := mcdata.GetBlock(item.BlockID)
 			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
-			_ = dim.SetBlock(int(location.X), int(location.Y), int(location.Z), int32(block.DefaultStateID))
+			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
 
-			pkt, _ = packet.NewPacket(
+			pkt, _ := packet.NewPacket(
 				packet.PlayClientboundBlockUpdate,
-				location,
+				data.Location,
 				mc.VarInt(block.DefaultStateID),
 			)
 			c.Server.Broadcaster.Broadcast(pkt)
@@ -318,9 +245,9 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 					packet.PlayClientboundSound,
 					mc.VarInt(soundId+1),
 					mc.VarInt(4),
-					mc.Int(location.X*8),
-					mc.Int(location.Y*8),
-					mc.Int(location.Z*8),
+					mc.Int(data.Location.X*8),
+					mc.Int(data.Location.Y*8),
+					mc.Int(data.Location.Z*8),
 					mc.Float(1),
 					mc.Float(pitch),
 					mc.Long(0),
@@ -330,7 +257,7 @@ func (c *Connection) HandleUseItemOn(pkt *packet.Packet) {
 		}
 	}
 
-	pkt, _ = packet.NewPacket(packet.PlayClientboundBlockChangedAck, sequence)
+	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
 }
 

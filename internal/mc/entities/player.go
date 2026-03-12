@@ -24,7 +24,7 @@ type Player struct {
 	ChatSession       mc.ChatSession
 	Inventory         *mc.PlayerInventory
 	Movement          MovementTracker
-	Information       mc.PlayerInformation
+	Information       mc.ClientInformation
 	ProfileProperties []mc.ProfileProperty
 	PermissionLevel   int
 	Name              string

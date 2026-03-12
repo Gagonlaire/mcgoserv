@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 
-	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -60,15 +59,8 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }
 
-func (c *Connection) HandlePing(pkt *packet.Packet) {
-	var timestamp mc.Long
-
-	if err := pkt.Decode(&timestamp); err != nil {
-		logger.Error("Error decoding ping packet: %v", err)
-		return
-	}
-
-	_ = pkt.ResetWith(packet.StatusClientboundPongResponse, &timestamp)
+func (c *Connection) HandlePing(timestamp *mc.Long) {
+	pkt, _ := packet.NewPacket(packet.StatusClientboundPongResponse, timestamp)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	c.close()
 }

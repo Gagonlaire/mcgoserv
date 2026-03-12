@@ -7,6 +7,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
@@ -16,69 +17,35 @@ const (
 	minDelta             = -32768
 )
 
-func (c *Connection) HandleConfirmTeleportation(pkt *packet.Packet) {
-	var teleportId mc.VarInt
-
-	if err := pkt.Decode(&teleportId); err != nil {
-		return
-	}
+func (c *Connection) HandleConfirmTeleportation(teleportID *mc.VarInt) {
+	// todo: unlock movement packets
 }
 
-func (c *Connection) HandleMovePlayerPos(pkt *packet.Packet) {
-	var x, y, z mc.Double
-	var flags mc.Byte
-
-	if err := pkt.Decode(&x, &y, &z, &flags); err != nil {
-		log.Printf("Error decoding move player pos packet: %v", err)
-		return
-	}
+func (c *Connection) HandleSetPlayerPosition(data *decoders.SetPlayerPosition) {
 	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	if c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags)) {
+	if c.handlePositionUpdate(float64(data.X), float64(data.Y), float64(data.Z), int8(data.Flags)) {
 		c.syncMovement(oldX, oldY, oldZ, true, false)
 	}
 }
 
-func (c *Connection) HandleMovePlayerPosRot(pkt *packet.Packet) {
-	var x, y, z mc.Double
-	var yaw, pitch mc.Float
-	var flags mc.Byte
-
-	if err := pkt.Decode(&x, &y, &z, &yaw, &pitch, &flags); err != nil {
-		log.Printf("Error decoding move player pos rot packet: %v", err)
-		return
-	}
-
+func (c *Connection) HandleSetPlayerPositionAndRotation(data *decoders.SetPlayerPositionAndRotation) {
 	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
-	posValid := c.handlePositionUpdate(float64(x), float64(y), float64(z), int8(flags))
-	rotValid := c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags))
+	posValid := c.handlePositionUpdate(float64(data.X), float64(data.Y), float64(data.Z), int8(data.Flags))
+	rotValid := c.handleRotationUpdate(float32(data.Yaw), float32(data.Pitch), int8(data.Flags))
 
 	if posValid || rotValid {
 		c.syncMovement(oldX, oldY, oldZ, posValid, rotValid)
 	}
 }
 
-func (c *Connection) HandleMovePlayerRot(pkt *packet.Packet) {
-	var yaw, pitch mc.Float
-	var flags mc.Byte
-
-	if err := pkt.Decode(&yaw, &pitch, &flags); err != nil {
-		log.Printf("Error decoding move player rot: %v", err)
-		return
-	}
-
-	if c.handleRotationUpdate(float32(yaw), float32(pitch), int8(flags)) {
+func (c *Connection) HandleSetPlayerRotation(data *decoders.SetPlayerRotation) {
+	if c.handleRotationUpdate(float32(data.Yaw), float32(data.Pitch), int8(data.Flags)) {
 		c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], false, true)
 	}
 }
 
-func (c *Connection) HandleMovePlayerStatusOnly(pkt *packet.Packet) {
-	var newFlags mc.Byte
-
-	if err := pkt.Decode(&newFlags); err != nil {
-		log.Printf("Error decoding move player status only packet: %v", err)
-		return
-	}
-	c.Player.OnGround = newFlags&0x01 != 0
+func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
+	c.Player.OnGround = (*flags)&0x01 != 0
 	c.syncMovement(
 		c.Player.Pos[0],
 		c.Player.Pos[1],

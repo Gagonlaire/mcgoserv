@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/google/uuid"
 )
@@ -33,16 +33,8 @@ var verifyBufPool = sync.Pool{
 	},
 }
 
-func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
-	var TransactionID mc.VarInt
-	var Text mc.String
-
-	if err := pkt.Decode(&TransactionID, &Text); err != nil {
-		log.Printf("Error decoding command suggestion packet: %v", err)
-		return
-	}
-
-	raw := string(Text)
+func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRequest) {
+	raw := string(data.Text)
 	input := strings.TrimPrefix(raw, "/")
 	src := c.playerSource()
 	ctx := c.Server.Commander.ParseForSuggestion(src, input)
@@ -50,7 +42,7 @@ func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
 	if ctx == nil || ctx.Node.SuggestFn == nil {
 		resp, _ := packet.NewPacket(
 			packet.PlayClientboundCommandSuggestions,
-			TransactionID,
+			data.TransactionID,
 			mc.VarInt(0),
 			mc.VarInt(0),
 			mc.VarInt(0),
@@ -63,7 +55,7 @@ func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
 	entries := ctx.Node.SuggestFn(src, input[ctx.Start:ctx.Start+ctx.Length])
 	resp, _ := packet.NewPacket(
 		packet.PlayClientboundCommandSuggestions,
-		TransactionID,
+		data.TransactionID,
 		mc.VarInt(startIndex),
 		mc.VarInt(ctx.Length),
 		mc.VarInt(len(entries)),
@@ -77,33 +69,24 @@ func (c *Connection) HandleCommandSuggestion(pkt *packet.Packet) {
 	c.Send(resp)
 }
 
-func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
+func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 	if !c.Server.Properties.OnlineMode {
 		c.Player.ChatSession.Signed = false
 		return
 	}
 
-	var sessionId mc.UUID
-	var expiresAt mc.Long
-	var publicKey, keySignature mc.PrefixedArray[mc.Byte]
-
-	if err := pkt.Decode(&sessionId, &expiresAt, &publicKey, &keySignature); err != nil {
-		c.Disconnect(tc.Translatable(mcdata.DisconnectPacketError))
-		return
-	}
-
-	if time.Now().UnixMilli() > int64(expiresAt) {
+	if time.Now().UnixMilli() > int64(data.ExpiresAt) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectExpiredPublicKey))
 		return
 	}
 
-	publicKeyBytes := mc.MapToSlice(&publicKey, func(b mc.Byte) byte { return byte(b) })
-	signatureBytes := mc.MapToSlice(&keySignature, func(b mc.Byte) byte { return byte(b) })
+	publicKeyBytes := mc.MapToSlice(&data.PublicKey, func(b mc.Byte) byte { return byte(b) })
+	signatureBytes := mc.MapToSlice(&data.KeySignature, func(b mc.Byte) byte { return byte(b) })
 
 	if err := VerifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
 		c.Player.UUID,
-		int64(expiresAt),
+		int64(data.ExpiresAt),
 		publicKeyBytes,
 		signatureBytes,
 	); err != nil {
@@ -123,32 +106,25 @@ func (c *Connection) HandleChatSessionUpdate(pkt *packet.Packet) {
 		return
 	}
 
-	c.Player.ChatSession.ID = uuid.UUID(sessionId)
-	c.Player.ChatSession.ExpiresAt = int64(expiresAt)
+	c.Player.ChatSession.ID = uuid.UUID(data.SessionId)
+	c.Player.ChatSession.ExpiresAt = int64(data.ExpiresAt)
 	c.Player.ChatSession.PublicKey = rsaKey
 	c.Player.ChatSession.KeySignature = signatureBytes
 	c.Player.ChatSession.Index = -1
 	c.Player.ChatSession.Signed = true
 
 	player := []*entities.Player{c.Player}
-	pkt, _ = buildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
+	pkt, _ := buildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
 	c.Server.Broadcaster.Broadcast(pkt)
 }
 
-func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
-	var command mc.String
-
-	if err := pkt.Decode(&command); err != nil {
-		log.Printf("Error decoding chat command packet: %v", err)
-		return
-	}
-
+func (c *Connection) HandleChatCommand(command *mc.String) {
 	// todo: commands should maybe ran in a separate routine
 	src := c.playerSource()
 	_, err := c.Server.Commander.ExecuteInput(
 		c.ctx,
 		src,
-		string(command),
+		string(*command),
 	)
 
 	if err != nil {
@@ -156,33 +132,7 @@ func (c *Connection) HandleChatCommand(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
-	var command mc.String
-	var timestamp, salt mc.Long
-	var signaturesCount mc.VarInt
-	var messageCount mc.VarInt
-	var acknowledged = mc.NewFixedBitSet(20)
-	var checksum mc.Byte
-
-	if err := pkt.Decode(&command, &timestamp, &salt, &signaturesCount); err != nil {
-		log.Printf("Error decoding signed chat command packet: %v", err)
-	}
-
-	type ArgumentSignature struct {
-		name      mc.String
-		signature *mc.Array[mc.Byte]
-	}
-	signatures := make([]ArgumentSignature, signaturesCount)
-	for i := 0; i < int(signaturesCount); i++ {
-		signatures[i].signature = mc.NewArray[mc.Byte](256)
-		if err := pkt.Decode(&signatures[i].name, signatures[i].signature); err != nil {
-			log.Printf("Error decoding signed chat command packet signatures: %v", err)
-		}
-	}
-	if err := pkt.Decode(&messageCount, acknowledged, &checksum); err != nil {
-		log.Printf("Error decoding signed chat command packet: %v", err)
-	}
-
+func (c *Connection) HandleSignedChatCommand(data *decoders.SignedChatCommand) {
 	// todo: create a parse method that stores raw arguments for signature verification
 	if c.Server.EnforceSecureChat {
 		// todo: validate signatures
@@ -195,7 +145,7 @@ func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
 	_, err := c.Server.Commander.ExecuteInput(
 		c.ctx,
 		src,
-		string(command),
+		string(data.Command),
 	)
 
 	if err != nil {
@@ -203,21 +153,9 @@ func (c *Connection) HandleSignedChatCommand(pkt *packet.Packet) {
 	}
 }
 
-func (c *Connection) HandleChat(pkt *packet.Packet) {
-	var message mc.String
-	var timestamp, salt mc.Long
-	var signature = mc.NewPrefixedOptional(mc.NewArray[mc.Byte](256))
-	var messageCount mc.VarInt
-	var acknowledged = mc.NewFixedBitSet(20)
-	var checksum mc.Byte
-
-	if err := pkt.Decode(&message, &timestamp, &salt, signature, &messageCount, acknowledged, &checksum); err != nil {
-		c.Disconnect(tc.Translatable(mcdata.DisconnectPacketError))
-		return
-	}
-
+func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 	chatSession := &c.Player.ChatSession
-	isChatMessageSigned := chatSession.Signed && bool(signature.Has)
+	isChatMessageSigned := chatSession.Signed && bool(data.Signature.Has)
 	if c.Server.EnforceSecureChat {
 		if !isChatMessageSigned {
 			unsignedErrorPkt, _ := packet.NewPacket(
@@ -227,7 +165,7 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 			)
 			c.Send(unsignedErrorPkt)
 			return
-		} else if int32(messageCount) > chatSession.LastSeenCount {
+		} else if int32(data.MessageCount) > chatSession.LastSeenCount {
 			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBadChatIndex))
 			return
 		}
@@ -235,9 +173,9 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 
 	chatSession.LastSeenCount = 0
 	chatSession.Index++
-	lastSeenSignatures := getLastSeenSignatures(chatSession, acknowledged)
+	lastSeenSignatures := getLastSeenSignatures(chatSession, data.Acknowledged)
 	expectedChecksum := computeLastSeenChecksum(lastSeenSignatures)
-	if checksum != expectedChecksum {
+	if data.Checksum != expectedChecksum {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
 		return
 	}
@@ -245,17 +183,17 @@ func (c *Connection) HandleChat(pkt *packet.Packet) {
 	var signatureBytes []byte
 	if isChatMessageSigned {
 		signatureBytes = make([]byte, 256)
-		for i, b := range *signature.Value.Slice {
+		for i, b := range *data.Signature.Value.Slice {
 			signatureBytes[i] = byte(b)
 		}
 
-		err, ok := verifyChatMessage(chatSession, c.Player.UUID, string(message), int64(timestamp), int64(salt), chatSession.Index, lastSeenSignatures, signatureBytes)
+		err, ok := verifyChatMessage(chatSession, c.Player.UUID, string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes)
 		if !ok {
 			c.Disconnect(tc.Translatable(err))
 		}
 	}
 
-	broadcastChatMessage(c, message, timestamp, salt, signature, signatureBytes, lastSeenSignatures, isChatMessageSigned)
+	broadcastChatMessage(c, data.Message, data.Timestamp, data.Salt, data.Signature, signatureBytes, lastSeenSignatures, isChatMessageSigned)
 }
 
 func broadcastChatMessage(
