@@ -13,13 +13,10 @@ type ChunkPos struct {
 
 //go:generate-field-impl
 type Chunk struct {
-	X                   Int
-	Z                   Int
 	Entities            map[EntityID]struct{} `field:"-"`
 	Watchers            map[EntityID]struct{} `field:"-"`
-	HeightMaps          PrefixedArray[HeightMap, *HeightMap]
-	Size                VarInt
 	Data                Array[ChunkSection, *ChunkSection]
+	HeightMaps          PrefixedArray[HeightMap, *HeightMap]
 	BlockEntities       PrefixedArray[BlockEntity, *BlockEntity]
 	SkyLightMask        BitSet
 	BlockLightMask      BitSet
@@ -27,19 +24,22 @@ type Chunk struct {
 	EmptyBlockLightMask BitSet
 	SkyLightArrays      PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
 	BlockLightArrays    PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
+	Z                   Int
+	Size                VarInt
+	X                   Int
 }
 
 //go:generate-field-impl
 type HeightMap struct {
-	Type VarInt
 	Data PrefixedArray[Long, *Long]
+	Type VarInt
 }
 
 //go:generate-field-impl
 type ChunkSection struct {
-	BlockCount  Short
 	BlockStates PalettedContainer
 	Biomes      PalettedContainer
+	BlockCount  Short
 }
 
 //go:generate-field-impl

@@ -17,12 +17,12 @@ const (
 )
 
 type RemoteConsole struct {
+	listener       net.Listener
+	messageHandler func(string, func(string))
+	connections    map[net.Conn]bool
 	addr           string
 	password       string
-	messageHandler func(string, func(string))
-	listener       net.Listener
 	mu             sync.Mutex
-	connections    map[net.Conn]bool
 }
 
 func NewRemoteConsole(addr, password string, messageHandler func(string, func(string))) *RemoteConsole {

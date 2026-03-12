@@ -14,20 +14,20 @@ type PlayerSample struct {
 }
 
 type StatusResponse struct {
+	Description struct {
+		Text string `json:"text"`
+	} `json:"description"`
+	Favicon string `json:"favicon,omitempty"`
+	Players struct {
+		Sample []PlayerSample `json:"sample,omitempty"`
+		Max    int            `json:"max"`
+		Online int            `json:"online"`
+	} `json:"players"`
 	Version struct {
 		Name     string `json:"name"`
 		Protocol int    `json:"protocol"`
 	} `json:"version"`
-	Players struct {
-		Max    int            `json:"max"`
-		Online int            `json:"online"`
-		Sample []PlayerSample `json:"sample,omitempty"`
-	} `json:"players"`
-	Description struct {
-		Text string `json:"text"`
-	} `json:"description"`
-	Favicon           string `json:"favicon,omitempty"`
-	EnforceSecureChat bool   `json:"enforceSecureChat"`
+	EnforceSecureChat bool `json:"enforceSecureChat"`
 }
 
 func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {

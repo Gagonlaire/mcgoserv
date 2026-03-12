@@ -40,18 +40,17 @@ type BanEntry struct {
 }
 
 type PlayerRegistry struct {
-	Mu            sync.RWMutex
-	Whitelist     []WhitelistEntry
-	BannedPlayers []BanEntry
-	BannedIPs     []BanEntry
-	Ops           []OpEntry
-	UserCache     []UserCacheEntry
-
 	whitelistFile     string
 	bannedPlayersFile string
 	bannedIPsFile     string
 	opsFile           string
 	userCacheFile     string
+	Whitelist         []WhitelistEntry
+	BannedPlayers     []BanEntry
+	BannedIPs         []BanEntry
+	Ops               []OpEntry
+	UserCache         []UserCacheEntry
+	Mu                sync.RWMutex
 }
 
 func NewPlayerRegistry(whitelistFile, bannedPlayersFile, bannedIPsFile, opsFile, userCacheFile string) *PlayerRegistry {

@@ -128,8 +128,8 @@ type (
 	// Notes:
 	//  - A bit set with a fixed length of n bits.
 	FixedBitSet struct {
-		BitCount int
 		Data     []byte
+		BitCount int
 	}
 	// PrefixedOptional of X Encodes:
 	//  - A boolean and if present, a field of type X.
@@ -138,8 +138,8 @@ type (
 	// Notes:
 	//  - The boolean is true if the field is present.
 	PrefixedOptional[T any, PT FieldPtr[T]] struct {
-		Has   Boolean
 		Value *T
+		Has   Boolean
 	}
 	// Array of X Encodes:
 	//  - Zero or more fields of type X.
@@ -207,15 +207,15 @@ type ProfileProperty struct {
 }
 
 type Slot struct {
-	Count      int32
-	ItemID     int32
 	Components *map[int32]any
 	RemoveList *[]int32
+	Count      int32
+	ItemID     int32
 }
 
 type PreviousMessage struct {
-	MessageID int32
 	Signature []byte
+	MessageID int32
 }
 
 type PreviousMessages struct {
@@ -225,15 +225,15 @@ type PreviousMessages struct {
 }
 
 type ChatSession struct {
-	Signed           bool
-	ID               uuid.UUID
-	ExpiresAt        int64
 	PublicKey        *rsa.PublicKey
 	KeySignature     []byte
+	PreviousMessages PreviousMessages
+	ExpiresAt        int64
 	Index            int32
 	GlobalIndex      int32
 	LastSeenCount    int32
-	PreviousMessages PreviousMessages
+	ID               uuid.UUID
+	Signed           bool
 }
 
 //go:generate-field-impl
@@ -258,13 +258,12 @@ type ClientInformation struct {
 
 //go:generate-field-impl
 type RegistryDataEntry struct {
-	ID String
-	// todo: this is supposed to be an optional NTB, change later
 	Data PrefixedOptional[Byte, *Byte]
+	ID   String
 }
 
 //go:generate-field-impl
 type RegistryData struct {
+	Entries PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 	ID      String
-	Entries *PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 }

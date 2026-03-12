@@ -17,22 +17,19 @@ type Entity interface {
 }
 
 type BaseEntity struct {
-	// Data tags
-	Motion       [3]float64        `nbt:"Motion"`
-	NoGravity    bool              `nbt:"NoGravity"`
-	OnGround     bool              `nbt:"OnGround"`
-	Pos          [3]float64        `nbt:"Pos"`
-	Rot          [2]float32        `nbt:"Rot"`
-	UUID         uuid.UUID         `nbt:"UUID"`
-	TypeID       mcdata.EntityType `nbt:"id"`
-	FallDistance float32           `nbt:"FallDistance"`
-	Fire         int16             `nbt:"Fire"`
-	Air          int16             `nbt:"Air"`
+	Dimension    any
 	CustomName   string            `nbt:"CustomName,omitempty"`
-
-	// State
-	EntityID  int32
-	Dimension any // todo: maybe change to a array index or a more direct and less ambiguous access
+	Motion       [3]float64        `nbt:"Motion"`
+	Pos          [3]float64        `nbt:"Pos"`
+	TypeID       mcdata.EntityType `nbt:"id"`
+	Rot          [2]float32        `nbt:"Rot"`
+	FallDistance float32           `nbt:"FallDistance"`
+	EntityID     int32
+	Fire         int16     `nbt:"Fire"`
+	Air          int16     `nbt:"Air"`
+	UUID         uuid.UUID `nbt:"UUID"`
+	OnGround     bool      `nbt:"OnGround"`
+	NoGravity    bool      `nbt:"NoGravity"`
 }
 
 func (e *BaseEntity) ID() int32            { return e.EntityID }

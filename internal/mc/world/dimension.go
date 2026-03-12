@@ -8,18 +8,18 @@ import (
 
 type Dimension struct {
 	World  *World
-	Type   DimensionType
 	Chunks map[uint64]*mc.Chunk
+	Type   DimensionType
 }
 
 type DimensionType struct {
 	CoordinateScale float64
-	HasSkylight     bool
-	HasCeiling      bool
-	AmbientLight    float32
-	HasFixedTime    bool
 	MinY            int
 	Height          int
+	AmbientLight    float32
+	HasSkylight     bool
+	HasCeiling      bool
+	HasFixedTime    bool
 }
 
 func (d *Dimension) GetChunk(x, z int) *mc.Chunk {

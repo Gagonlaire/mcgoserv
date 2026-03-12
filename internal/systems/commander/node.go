@@ -21,23 +21,23 @@ type Command func(cc *CommandContext) (*CommandResult, error)
 type SuggestFunc func(src *CommandSource, input string) []SuggestionEntry
 
 type SuggestionEntry struct {
-	Text    string
 	Tooltip tc.Component
+	Text    string
 }
 
 type ParsedArgs map[string]any
 
 type Node struct {
-	Kind             NodeType
-	Name             string
+	Parser           ArgumentParser
 	Children         map[string]*Node
 	Run              Command
-	Parser           ArgumentParser
-	Suggestion       SuggestionType
 	SuggestFn        SuggestFunc
-	PermissionLevel  int
 	Redirect         *Node
 	RedirectModifier RedirectModifier
+	Name             string
+	Suggestion       SuggestionType
+	Kind             NodeType
+	PermissionLevel  int
 	Fork             bool
 }
 

@@ -39,9 +39,9 @@ type SingleValueContainer struct {
 
 //go:generate-field-impl
 type IndirectContainer struct {
-	maxCapacity int
-	Palette     PrefixedArray[VarInt, *VarInt]
 	DataArray   *DataArray
+	Palette     PrefixedArray[VarInt, *VarInt]
+	maxCapacity int
 }
 
 //go:generate-field-impl

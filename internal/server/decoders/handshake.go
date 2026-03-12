@@ -6,10 +6,10 @@ import (
 )
 
 type Handshake struct {
-	ProtocolVersion mc.VarInt
 	ServerAddress   mc.String
-	ServerPort      mc.UnsignedShort
+	ProtocolVersion mc.VarInt
 	Intent          mc.VarInt
+	ServerPort      mc.UnsignedShort
 }
 
 func DecodeHandshake(pkt *packet.InboundPacket) (*Handshake, error) {

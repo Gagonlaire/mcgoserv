@@ -31,8 +31,8 @@ func (l Level) AnsiString() string {
 }
 
 type Logger struct {
-	source string
 	logger *log.Logger
+	source string
 	mu     sync.Mutex
 }
 

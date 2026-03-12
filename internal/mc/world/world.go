@@ -16,18 +16,17 @@ type Entity = entities.BaseEntity
 type Player = entities.Player
 
 type World struct {
-	Rules          GameRules
-	Time           int64
-	DayTime        int64
-	Day            int64
-	NextTimeUpdate int64
-
 	Dimensions     map[DimensionID]*Dimension
 	EntitiesByID   map[EntityID]*Entity
 	EntitiesByUUID map[uuid.UUID]*Entity
 	PlayersByID    map[EntityID]*Player
 	PlayersByUUID  map[uuid.UUID]*Player
+	Time           int64
+	DayTime        int64
+	Day            int64
+	NextTimeUpdate int64
 	LastEntityID   EntityID
+	Rules          GameRules
 }
 
 type GameRules struct {

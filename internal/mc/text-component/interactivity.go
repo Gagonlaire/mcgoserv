@@ -1,9 +1,9 @@
 package text_component
 
 type Interactivity struct {
-	Insertion  string `nbt:"insertion,omitempty" json:"insertion,omitempty"`
 	ClickEvent any    `nbt:"click_event,omitempty" json:"click_event,omitempty"`
 	HoverEvent any    `nbt:"hover_event,omitempty" json:"hover_event,omitempty"`
+	Insertion  string `nbt:"insertion,omitempty" json:"insertion,omitempty"`
 }
 
 // todo: implement missing event
@@ -27,8 +27,8 @@ type ClickSuggestOrRunCommand struct {
 }
 
 type HoverEventShowText struct {
-	Event
 	Value Component `nbt:"value" json:"value"`
+	Event
 }
 
 type HoverEventShowItem struct {

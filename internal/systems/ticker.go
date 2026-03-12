@@ -6,9 +6,9 @@ import (
 )
 
 type Ticker struct {
-	handlers       []func()
 	ctx            context.Context
 	cancel         context.CancelFunc
+	handlers       []func()
 	TicksPerSecond int
 	tickDuration   time.Duration
 }

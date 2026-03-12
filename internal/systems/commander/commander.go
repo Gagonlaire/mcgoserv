@@ -17,11 +17,11 @@ type Dispatcher struct {
 type ParsedCommand struct {
 	Source  *CommandSource
 	Reader  *CommandReader
-	Nodes   []ParsedNode
 	Args    ParsedArgs
 	Command Command
-	Forks   bool
+	Nodes   []ParsedNode
 	Errors  []*CommandParsingError
+	Forks   bool
 }
 
 func NewDispatcher() *Dispatcher {

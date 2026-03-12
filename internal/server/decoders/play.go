@@ -21,23 +21,25 @@ type SetPlayerPositionAndRotation struct {
 }
 
 type CommandSuggestionsRequest struct {
-	TransactionID mc.VarInt
 	Text          mc.String
+	TransactionID mc.VarInt
 }
 
 type ChatMessage struct {
-	Message         mc.String
-	Timestamp, Salt mc.Long
-	Signature       mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]]
-	MessageCount    mc.VarInt
-	Acknowledged    *mc.FixedBitSet
-	Checksum        mc.Byte
+	Signature    mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]]
+	Acknowledged *mc.FixedBitSet
+	Message      mc.String
+	Timestamp    mc.Long
+	Salt         mc.Long
+	MessageCount mc.VarInt
+	Checksum     mc.Byte
 }
 
 type PlayerSession struct {
-	SessionId               mc.UUID
-	ExpiresAt               mc.Long
-	PublicKey, KeySignature mc.PrefixedArray[mc.Byte, *mc.Byte]
+	PublicKey    mc.PrefixedArray[mc.Byte, *mc.Byte]
+	KeySignature mc.PrefixedArray[mc.Byte, *mc.Byte]
+	ExpiresAt    mc.Long
+	SessionId    mc.UUID
 }
 
 type ArgumentSignature struct {
@@ -46,11 +48,12 @@ type ArgumentSignature struct {
 }
 
 type SignedChatCommand struct {
-	Command            mc.String
-	Timestamp, Salt    mc.Long
-	ArgumentSignatures []ArgumentSignature
-	MessageCount       mc.VarInt
 	Acknowledged       *mc.FixedBitSet
+	Command            mc.String
+	ArgumentSignatures []ArgumentSignature
+	Timestamp          mc.Long
+	Salt               mc.Long
+	MessageCount       mc.VarInt
 	Checksum           mc.Byte
 }
 
@@ -66,8 +69,8 @@ type PlayerAction struct {
 }
 
 type SetCreativeModeSlot struct {
-	Slot        mc.Short
 	ClickedItem mc.Slot
+	Slot        mc.Short
 }
 
 type UseItemOn struct {

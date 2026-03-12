@@ -5,10 +5,10 @@ import "github.com/google/uuid"
 type TargetType int
 
 type EntityTarget struct {
-	Type     TargetType
-	Name     string
-	UUID     uuid.UUID
 	Selector *Selector
+	Name     string
+	Type     TargetType
+	UUID     uuid.UUID
 }
 
 type Optional[T any] struct {
@@ -19,15 +19,13 @@ type Optional[T any] struct {
 type SelectorVariable byte
 
 type Selector struct {
-	Variable SelectorVariable
-	X, Y, Z  Optional[float64]
-	Distance Optional[NumberRange[float64]]
-	Limit    Optional[int]
 	Sort     string
-
-	// todo: implement volume, rotations
-	// todo: implement score and filters (with a type like StringFilter)
-	// todo: and everything else...
+	Distance Optional[NumberRange[float64]]
+	X        Optional[float64]
+	Y        Optional[float64]
+	Z        Optional[float64]
+	Limit    Optional[int]
+	Variable SelectorVariable
 }
 
 type NumberRange[T int | float64] struct {

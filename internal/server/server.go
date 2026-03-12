@@ -43,7 +43,7 @@ type Keys struct {
 }
 
 type Server struct {
-	World             *world.World
+	ctx               context.Context
 	Ticker            *systems.Ticker
 	Broadcaster       *systems.Broadcaster[*Connection, *packet.OutboundPacket]
 	Router            *Router
@@ -51,16 +51,16 @@ type Server struct {
 	PlayerRegistry    *player_registry.PlayerRegistry
 	RemoteConsole     *systems.RemoteConsole
 	Commander         *commander.Dispatcher
-	ID                string
-	Keys              Keys
-	Icon              string
-	EnforceSecureChat bool // only true when online mode and enforce secure profile are both true
-	Addr              string
-	Connections       sync.Map
-	ConnectionsByEID  map[mc.EntityID]*Connection // todo: try to put the conn reference in the player
-	ctx               context.Context
+	World             *world.World
 	cancel            context.CancelFunc
+	ConnectionsByEID  map[mc.EntityID]*Connection
+	Connections       sync.Map
+	ID                string
+	Addr              string
+	Icon              string
+	Keys              Keys
 	wg                sync.WaitGroup
+	EnforceSecureChat bool
 }
 
 func NewServer() *Server {

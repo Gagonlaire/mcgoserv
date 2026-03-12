@@ -45,6 +45,7 @@ var AnsiColors = map[string]string{
 }
 
 type Formatting struct {
+	ShadowColor   any    `nbt:"shadow_color,omitempty" json:"shadow_color,omitempty"`
 	Color         string `nbt:"color,omitempty" json:"color,omitempty"`
 	Font          string `nbt:"font,omitempty" json:"font,omitempty"`
 	Bold          bool   `nbt:"bold,omitempty" json:"bold,omitempty"`
@@ -52,7 +53,6 @@ type Formatting struct {
 	Underlined    bool   `nbt:"underlined,omitempty" json:"underlined,omitempty"`
 	Strikethrough bool   `nbt:"strikethrough,omitempty" json:"strikethrough,omitempty"`
 	Obfuscated    bool   `nbt:"obfuscated,omitempty" json:"obfuscated,omitempty"`
-	ShadowColor   any    `nbt:"shadow_color,omitempty" json:"shadow_color,omitempty"`
 }
 
 func (b *Base[T]) SetColor(color string) T {

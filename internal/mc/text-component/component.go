@@ -19,11 +19,11 @@ type Component interface {
 }
 
 type Base[T any] struct {
-	self  T
-	Type  string      `nbt:"type" json:"type"`
-	Extra []Component `nbt:"extra,omitempty" json:"extra,omitempty"`
+	self T
 	*Formatting
 	*Interactivity
+	Type  string      `nbt:"type" json:"type"`
+	Extra []Component `nbt:"extra,omitempty" json:"extra,omitempty"`
 }
 
 func (b *Base[T]) WriteTo(w io.Writer) (int64, error) {
@@ -52,8 +52,8 @@ func (b *Base[T]) AddExtra(children ...Component) T {
 }
 
 type TextComponent struct {
-	Base[*TextComponent]
 	Text string `nbt:"text" json:"text"`
+	Base[*TextComponent]
 }
 
 func (t *TextComponent) String() string {

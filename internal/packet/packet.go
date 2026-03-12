@@ -20,15 +20,15 @@ const (
 )
 
 type InboundPacket struct {
-	ID       mc.VarInt
 	data     []byte
 	reader   bytes.Reader
+	ID       mc.VarInt
 	refCount int32
 }
 
 type OutboundPacket struct {
-	ID       mc.VarInt
 	Buffer   *bytes.Buffer
+	ID       mc.VarInt
 	refCount int32
 }
 

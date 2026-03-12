@@ -6,11 +6,11 @@ import (
 
 type CommandSource struct {
 	Server          any
-	PermissionLevel int
 	Entity          any
-	Position        [3]float64
-	Rotation        [2]float32
 	SendMessage     func(msg any)
+	Position        [3]float64
+	PermissionLevel int
+	Rotation        [2]float32
 }
 
 func (s *CommandSource) HasPermission(level int) bool {

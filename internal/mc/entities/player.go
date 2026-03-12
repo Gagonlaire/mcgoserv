@@ -8,38 +8,35 @@ import (
 )
 
 type Player struct {
-	// Data tags
 	*LivingEntity
-	GameMode            uint8
-	PreviousGameMode    int8
-	PushingAgainstWall  bool
+	Inventory           *mc.PlayerInventory
+	Name                string
+	ProfileProperties   []mc.ProfileProperty
+	Information         mc.ClientInformation
+	Movement            MovementTracker
+	ChatSession         mc.ChatSession
+	PermissionLevel     int
 	SelectedItemSlot    int32
-	Score               int32
-	FoodExhaustionLevel float32 `nbt:"foodExhaustionLevel"`
-	FoodLevel           int32   `nbt:"foodLevel"`
-	FoodSaturationLevel float32 `nbt:"foodSaturationLevel"`
 	FoodTickTimer       int32   `nbt:"foodTickTimer"`
-
-	// State
-	ChatSession       mc.ChatSession
-	Inventory         *mc.PlayerInventory
-	Movement          MovementTracker
-	Information       mc.ClientInformation
-	ProfileProperties []mc.ProfileProperty
-	PermissionLevel   int
-	Name              string
-	Loaded            bool
-	Input             byte
+	FoodSaturationLevel float32 `nbt:"foodSaturationLevel"`
+	FoodLevel           int32   `nbt:"foodLevel"`
+	FoodExhaustionLevel float32 `nbt:"foodExhaustionLevel"`
+	Score               int32
+	PushingAgainstWall  bool
+	PreviousGameMode    int8
+	GameMode            uint8
+	Loaded              bool
+	Input               byte
 }
 
 type MovementTracker struct {
+	VisibleChunks map[mc.ChunkPos]struct{}
 	PacketCount   int
 	LastTickX     float64
 	LastTickY     float64
 	LastTickZ     float64
 	LastChunkX    int
 	LastChunkZ    int
-	VisibleChunks map[mc.ChunkPos]struct{}
 }
 
 func NewPlayer(

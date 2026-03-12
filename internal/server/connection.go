@@ -24,18 +24,18 @@ type QueuedPacket struct {
 }
 
 type Connection struct {
-	Server               *Server
-	Player               *entities.Player
 	Conn                 net.Conn
-	State                mc.State
+	ctx                  context.Context
+	ContextData          map[string]interface{}
+	Player               *entities.Player
+	Server               *Server
 	InboundPackets       chan QueuedPacket
 	OutboundPackets      chan *packet.OutboundPacket
-	LastKeepAlive        int64
-	LastKeepAliveID      int64
-	CompressionThreshold int
-	ContextData          map[string]interface{}
-	ctx                  context.Context
 	cancel               context.CancelFunc
+	State                mc.State
+	CompressionThreshold int
+	LastKeepAliveID      int64
+	LastKeepAlive        int64
 	closeOnce            sync.Once
 }
 

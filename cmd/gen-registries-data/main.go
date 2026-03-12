@@ -42,7 +42,7 @@ var RegistriesData = []RegistryData{
 {{- range . }}
 	{
 		ID: String("minecraft:{{.ID}}"),
-		Entries: &PrefixedArray[RegistryDataEntry, *RegistryDataEntry]{
+		Entries: PrefixedArray[RegistryDataEntry, *RegistryDataEntry]{
 			Slice: []RegistryDataEntry{
 {{- range .Entries }}
 				{
