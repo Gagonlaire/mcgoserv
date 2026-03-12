@@ -38,8 +38,8 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	}
 	c.ContextData["verifyToken"] = verifyToken
 
-	pArrayPublicKey := mc.NewPrefixedArrayFromSlice(c.Server.Keys.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
-	pArrayVerifyToken := mc.NewPrefixedArrayFromSlice(verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
+	pArrayPublicKey := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](c.Server.Keys.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
+	pArrayVerifyToken := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
 	pkt, _ := packet.NewPacket(
 		packet.LoginClientboundHello,
 		mc.String(c.Server.ID),
@@ -57,8 +57,8 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	}
 
 	// todo: deprecated functions
-	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&data.EncryptedSecret, func(b mc.Byte) byte { return byte(b) }))
-	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(&data.EncryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
+	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(data.EncryptedSecret, func(b mc.Byte) byte { return byte(b) }))
+	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(data.EncryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		// todo: replace with correct message
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
@@ -118,7 +118,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	if ok, opEntry := c.Server.PlayerRegistry.IsOp(c.ContextData["loginUUID"].(uuid.UUID)); ok {
 		permissionLevel = opEntry.Level
 	}
-	pArraySession := mc.NewPrefixedArrayFromSlice(properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
+	pArraySession := mc.MapToPrefixedArray[mc.ProfileProperty, *mc.ProfileProperty](properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
 		return mc.ProfileProperty{
 			Name:      p.Name,
 			Value:     p.Value,
@@ -193,10 +193,10 @@ func (c *Connection) CanAccessServer() bool {
 	return true
 }
 
-func (c *Connection) HandleLoginAcknowledged(_ *packet.Packet) {
+func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.Server.World.Time
 
-	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, &mc.ServerDataPacks)
+	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 }

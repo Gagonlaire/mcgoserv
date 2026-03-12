@@ -96,15 +96,13 @@ const (
 	MaxQuantizedValue = 32766.0
 )
 
-var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
-	Slice: []DataPackIdentifier{
-		{
-			Namespace: String("minecraft"),
-			ID:        String("core"),
-			Version:   String(mcdata.GameVersion),
-		},
+var ServerDataPacks = NewPrefixedArray[DataPackIdentifier, *DataPackIdentifier]([]DataPackIdentifier{
+	{
+		Namespace: "minecraft",
+		ID:        "core",
+		Version:   mcdata.GameVersion,
 	},
-}
+})
 
 func (v VarInt) Len() int {
 	val := uint32(v)
@@ -120,47 +118,46 @@ func (v VarInt) Len() int {
 	return n
 }
 
-func NewArray[E any](size uint32) *Array[E] {
-	return &Array[E]{
-		Slice: make([]E, size),
+func NewArray[T any, PT FieldPtr[T]](size uint32) Array[T, PT] {
+	return Array[T, PT]{
+		Slice: make([]T, size),
 	}
 }
 
-func NewPrefixedArray[E any](slice []E) *PrefixedArray[E] {
-	return &PrefixedArray[E]{
-		Slice: slice,
-	}
+// NewPrefixedArray wraps an existing slice in a PrefixedArray.
+func NewPrefixedArray[T any, PT FieldPtr[T]](slice []T) PrefixedArray[T, PT] {
+	return PrefixedArray[T, PT]{Slice: slice}
 }
 
-// NewPrefixedArrayFromSlice creates a new PrefixedArray from a regular slice, applying a conversion function to each element.
+// MapToPrefixedArray converts a slice of one type to a PrefixedArray of another type using a conversion function.
 // ex: convert []byte to PrefixedArray[Byte]
-func NewPrefixedArrayFromSlice[E, S any](slice []S, convert func(S) E) *PrefixedArray[E] {
+func MapToPrefixedArray[E any, PE FieldPtr[E], S any](slice []S, convert func(S) E) PrefixedArray[E, PE] {
 	if slice == nil {
-		return &PrefixedArray[E]{}
+		return PrefixedArray[E, PE]{}
 	}
 	newSlice := make([]E, len(slice))
 	for i, v := range slice {
 		newSlice[i] = convert(v)
 	}
-	return &PrefixedArray[E]{Slice: newSlice}
+	return PrefixedArray[E, PE]{Slice: newSlice}
 }
 
-// NewPrefixedArrayFromIter creates a new PrefixedArray from an iterator with a conversion function and filtering.
+// CollectToPrefixedArray creates a new PrefixedArray from an iterator with a conversion function and filtering.
 // ex: iter over connections map and return the player (when the connection has one)
-func NewPrefixedArrayFromIter[E, S any](seq iter.Seq[S], convert func(S) (E, bool)) *PrefixedArray[E] {
+func CollectToPrefixedArray[E any, PE FieldPtr[E], S any](seq iter.Seq[S], convert func(S) (E, bool)) PrefixedArray[E, PE] {
 	var newSlice []E
 	for v := range seq {
 		if mapped, keep := convert(v); keep {
 			newSlice = append(newSlice, mapped)
 		}
 	}
-	return &PrefixedArray[E]{Slice: newSlice}
+	return PrefixedArray[E, PE]{Slice: newSlice}
 }
 
 // MapToSlice converts a PrefixedArray to a regular slice using a conversion function.
 // ex: convert PrefixedArray[Byte] to []byte
-func MapToSlice[E any, T any](p *PrefixedArray[E], convert func(E) T) []T {
-	if p == nil || p.Slice == nil {
+func MapToSlice[E any, PE FieldPtr[E], T any](p PrefixedArray[E, PE], convert func(E) T) []T {
+	if p.Slice == nil {
 		return nil
 	}
 	dst := make([]T, len(p.Slice))
@@ -170,15 +167,15 @@ func MapToSlice[E any, T any](p *PrefixedArray[E], convert func(E) T) []T {
 	return dst
 }
 
-func NewPrefixedOptional[E any](value *E) *PrefixedOptional[E] {
-	return &PrefixedOptional[E]{
-		Has:   value != nil,
-		Value: value,
+func NewPrefixedOptional[T any, PT FieldPtr[T]](val *T) PrefixedOptional[T, PT] {
+	return PrefixedOptional[T, PT]{
+		Has:   true,
+		Value: val,
 	}
 }
 
 func (b *BitSet) Set(i int, value bool) {
-	data := b.PrefixedArray.Slice
+	data := b.Slice
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {
@@ -192,7 +189,7 @@ func (b *BitSet) Set(i int, value bool) {
 }
 
 func (b *BitSet) Get(i int) bool {
-	data := b.PrefixedArray.Slice
+	data := b.Slice
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {
@@ -201,7 +198,7 @@ func (b *BitSet) Get(i int) bool {
 	return (data[idx] & (1 << off)) != 0
 }
 
-func (P *PrefixedOptional[X]) Set(value *X) {
+func (P *PrefixedOptional[T, PT]) Set(value PT) {
 	P.Value = value
 	P.Has = value != nil
 }

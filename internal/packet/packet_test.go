@@ -35,7 +35,7 @@ var (
 		ptr(mc.UUID(uuid.New())),
 		ptr(mc.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
 		ptr(mc.Slot{Count: 64, ItemID: 1}),
-		&mc.PrefixedArray[mc.Long]{Slice: longSlice}, // Triggers reflect block in fields.go
+		&mc.PrefixedArray[mc.Long, *mc.Long]{Slice: longSlice},
 	}
 )
 
@@ -92,11 +92,11 @@ func TestPacket_RoundTrip(t *testing.T) {
 				_, _ = f.WriteTo(expectedBuf)
 			}
 
-			if p.Buffer.Len() != expectedBuf.Len() {
-				t.Errorf("Payload size mismatch: got %d, want %d", p.Buffer.Len(), expectedBuf.Len())
+			if p.Len() != expectedBuf.Len() {
+				t.Errorf("Payload size mismatch: got %d, want %d", p.Len(), expectedBuf.Len())
 			}
 
-			if !bytes.Equal(p.Buffer.Bytes(), expectedBuf.Bytes()) {
+			if !bytes.Equal(p.Bytes(), expectedBuf.Bytes()) {
 				t.Errorf("Payload content mismatch")
 			}
 		})
@@ -115,7 +115,7 @@ func BenchmarkEncode(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			p := &Packet{
+			p := &OutboundPacket{
 				ID:     testPacketID,
 				Buffer: new(bytes.Buffer),
 			}
@@ -144,19 +144,20 @@ func BenchmarkDecode(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			p := &Packet{
-				ID:     testPacketID,
-				Buffer: new(bytes.Buffer),
+			var buf bytes.Buffer
+			for _, w := range fieldsToWriters(bm.fields) {
+				_, _ = w.WriteTo(&buf)
 			}
+			encodedBytes := append([]byte(nil), buf.Bytes()...)
 
-			_ = p.Encode(fieldsToWriters(bm.fields)...)
-			encodedBytes := append([]byte(nil), p.Buffer.Bytes()...)
+			p := &InboundPacket{ID: testPacketID}
 
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				p.Buffer = bytes.NewBuffer(encodedBytes)
+				p.data = encodedBytes
+				p.reader.Reset(encodedBytes)
 				_ = p.Decode(bm.fields...)
 			}
 		})

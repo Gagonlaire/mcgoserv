@@ -95,7 +95,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 	}
 }
 
-func (c *Connection) HandlePlayerLoaded(_ *packet.Packet) {
+func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 	c.Player.Loaded = true
 }
 
@@ -276,15 +276,13 @@ func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, exp
 	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }
 
-func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.Packet, error) {
+func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.OutboundPacket, error) {
 	pkt, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
-
-	_ = pkt.Encode(&actions)
 	playerCount := mc.VarInt(len(players))
-	_ = pkt.Encode(&playerCount)
+
+	_ = pkt.Encode(actions, playerCount)
 	for _, player := range players {
-		UUID := mc.UUID(player.UUID)
-		_ = pkt.Encode(&UUID)
+		_ = pkt.Encode(mc.UUID(player.UUID))
 
 		for bit := 0; bit < 8; bit++ {
 			currentAction := mc.PlayerAction(1 << bit)
@@ -299,20 +297,18 @@ func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 				case mc.ActionInitializeChat:
 					_ = pkt.Encode(mc.Boolean(player.ChatSession.Signed))
 					if player.ChatSession.Signed {
-						sessionID := mc.UUID(player.ChatSession.ID)
-
 						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)
 						if err != nil {
 							pubKeyBytes = []byte{}
 						}
-						pArrayPublicKey := mc.NewPrefixedArrayFromSlice(pubKeyBytes, func(b byte) mc.Byte {
+						pArrayPublicKey := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](pubKeyBytes, func(b byte) mc.Byte {
 							return mc.Byte(b)
 						})
-						pArraySignature := mc.NewPrefixedArrayFromSlice(player.ChatSession.KeySignature, func(b byte) mc.Byte {
+						pArraySignature := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](player.ChatSession.KeySignature, func(b byte) mc.Byte {
 							return mc.Byte(b)
 						})
 						_ = pkt.Encode(
-							&sessionID,
+							mc.UUID(player.ChatSession.ID),
 							mc.Long(player.ChatSession.ExpiresAt),
 							pArrayPublicKey,
 							pArraySignature,

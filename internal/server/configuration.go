@@ -12,7 +12,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
-func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc.DataPackIdentifier]) {
+func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]) {
 	for _, registryData := range mc.RegistriesData {
 		pkt, _ := packet.NewPacket(packet.ConfigurationClientboundRegistryData, &registryData)
 		c.Send(pkt)
@@ -24,7 +24,7 @@ func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc
 }
 
 // HandleAcknowledgeFinishConfiguration todo: we should move packet sent to methods
-func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
+func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacket) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
 	// todo: move this to login -> avoid slot stealing and potential conflict
 	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
@@ -36,11 +36,14 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 	c.State = mc.StatePlay
 	dimensionsName := []mc.Identifier{"overworld", "the_nether", "the_end"}
 
-	_ = pkt.ResetWith(
+	out, _ := packet.NewPacket(0)
+	defer out.Free()
+
+	_ = out.ResetWith(
 		packet.PlayClientboundLogin,
 		mc.Int(c.Player.EntityID),
 		mc.Boolean(c.Server.Properties.Hardcore),
-		mc.NewPrefixedArray(dimensionsName),
+		mc.NewPrefixedArray[mc.Identifier, *mc.Identifier](dimensionsName),
 		mc.VarInt(c.Server.Properties.MaxPlayers),
 		mc.VarInt(c.Server.Properties.ViewDistance),
 		mc.VarInt(c.Server.Properties.SimulationDistance),
@@ -62,14 +65,14 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 		mc.VarInt(64),
 		mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	_ = pkt.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	c.Server.sendCommands(c)
 
-	_ = pkt.ResetWith(
+	_ = out.ResetWith(
 		packet.PlayClientboundPlayerPosition,
 		mc.VarInt(0),
 		mc.Double(c.Player.Pos[0]),
@@ -83,7 +86,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 		mc.Float(c.Player.Rot[1]),
 		mc.Int(0),
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	// todo: all the following packet must be sent in response of the Confirm Teleportation packet sent by the client after the previous Sync position packet
 
@@ -99,24 +102,24 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
 	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 
-	_ = pkt.ResetWith(
+	_ = out.ResetWith(
 		packet.PlayClientboundSetTime,
 		mc.Long(c.Server.World.Time),
 		mc.Long(c.Server.World.DayTime),
 		mc.Boolean(true),
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	_ = pkt.ResetWith(
+	_ = out.ResetWith(
 		packet.PlayClientboundGameEvent,
 		mc.UnsignedByte(13),
 		mc.Float(0.0),
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
-	_ = pkt.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	_ = out.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	dimension := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
@@ -125,8 +128,8 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 			pos := mc.ChunkPos{X: x, Z: z}
 			chunk := dimension.GetChunk(x, z)
 
-			_ = pkt.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
-			_ = pkt.Send(c.Conn, c.CompressionThreshold)
+			_ = out.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
+			_ = out.Send(c.Conn, c.CompressionThreshold)
 
 			chunk.Watchers[c.Player.EntityID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}
@@ -141,7 +144,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 	zeroAngle := mc.Angle(0)
 	data := mc.VarInt(0)
 	// spawn newly connected player
-	pkt, _ = packet.NewPacket(
+	pkt, _ := packet.NewPacket(
 		packet.PlayClientboundAddEntity,
 		mc.VarInt(c.Player.EntityID),
 		mc.UUID(c.Player.UUID),

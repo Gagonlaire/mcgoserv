@@ -12,12 +12,6 @@ import (
 	"github.com/klauspost/compress/zlib"
 )
 
-type Packet struct {
-	ID       mc.VarInt
-	Buffer   *bytes.Buffer
-	refCount int32
-}
-
 // MaxUncompressedSize https://minecraft.wiki/w/Java_Edition_protocol/Packets#With_compression
 const (
 	MaxUncompressedSize = 8388608
@@ -25,18 +19,27 @@ const (
 	MaxPooledBufferCap  = 65536
 )
 
-var packetPool = sync.Pool{
-	New: func() any {
-		return &Packet{
-			Buffer: bytes.NewBuffer(make([]byte, 0, 256)),
-		}
-	},
+type InboundPacket struct {
+	ID       mc.VarInt
+	data     []byte
+	reader   bytes.Reader
+	refCount int32
+}
+
+type OutboundPacket struct {
+	ID       mc.VarInt
+	Buffer   *bytes.Buffer
+	refCount int32
 }
 
 var bufferPool = sync.Pool{
 	New: func() any {
 		return bytes.NewBuffer(make([]byte, 0, 4096))
 	},
+}
+
+var inboundDataPool = sync.Pool{
+	New: func() any { return make([]byte, 0, 4096) },
 }
 
 var emptyZlibPayload = func() []byte {
@@ -61,10 +64,184 @@ var zlibWriterPool = sync.Pool{
 	},
 }
 
+func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
+	p := &OutboundPacket{
+		ID:       mc.VarInt(ID),
+		Buffer:   bufferPool.Get().(*bytes.Buffer),
+		refCount: 1,
+	}
+	p.Buffer.Reset()
+	if err := p.Encode(fields...); err != nil {
+		p.Free()
+		return nil, fmt.Errorf("error encoding packet: %w", err)
+	}
+	return p, nil
+}
+
+func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
+	var frameLength mc.VarInt
+	if _, err := frameLength.ReadFrom(conn); err != nil {
+		return nil, fmt.Errorf("read frame length: %w", err)
+	}
+
+	if int(frameLength) > MaxFrameSize || frameLength < 0 {
+		return nil, fmt.Errorf("invalid frame length: %d", frameLength)
+	}
+	rawBuf := bufferPool.Get().(*bytes.Buffer)
+	rawBuf.Reset()
+	defer func() {
+		if rawBuf.Cap() <= MaxPooledBufferCap {
+			bufferPool.Put(rawBuf)
+		}
+	}()
+	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
+		return nil, fmt.Errorf("read frame body: %w", err)
+	}
+	var bodyBuf = rawBuf
+
+	if threshold >= 0 {
+		var dataLength mc.VarInt
+		if _, err := dataLength.ReadFrom(rawBuf); err != nil {
+			return nil, fmt.Errorf("read data length: %w", err)
+		}
+
+		if dataLength != 0 {
+			if int(dataLength) > MaxUncompressedSize {
+				return nil, fmt.Errorf("uncompressed size %d > limit", dataLength)
+			}
+			if int(dataLength) < threshold {
+				return nil, fmt.Errorf("compressed size %d < threshold %d", dataLength, threshold)
+			}
+
+			decompBuf := bufferPool.Get().(*bytes.Buffer)
+			decompBuf.Reset()
+			defer func() {
+				if decompBuf.Cap() <= MaxPooledBufferCap {
+					bufferPool.Put(decompBuf)
+				}
+			}()
+
+			zlibReader := getZlibReader(rawBuf)
+			defer func() {
+				_ = zlibReader.Close()
+				zlibReaderPool.Put(zlibReader)
+			}()
+
+			if _, err := io.Copy(decompBuf, zlibReader); err != nil {
+				return nil, fmt.Errorf("decompress packet: %w", err)
+			}
+			bodyBuf = decompBuf
+		}
+	}
+
+	var packetID mc.VarInt
+	if _, err := packetID.ReadFrom(bodyBuf); err != nil {
+		return nil, fmt.Errorf("read packet ID: %w", err)
+	}
+
+	p := &InboundPacket{
+		ID:       packetID,
+		refCount: 1,
+	}
+	data := inboundDataPool.Get().([]byte)
+	p.data = append(data[:0], bodyBuf.Bytes()...)
+	p.reader.Reset(p.data)
+
+	return p, nil
+}
+
+func (p *OutboundPacket) Send(conn net.Conn, threshold int) error {
+	return writeFramedPacket(conn, p.ID, p.Buffer.Bytes(), threshold)
+}
+
+// Forward is only used by packet sniffer
+func (p *InboundPacket) Forward(conn net.Conn, threshold int) error {
+	return writeFramedPacket(conn, p.ID, p.data, threshold)
+}
+
+func (p *InboundPacket) Decode(fields ...mc.Field) error {
+	for i, f := range fields {
+		if _, err := f.ReadFrom(&p.reader); err != nil {
+			return fmt.Errorf("error decoding field %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (p *OutboundPacket) Encode(fields ...io.WriterTo) error {
+	for i, f := range fields {
+		if _, err := f.WriteTo(p.Buffer); err != nil {
+			return fmt.Errorf("error encoding field %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (p *OutboundPacket) ResetWith(ID int, fields ...io.WriterTo) error {
+	p.ID = mc.VarInt(ID)
+	p.Buffer.Reset()
+
+	return p.Encode(fields...)
+}
+
+func (p *InboundPacket) Bytes() []byte { return p.data }
+
+func (p *InboundPacket) Len() int { return len(p.data) }
+
+// Retain increments the reference count for the packet.
+func (p *InboundPacket) Retain() {
+	if atomic.LoadInt32(&p.refCount) <= 0 {
+		panic(fmt.Sprintf("Retain on freed packet detected! ID: %d", p.ID))
+	}
+	atomic.AddInt32(&p.refCount, 1)
+}
+
+// Free decrements the reference count for the packet and returns it to the pool if the count reaches zero.
+func (p *InboundPacket) Free() {
+	newRef := atomic.AddInt32(&p.refCount, -1)
+
+	switch {
+	case newRef < 0:
+		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
+	case newRef == 0:
+		if cap(p.data) <= MaxPooledBufferCap {
+			inboundDataPool.Put(p.data[:0])
+		}
+		p.data = nil
+		p.reader.Reset(nil)
+		p.ID = 0
+	}
+}
+
+// Retain increments the reference count for the packet.
+func (p *OutboundPacket) Retain() {
+	if atomic.LoadInt32(&p.refCount) <= 0 {
+		panic(fmt.Sprintf("Retain on freed packet detected! ID: %d", p.ID))
+	}
+	atomic.AddInt32(&p.refCount, 1)
+}
+
+// Free decrements the reference count for the packet and returns it to the pool if the count reaches zero.
+func (p *OutboundPacket) Free() {
+	newRef := atomic.AddInt32(&p.refCount, -1)
+
+	switch {
+	case newRef < 0:
+		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
+	case newRef == 0:
+		if p.Buffer != nil {
+			if p.Buffer.Cap() <= MaxPooledBufferCap {
+				bufferPool.Put(p.Buffer)
+			}
+			p.Buffer = nil
+		}
+	}
+}
+
 func getZlibReader(r io.Reader) io.ReadCloser {
 	reader := zlibReaderPool.Get().(io.ReadCloser)
 
-	// check why zlib.Reaser is not exported
+	// check why zlib.Reader is not exported
 	if readerConcrete, ok := reader.(interface{ Reset(io.Reader) error }); ok {
 		_ = readerConcrete.Reset(r)
 	} else {
@@ -81,91 +258,12 @@ func getZlibWriter(w io.Writer) *zlib.Writer {
 	return writer
 }
 
-func NewPacket(ID int, fields ...io.WriterTo) (*Packet, error) {
-	p := packetPool.Get().(*Packet)
-	p.ID = mc.VarInt(ID)
-	p.refCount = 1
-	p.Buffer.Reset()
-
-	if err := p.Encode(fields...); err != nil {
-		p.Free()
-		return nil, fmt.Errorf("error encoding packet: %w", err)
-	}
-
-	return p, nil
-}
-
-func Receive(conn net.Conn, threshold int) (*Packet, error) {
-	var frameLength mc.VarInt
-	if _, err := frameLength.ReadFrom(conn); err != nil {
-		return nil, fmt.Errorf("read frame length: %w", err)
-	}
-
-	if int(frameLength) > MaxFrameSize || frameLength < 0 {
-		return nil, fmt.Errorf("invalid frame length: %d", frameLength)
-	}
-
-	rawBuf := bufferPool.Get().(*bytes.Buffer)
-	rawBuf.Reset()
-
-	defer func() {
-		if rawBuf.Cap() > MaxPooledBufferCap {
-			return
-		}
-		bufferPool.Put(rawBuf)
-	}()
-
-	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
-		return nil, fmt.Errorf("read frame body: %w", err)
-	}
-
-	var bodyReader io.Reader = rawBuf
-	if threshold >= 0 {
-		var dataLength mc.VarInt
-		if _, err := dataLength.ReadFrom(bodyReader); err != nil {
-			return nil, fmt.Errorf("read data length: %w", err)
-		}
-
-		if dataLength != 0 {
-			if int(dataLength) > MaxUncompressedSize {
-				return nil, fmt.Errorf("uncompressed size %d > limit", dataLength)
-			}
-			if int(dataLength) < threshold {
-				return nil, fmt.Errorf("compressed packet size %d < threshold %d", dataLength, threshold)
-			}
-
-			zlibReader := getZlibReader(bodyReader)
-			defer func() {
-				_ = zlibReader.Close()
-				zlibReaderPool.Put(zlibReader)
-			}()
-			bodyReader = zlibReader
-		}
-	}
-
-	var packetID mc.VarInt
-	if _, err := packetID.ReadFrom(bodyReader); err != nil {
-		return nil, fmt.Errorf("read packet ID: %w", err)
-	}
-
-	p := packetPool.Get().(*Packet)
-	p.ID = packetID
-	p.refCount = 1
-	p.Buffer.Reset()
-	if _, err := p.Buffer.ReadFrom(bodyReader); err != nil {
-		p.Free()
-		return nil, fmt.Errorf("read packet content: %w", err)
-	}
-
-	return p, nil
-}
-
-func (p *Packet) Send(conn net.Conn, threshold int) error {
+func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, threshold int) error {
 	frame := bufferPool.Get().(*bytes.Buffer)
 	frame.Reset()
 	defer bufferPool.Put(frame)
 
-	uncompressedSize := p.ID.Len() + p.Buffer.Len()
+	uncompressedSize := packetID.Len() + len(payload)
 	if uncompressedSize > MaxUncompressedSize {
 		return fmt.Errorf("packet size %d exceeds protocol limit", uncompressedSize)
 	}
@@ -177,11 +275,11 @@ func (p *Packet) Send(conn net.Conn, threshold int) error {
 		defer bufferPool.Put(compBuf)
 
 		writer := getZlibWriter(compBuf)
-
-		_, _ = p.ID.WriteTo(writer)
-		_, _ = writer.Write(p.Buffer.Bytes())
+		_, _ = packetID.WriteTo(writer)
+		_, _ = writer.Write(payload)
 		_ = writer.Close()
 		zlibWriterPool.Put(writer)
+
 		packetLength := mc.VarInt(dataLength.Len() + compBuf.Len())
 		_, _ = packetLength.WriteTo(frame)
 		_, _ = dataLength.WriteTo(frame)
@@ -189,82 +287,23 @@ func (p *Packet) Send(conn net.Conn, threshold int) error {
 	} else {
 		packetLengthValue := uncompressedSize
 		if threshold >= 0 {
-			buf := mc.VarInt(0)
-			packetLengthValue += buf.Len()
+			packetLengthValue += mc.VarInt(0).Len()
 		}
 
 		packetLength := mc.VarInt(packetLengthValue)
 		_, _ = packetLength.WriteTo(frame)
-
 		if threshold >= 0 {
 			_, _ = mc.VarInt(0).WriteTo(frame)
 		}
-
-		_, _ = p.ID.WriteTo(frame)
-		_, _ = frame.Write(p.Buffer.Bytes())
+		_, _ = packetID.WriteTo(frame)
+		_, _ = frame.Write(payload)
 	}
 
 	var err error
-
 	if unsafeConn, ok := conn.(interface{ WriteInPlace([]byte) (int, error) }); ok {
 		_, err = unsafeConn.WriteInPlace(frame.Bytes())
 	} else {
 		_, err = conn.Write(frame.Bytes())
 	}
-
 	return err
-}
-
-func (p *Packet) Decode(fields ...mc.Field) error {
-	for i, f := range fields {
-		if _, err := f.ReadFrom(p.Buffer); err != nil {
-			return fmt.Errorf("error decoding field %d: %w", i, err)
-		}
-	}
-	return nil
-}
-
-func (p *Packet) Encode(fields ...io.WriterTo) error {
-	for i, f := range fields {
-		if _, err := f.WriteTo(p.Buffer); err != nil {
-			return fmt.Errorf("error encoding field %d: %w", i, err)
-		}
-	}
-	return nil
-}
-
-func (p *Packet) ResetWith(ID int, fields ...io.WriterTo) error {
-	p.ID = mc.VarInt(ID)
-	p.Buffer.Reset()
-
-	return p.Encode(fields...)
-}
-
-// Retain increments the reference count for the packet.
-// This method must be used when reusing a packet received from an external source
-// (such as a router handler) that currently holds ownership of it.
-// By calling Retain, you prevent the packet from being freed by the original owner.
-func (p *Packet) Retain() {
-	if atomic.LoadInt32(&p.refCount) <= 0 {
-		panic(fmt.Sprintf("Retain on freed packet detected! ID: %d", p.ID))
-	}
-	atomic.AddInt32(&p.refCount, 1)
-}
-
-// Free decrements the reference count for the packet and returns it to the pool if the count reaches zero.
-func (p *Packet) Free() {
-	newRef := atomic.AddInt32(&p.refCount, -1)
-
-	switch {
-	case newRef < 0:
-		panic(fmt.Sprintf("Packet double free detected! ID: %d", p.ID))
-	case newRef == 0:
-		if p.Buffer.Cap() > MaxPooledBufferCap {
-			p.Buffer = bytes.NewBuffer(make([]byte, 0, 128))
-		} else {
-			p.Buffer.Reset()
-		}
-		p.ID = 0
-		packetPool.Put(p)
-	}
 }

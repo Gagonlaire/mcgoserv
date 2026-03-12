@@ -80,8 +80,8 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 		return
 	}
 
-	publicKeyBytes := mc.MapToSlice(&data.PublicKey, func(b mc.Byte) byte { return byte(b) })
-	signatureBytes := mc.MapToSlice(&data.KeySignature, func(b mc.Byte) byte { return byte(b) })
+	publicKeyBytes := mc.MapToSlice(data.PublicKey, func(b mc.Byte) byte { return byte(b) })
+	signatureBytes := mc.MapToSlice(data.KeySignature, func(b mc.Byte) byte { return byte(b) })
 
 	if err := VerifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
@@ -200,7 +200,7 @@ func broadcastChatMessage(
 	sender *Connection,
 	message mc.String,
 	timestamp, salt mc.Long,
-	signature *mc.PrefixedOptional[mc.Array[mc.Byte]],
+	signature mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]],
 	signatureBytes []byte,
 	lastSeenSignatures [][]byte,
 	isSigned bool,
@@ -241,7 +241,7 @@ func broadcastChatMessage(
 
 				_ = outPkt.Encode(mc.VarInt(clientMessageID + 1))
 				if clientMessageID == -1 {
-					bArray := mc.NewArray[mc.Byte](256)
+					bArray := mc.NewArray[mc.Byte, *mc.Byte](256)
 					for i := 0; i < 256; i++ {
 						bArray.Slice[i] = mc.Byte(sig[i])
 					}

@@ -40,7 +40,7 @@ type SingleValueContainer struct {
 //go:generate-field-impl
 type IndirectContainer struct {
 	maxCapacity int
-	Palette     *PrefixedArray[VarInt]
+	Palette     PrefixedArray[VarInt, *VarInt]
 	DataArray   *DataArray
 }
 
@@ -111,7 +111,7 @@ func (s *SingleValueContainer) Set(index int, value int32) (Container, error) {
 
 	indirect := newIndirectContainer(MinIndirectBits)
 	paletteData := []VarInt{s.Value}
-	indirect.Palette = NewPrefixedArray(paletteData)
+	indirect.Palette = NewPrefixedArray[VarInt, *VarInt](paletteData)
 	_, err := indirect.Set(index, value)
 	if err != nil {
 		return nil, err
@@ -129,7 +129,7 @@ func (s *SingleValueContainer) BitsPerEntry() UnsignedByte { return 0 }
 func newIndirectContainer(bpe int) *IndirectContainer {
 	return &IndirectContainer{
 		maxCapacity: 1 << bpe,
-		Palette:     NewPrefixedArray(make([]VarInt, 0)),
+		Palette:     NewPrefixedArray[VarInt, *VarInt](make([]VarInt, 0)),
 		DataArray:   NewDataArray(bpe, SectionSize),
 	}
 }

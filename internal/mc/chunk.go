@@ -17,22 +17,22 @@ type Chunk struct {
 	Z                   Int
 	Entities            map[EntityID]struct{} `field:"-"`
 	Watchers            map[EntityID]struct{} `field:"-"`
-	HeightMaps          PrefixedArray[HeightMap]
+	HeightMaps          PrefixedArray[HeightMap, *HeightMap]
 	Size                VarInt
-	Data                Array[ChunkSection]
-	BlockEntities       PrefixedArray[BlockEntity]
+	Data                Array[ChunkSection, *ChunkSection]
+	BlockEntities       PrefixedArray[BlockEntity, *BlockEntity]
 	SkyLightMask        BitSet
 	BlockLightMask      BitSet
 	EmptySkyLightMask   BitSet
 	EmptyBlockLightMask BitSet
-	SkyLightArrays      PrefixedArray[PrefixedArray[Byte]]
-	BlockLightArrays    PrefixedArray[PrefixedArray[Byte]]
+	SkyLightArrays      PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
+	BlockLightArrays    PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
 }
 
 //go:generate-field-impl
 type HeightMap struct {
 	Type VarInt
-	Data PrefixedArray[Long]
+	Data PrefixedArray[Long, *Long]
 }
 
 //go:generate-field-impl
@@ -81,25 +81,19 @@ func CreateChunk(x int, z int) *Chunk {
 	}
 
 	skyMask := BitSet{
-		PrefixedArray: PrefixedArray[Long]{
+		PrefixedArray: PrefixedArray[Long, *Long]{
 			Slice: skyMaskSlice,
 		},
 	}
 
-	arrays := make([]PrefixedArray[Byte], len(sections))
+	arrays := make([]PrefixedArray[Byte, *Byte], len(sections))
 	for i := range arrays {
 		data := make([]Byte, 2048)
 		fullBright := UnsignedByte(0xFF)
 		for j := range data {
 			data[j] = Byte(fullBright)
 		}
-		arrays[i] = PrefixedArray[Byte]{
-			Slice: data,
-		}
-	}
-
-	skyLightArrays := PrefixedArray[PrefixedArray[Byte]]{
-		Slice: arrays,
+		arrays[i] = PrefixedArray[Byte, *Byte]{Slice: data}
 	}
 
 	return &Chunk{
@@ -109,12 +103,14 @@ func CreateChunk(x int, z int) *Chunk {
 		Entities: make(map[EntityID]struct{}),
 		Watchers: make(map[EntityID]struct{}),
 
-		Size: VarInt(dataSize),
-		Data: Array[ChunkSection]{
-			Slice: sections,
-		},
-		SkyLightMask:   skyMask,
-		SkyLightArrays: skyLightArrays,
+		HeightMaps:    NewPrefixedArray[HeightMap, *HeightMap]([]HeightMap{}),
+		BlockEntities: NewPrefixedArray[BlockEntity, *BlockEntity]([]BlockEntity{}),
+
+		Size:             VarInt(dataSize),
+		Data:             Array[ChunkSection, *ChunkSection]{Slice: sections},
+		SkyLightMask:     skyMask,
+		SkyLightArrays:   NewPrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]](arrays),
+		BlockLightArrays: NewPrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]([]PrefixedArray[Byte, *Byte]{}),
 	}
 }
 

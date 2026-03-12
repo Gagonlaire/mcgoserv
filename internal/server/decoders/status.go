@@ -5,7 +5,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
-func DecodePing(pkt *packet.Packet) (*mc.Long, error) {
+func DecodePing(pkt *packet.InboundPacket) (*mc.Long, error) {
 	var timestamp mc.Long
 	if err := pkt.Decode(&timestamp); err != nil {
 		return nil, err

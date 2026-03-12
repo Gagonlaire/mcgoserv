@@ -45,7 +45,7 @@ type Keys struct {
 type Server struct {
 	World             *world.World
 	Ticker            *systems.Ticker
-	Broadcaster       *systems.Broadcaster[*Connection, *packet.Packet]
+	Broadcaster       *systems.Broadcaster[*Connection, *packet.OutboundPacket]
 	Router            *Router
 	Properties        *systems.Properties
 	PlayerRegistry    *player_registry.PlayerRegistry
@@ -96,7 +96,7 @@ func NewServer() *Server {
 				return true
 			})
 		},
-		func(conn *Connection, pkt *packet.Packet) {
+		func(conn *Connection, pkt *packet.OutboundPacket) {
 			pkt.Retain()
 			conn.OutboundPackets <- pkt
 		},

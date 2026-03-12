@@ -11,11 +11,11 @@ type LoginStart struct {
 }
 
 type EncryptionResponse struct {
-	EncryptedSecret      mc.PrefixedArray[mc.Byte]
-	EncryptedVerifyToken mc.PrefixedArray[mc.Byte]
+	EncryptedSecret      mc.PrefixedArray[mc.Byte, *mc.Byte]
+	EncryptedVerifyToken mc.PrefixedArray[mc.Byte, *mc.Byte]
 }
 
-func DecodeLoginStart(pkt *packet.Packet) (*LoginStart, error) {
+func DecodeLoginStart(pkt *packet.InboundPacket) (*LoginStart, error) {
 	data := &LoginStart{}
 	if err := pkt.Decode(&data.Name, &data.PlayerUUID); err != nil {
 		return nil, err
@@ -23,7 +23,7 @@ func DecodeLoginStart(pkt *packet.Packet) (*LoginStart, error) {
 	return data, nil
 }
 
-func DecodeEncryptionResponse(pkt *packet.Packet) (*EncryptionResponse, error) {
+func DecodeEncryptionResponse(pkt *packet.InboundPacket) (*EncryptionResponse, error) {
 	data := &EncryptionResponse{}
 	if err := pkt.Decode(&data.EncryptedSecret, &data.EncryptedVerifyToken); err != nil {
 		return nil, err

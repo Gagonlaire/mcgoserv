@@ -12,7 +12,7 @@ type Handshake struct {
 	Intent          mc.VarInt
 }
 
-func DecodeHandshake(pkt *packet.Packet) (*Handshake, error) {
+func DecodeHandshake(pkt *packet.InboundPacket) (*Handshake, error) {
 	data := &Handshake{}
 
 	if err := pkt.Decode(&data.ProtocolVersion, &data.ServerAddress, &data.ServerPort, &data.Intent); err != nil {

@@ -86,7 +86,7 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 
 	yaw := mc.Angle(c.Player.Rot[0] / 360.0 * 256.0)
 	pitch := mc.Angle(c.Player.Rot[1] / 360.0 * 256.0)
-	var pkt *packet.Packet
+	var pkt *packet.OutboundPacket
 
 	switch {
 	case posChanged && rotChanged:

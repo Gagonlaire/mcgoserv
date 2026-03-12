@@ -2,7 +2,6 @@ package mc
 
 import (
 	"crypto/rsa"
-	"go/types"
 	"io"
 
 	"github.com/google/uuid"
@@ -11,6 +10,11 @@ import (
 type Field interface {
 	io.ReaderFrom
 	io.WriterTo
+}
+
+type FieldPtr[T any] interface {
+	*T
+	Field
 }
 
 type (
@@ -115,7 +119,7 @@ type (
 	// Notes:
 	//  - A length-prefixed bit set.
 	BitSet struct {
-		PrefixedArray[Long]
+		PrefixedArray[Long, *Long]
 	}
 	// FixedBitSet Encodes:
 	//  - A FixedBitSet https://minecraft.wiki/w/Java_Edition_protocol/Packets#Fixed_BitSet.
@@ -133,9 +137,9 @@ type (
 	//  - size of Boolean + (is present ? Size of X : 0) bytes
 	// Notes:
 	//  - The boolean is true if the field is present.
-	PrefixedOptional[X any] struct {
+	PrefixedOptional[T any, PT FieldPtr[T]] struct {
 		Has   Boolean
-		Value *X
+		Value *T
 	}
 	// Array of X Encodes:
 	//  - Zero or more fields of type X.
@@ -143,8 +147,8 @@ type (
 	//  - Length times size of X bytes
 	// Notes:
 	//  - The length must be known from the context.
-	Array[X any] struct {
-		Slice []X
+	Array[T any, PT FieldPtr[T]] struct {
+		Slice []T
 	}
 	// PrefixedArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Prefixed_Array.
@@ -152,8 +156,8 @@ type (
 	//  - size of VarInt + size of X * length bytes
 	// Notes:
 	//  - A length-prefixed array.
-	PrefixedArray[X any] struct {
-		Slice []X
+	PrefixedArray[T any, PT FieldPtr[T]] struct {
+		Slice []T
 	}
 	// DataArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.
@@ -203,9 +207,8 @@ type ProfileProperty struct {
 }
 
 type Slot struct {
-	Count  int32
-	ItemID int32
-
+	Count      int32
+	ItemID     int32
 	Components *map[int32]any
 	RemoveList *[]int32
 }
@@ -233,8 +236,6 @@ type ChatSession struct {
 	PreviousMessages PreviousMessages
 }
 
-// todo: create a tuple to avoid this weird struct generation
-
 //go:generate-field-impl
 type DataPackIdentifier struct {
 	Namespace String
@@ -259,48 +260,11 @@ type ClientInformation struct {
 type RegistryDataEntry struct {
 	ID String
 	// todo: this is supposed to be an optional NTB, change later
-	Data PrefixedOptional[types.Nil]
+	Data PrefixedOptional[Byte, *Byte]
 }
 
 //go:generate-field-impl
 type RegistryData struct {
 	ID      String
-	Entries PrefixedArray[RegistryDataEntry]
-}
-
-func (p *Position) ReadFrom(r io.Reader) (n int64, err error) {
-	var val Long
-
-	n, err = val.ReadFrom(r)
-	if err != nil {
-		return
-	}
-
-	p.X = int32(val >> 38)
-	p.Y = int32(val << 52 >> 52)
-	p.Z = int32(val << 26 >> 38)
-
-	return
-}
-
-func (p Position) WriteTo(w io.Writer) (n int64, err error) {
-	val := ((int64(p.X) & 0x3FFFFFF) << 38) | (int64(p.Y) & 0xFFF) | ((int64(p.Z) & 0x3FFFFFF) << 12)
-
-	return Long(val).WriteTo(w)
-}
-
-func (d *DataArray) ReadFrom(_ io.Reader) (n int64, err error) {
-	panic("DataArray.ReadFrom: not implemented")
-}
-
-func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
-	for i := range d.Slice {
-		nn, err := Long(d.Slice[i]).WriteTo(w)
-		if err != nil {
-			return n, err
-		}
-		n += nn
-	}
-
-	return n, nil
+	Entries *PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 }

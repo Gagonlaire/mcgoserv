@@ -94,7 +94,7 @@ func transferMinecraftPackets(src, dst net.Conn, direction Direction) {
 		stdLogger.Printf("%s: ID=%d", direction, pkt.ID)
 
 		if shouldSniff(direction, int(pkt.ID)) {
-			fileLogger.Printf("Packet ID: %d, Direction: %s, Raw Bytes Length: %d;\n%v\n\n\n", pkt.ID, direction, pkt.Buffer.Len(), pkt.Buffer.Bytes())
+			fileLogger.Printf("Packet ID: %d, Direction: %s, Raw Bytes Length: %d;\n%v\n\n\n", pkt.ID, direction, pkt.Len(), pkt.Bytes())
 		}
 
 		if shouldSample(direction, int(pkt.ID)) {
@@ -102,14 +102,14 @@ func transferMinecraftPackets(src, dst net.Conn, direction Direction) {
 			if !sampledPackets[key] {
 				filename := fmt.Sprintf("0x%02x-%s-sample.bin", pkt.ID, strings.ToLower(string(direction)))
 				filePath := filepath.Join(outputDir, filename)
-				if err := os.WriteFile(filePath, pkt.Buffer.Bytes(), 0644); err != nil {
+				if err := os.WriteFile(filePath, pkt.Bytes(), 0644); err != nil {
 					panic("Failed to write sample file: " + err.Error())
 				}
 				sampledPackets[key] = true
 			}
 		}
 
-		if err = pkt.Send(dst, -1); err != nil {
+		if err = pkt.Forward(dst, -1); err != nil {
 			stdLogger.Printf("Failed to send packet %s: %v", direction, err)
 			return
 		}

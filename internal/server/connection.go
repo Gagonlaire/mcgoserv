@@ -20,7 +20,7 @@ import (
 type QueuedPacket struct {
 	Process func(*Connection, any)
 	Data    any
-	Raw     *packet.Packet
+	Raw     *packet.InboundPacket
 }
 
 type Connection struct {
@@ -29,7 +29,7 @@ type Connection struct {
 	Conn                 net.Conn
 	State                mc.State
 	InboundPackets       chan QueuedPacket
-	OutboundPackets      chan *packet.Packet
+	OutboundPackets      chan *packet.OutboundPacket
 	LastKeepAlive        int64
 	LastKeepAliveID      int64
 	CompressionThreshold int
@@ -46,7 +46,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		Conn:                 conn,
 		State:                mc.StateHandshake,
 		InboundPackets:       make(chan QueuedPacket, ChannelSize),
-		OutboundPackets:      make(chan *packet.Packet, ChannelSize),
+		OutboundPackets:      make(chan *packet.OutboundPacket, ChannelSize),
 		CompressionThreshold: -1,
 		LastKeepAlive:        s.World.Time,
 		ctx:                  ctx,
@@ -132,7 +132,7 @@ func (c *Connection) WriteLoop() {
 	}
 }
 
-func (c *Connection) Send(pkt *packet.Packet) {
+func (c *Connection) Send(pkt *packet.OutboundPacket) {
 	select {
 	case c.OutboundPackets <- pkt:
 		return
@@ -142,7 +142,7 @@ func (c *Connection) Send(pkt *packet.Packet) {
 }
 
 func (c *Connection) Disconnect(reason tc.Component) {
-	var pkt *packet.Packet
+	var pkt *packet.OutboundPacket
 
 	switch c.State {
 	case mc.StateLogin:
@@ -176,6 +176,9 @@ func (c *Connection) close() {
 			c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
 			c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
 			c.Server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
+			pkt1.Free()
+			pkt2.Free()
+			pkt3.Free()
 			c.Server.World.RemoveEntityByUUID(c.Player.UUID)
 		}
 		c.Server.Connections.Delete(c)

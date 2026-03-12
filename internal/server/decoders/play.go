@@ -28,7 +28,7 @@ type CommandSuggestionsRequest struct {
 type ChatMessage struct {
 	Message         mc.String
 	Timestamp, Salt mc.Long
-	Signature       *mc.PrefixedOptional[mc.Array[mc.Byte]]
+	Signature       mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]]
 	MessageCount    mc.VarInt
 	Acknowledged    *mc.FixedBitSet
 	Checksum        mc.Byte
@@ -37,12 +37,12 @@ type ChatMessage struct {
 type PlayerSession struct {
 	SessionId               mc.UUID
 	ExpiresAt               mc.Long
-	PublicKey, KeySignature mc.PrefixedArray[mc.Byte]
+	PublicKey, KeySignature mc.PrefixedArray[mc.Byte, *mc.Byte]
 }
 
 type ArgumentSignature struct {
 	ArgumentName mc.String
-	Signature    *mc.Array[mc.Byte]
+	Signature    mc.Array[mc.Byte, *mc.Byte]
 }
 
 type SignedChatCommand struct {
@@ -79,7 +79,7 @@ type UseItemOn struct {
 	Sequence                           mc.VarInt
 }
 
-func DecodeConfirmTeleportation(pkt *packet.Packet) (*mc.VarInt, error) {
+func DecodeConfirmTeleportation(pkt *packet.InboundPacket) (*mc.VarInt, error) {
 	var teleportId mc.VarInt
 	if err := pkt.Decode(&teleportId); err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func DecodeConfirmTeleportation(pkt *packet.Packet) (*mc.VarInt, error) {
 	return &teleportId, nil
 }
 
-func DecodeSetPlayerMovementFlags(pkt *packet.Packet) (*mc.Byte, error) {
+func DecodeSetPlayerMovementFlags(pkt *packet.InboundPacket) (*mc.Byte, error) {
 	var flags mc.Byte
 	if err := pkt.Decode(&flags); err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func DecodeSetPlayerMovementFlags(pkt *packet.Packet) (*mc.Byte, error) {
 	return &flags, nil
 }
 
-func DecodeSetPlayerPosition(pkt *packet.Packet) (*SetPlayerPosition, error) {
+func DecodeSetPlayerPosition(pkt *packet.InboundPacket) (*SetPlayerPosition, error) {
 	data := &SetPlayerPosition{}
 	if err := pkt.Decode(&data.X, &data.Y, &data.Z, &data.Flags); err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func DecodeSetPlayerPosition(pkt *packet.Packet) (*SetPlayerPosition, error) {
 	return data, nil
 }
 
-func DecodeSetPlayerRotation(pkt *packet.Packet) (*SetPlayerRotation, error) {
+func DecodeSetPlayerRotation(pkt *packet.InboundPacket) (*SetPlayerRotation, error) {
 	data := &SetPlayerRotation{}
 	if err := pkt.Decode(&data.Yaw, &data.Pitch, &data.Flags); err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func DecodeSetPlayerRotation(pkt *packet.Packet) (*SetPlayerRotation, error) {
 	return data, nil
 }
 
-func DecodeSetPlayerPositionAndRotation(pkt *packet.Packet) (*SetPlayerPositionAndRotation, error) {
+func DecodeSetPlayerPositionAndRotation(pkt *packet.InboundPacket) (*SetPlayerPositionAndRotation, error) {
 	data := &SetPlayerPositionAndRotation{}
 	if err := pkt.Decode(
 		&data.X, &data.Y, &data.Z,
@@ -123,7 +123,7 @@ func DecodeSetPlayerPositionAndRotation(pkt *packet.Packet) (*SetPlayerPositionA
 	return data, nil
 }
 
-func DecodeCommandSuggestionsRequest(pkt *packet.Packet) (*CommandSuggestionsRequest, error) {
+func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggestionsRequest, error) {
 	data := &CommandSuggestionsRequest{}
 	if err := pkt.Decode(&data.TransactionID, &data.Text); err != nil {
 		return nil, err
@@ -131,16 +131,17 @@ func DecodeCommandSuggestionsRequest(pkt *packet.Packet) (*CommandSuggestionsReq
 	return data, nil
 }
 
-func DecodeChatMessage(pkt *packet.Packet) (*ChatMessage, error) {
+func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
+	arr := mc.NewArray[mc.Byte, *mc.Byte](256)
 	data := &ChatMessage{
-		Signature:    mc.NewPrefixedOptional(mc.NewArray[mc.Byte](256)),
+		Signature:    mc.NewPrefixedOptional(&arr),
 		Acknowledged: mc.NewFixedBitSet(20),
 	}
 	if err := pkt.Decode(
 		&data.Message,
 		&data.Timestamp,
 		&data.Salt,
-		data.Signature,
+		&data.Signature,
 		&data.MessageCount,
 		data.Acknowledged,
 		&data.Checksum,
@@ -150,7 +151,7 @@ func DecodeChatMessage(pkt *packet.Packet) (*ChatMessage, error) {
 	return data, nil
 }
 
-func DecodePlayerSession(pkt *packet.Packet) (*PlayerSession, error) {
+func DecodePlayerSession(pkt *packet.InboundPacket) (*PlayerSession, error) {
 	data := &PlayerSession{}
 	if err := pkt.Decode(
 		&data.SessionId,
@@ -163,7 +164,7 @@ func DecodePlayerSession(pkt *packet.Packet) (*PlayerSession, error) {
 	return data, nil
 }
 
-func DecodeChatCommand(pkt *packet.Packet) (*mc.String, error) {
+func DecodeChatCommand(pkt *packet.InboundPacket) (*mc.String, error) {
 	var command mc.String
 	if err := pkt.Decode(&command); err != nil {
 		return nil, err
@@ -171,7 +172,7 @@ func DecodeChatCommand(pkt *packet.Packet) (*mc.String, error) {
 	return &command, nil
 }
 
-func DecodeSignedChatCommand(pkt *packet.Packet) (*SignedChatCommand, error) {
+func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, error) {
 	data := &SignedChatCommand{
 		Acknowledged: mc.NewFixedBitSet(20),
 	}
@@ -184,8 +185,8 @@ func DecodeSignedChatCommand(pkt *packet.Packet) (*SignedChatCommand, error) {
 	data.ArgumentSignatures = make([]ArgumentSignature, signaturesCount)
 	for i := 0; i < int(signaturesCount); i++ {
 		var argName mc.String
-		var signature = mc.NewArray[mc.Byte](256)
-		if err := pkt.Decode(&argName, signature); err != nil {
+		var signature = mc.NewArray[mc.Byte, *mc.Byte](256)
+		if err := pkt.Decode(&argName, &signature); err != nil {
 			return nil, err
 		}
 		data.ArgumentSignatures[i] = ArgumentSignature{
@@ -199,7 +200,7 @@ func DecodeSignedChatCommand(pkt *packet.Packet) (*SignedChatCommand, error) {
 	return data, nil
 }
 
-func DecodePlayerCommand(pkt *packet.Packet) (*PlayerCommand, error) {
+func DecodePlayerCommand(pkt *packet.InboundPacket) (*PlayerCommand, error) {
 	data := &PlayerCommand{}
 	if err := pkt.Decode(&data.EntityID, &data.ActionID, &data.JumpBoost); err != nil {
 		return nil, err
@@ -207,7 +208,7 @@ func DecodePlayerCommand(pkt *packet.Packet) (*PlayerCommand, error) {
 	return data, nil
 }
 
-func DecodePlayerInput(pkt *packet.Packet) (*mc.UnsignedByte, error) {
+func DecodePlayerInput(pkt *packet.InboundPacket) (*mc.UnsignedByte, error) {
 	var flags mc.UnsignedByte
 	if err := pkt.Decode(&flags); err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func DecodePlayerInput(pkt *packet.Packet) (*mc.UnsignedByte, error) {
 	return &flags, nil
 }
 
-func DecodePlayerAction(pkt *packet.Packet) (*PlayerAction, error) {
+func DecodePlayerAction(pkt *packet.InboundPacket) (*PlayerAction, error) {
 	data := &PlayerAction{}
 	if err := pkt.Decode(
 		&data.Status,
@@ -228,7 +229,7 @@ func DecodePlayerAction(pkt *packet.Packet) (*PlayerAction, error) {
 	return data, nil
 }
 
-func DecodeSwingArm(pkt *packet.Packet) (*mc.VarInt, error) {
+func DecodeSwingArm(pkt *packet.InboundPacket) (*mc.VarInt, error) {
 	var hand mc.VarInt
 	if err := pkt.Decode(&hand); err != nil {
 		return nil, err
@@ -236,7 +237,7 @@ func DecodeSwingArm(pkt *packet.Packet) (*mc.VarInt, error) {
 	return &hand, nil
 }
 
-func DecodeSetHeldItem(pkt *packet.Packet) (*mc.Short, error) {
+func DecodeSetHeldItem(pkt *packet.InboundPacket) (*mc.Short, error) {
 	var slot mc.Short
 	if err := pkt.Decode(&slot); err != nil {
 		return nil, err
@@ -244,7 +245,7 @@ func DecodeSetHeldItem(pkt *packet.Packet) (*mc.Short, error) {
 	return &slot, nil
 }
 
-func DecodeSetCreativeModeSlot(pkt *packet.Packet) (*SetCreativeModeSlot, error) {
+func DecodeSetCreativeModeSlot(pkt *packet.InboundPacket) (*SetCreativeModeSlot, error) {
 	data := &SetCreativeModeSlot{}
 	if err := pkt.Decode(&data.Slot, &data.ClickedItem); err != nil {
 		return nil, err
@@ -252,7 +253,7 @@ func DecodeSetCreativeModeSlot(pkt *packet.Packet) (*SetCreativeModeSlot, error)
 	return data, nil
 }
 
-func DecodeUseItemOn(pkt *packet.Packet) (*UseItemOn, error) {
+func DecodeUseItemOn(pkt *packet.InboundPacket) (*UseItemOn, error) {
 	data := &UseItemOn{}
 	if err := pkt.Decode(
 		&data.Hand,

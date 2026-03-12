@@ -30,7 +30,7 @@ type StatusResponse struct {
 	EnforceSecureChat bool   `json:"enforceSecureChat"`
 }
 
-func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
+func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 	var data StatusResponse
 
 	data.Version.Name = mcdata.GameVersion
@@ -55,8 +55,9 @@ func (c *Connection) HandleStatusRequest(pkt *packet.Packet) {
 	data.EnforceSecureChat = false
 	jsonData, _ := json.Marshal(data)
 
-	_ = pkt.ResetWith(packet.StatusClientboundStatusResponse, mc.String(jsonData))
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	resp, _ := packet.NewPacket(packet.StatusClientboundStatusResponse, mc.String(jsonData))
+	_ = resp.Send(c.Conn, c.CompressionThreshold)
+	resp.Free()
 }
 
 func (c *Connection) HandlePing(timestamp *mc.Long) {

@@ -6,7 +6,7 @@ import (
 )
 
 type Handler struct {
-	Decode  func(pkt *packet.Packet) (any, error)
+	Decode  func(pkt *packet.InboundPacket) (any, error)
 	Process func(conn *Connection, pkt any)
 	Ticked  bool
 }
@@ -50,13 +50,13 @@ func RegisterRaw(
 	state mc.State,
 	id int,
 	ticked bool,
-	process func(conn *Connection, pkt *packet.Packet),
+	process func(conn *Connection, pkt *packet.InboundPacket),
 ) {
 	r.ensureCapacity(state, id)
 	r.handlers[state][id] = Handler{
 		Ticked: ticked,
 		Process: func(conn *Connection, p any) {
-			process(conn, p.(*packet.Packet))
+			process(conn, p.(*packet.InboundPacket))
 		},
 	}
 }
@@ -66,12 +66,12 @@ func RegisterTyped[P any](
 	state mc.State,
 	id int,
 	ticked bool,
-	decode func(pkt *packet.Packet) (P, error),
+	decode func(pkt *packet.InboundPacket) (P, error),
 	process func(conn *Connection, p P),
 ) {
 	r.ensureCapacity(state, id)
 	r.handlers[state][id] = Handler{
-		Decode: func(raw *packet.Packet) (any, error) {
+		Decode: func(raw *packet.InboundPacket) (any, error) {
 			return decode(raw)
 		},
 		Ticked: ticked,
