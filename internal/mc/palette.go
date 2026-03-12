@@ -1,7 +1,6 @@
 package mc
 
 import (
-	"context"
 	"io"
 )
 
@@ -57,7 +56,7 @@ func NewPalettedContainer(singlePaletteValue VarInt) *PalettedContainer {
 }
 
 func (p *PalettedContainer) ReadFrom(_ io.Reader) (n int64, err error) {
-	panic(context.TODO())
+	panic("Not implemented")
 }
 
 func (p *PalettedContainer) WriteTo(w io.Writer) (n int64, err error) {
@@ -112,7 +111,7 @@ func (s *SingleValueContainer) Set(index int, value int32) (Container, error) {
 
 	indirect := newIndirectContainer(MinIndirectBits)
 	paletteData := []VarInt{s.Value}
-	indirect.Palette = NewPrefixedArray(&paletteData)
+	indirect.Palette = NewPrefixedArray(paletteData)
 	_, err := indirect.Set(index, value)
 	if err != nil {
 		return nil, err
@@ -128,26 +127,24 @@ func (s *SingleValueContainer) Size() int {
 func (s *SingleValueContainer) BitsPerEntry() UnsignedByte { return 0 }
 
 func newIndirectContainer(bpe int) *IndirectContainer {
-	pArray := make([]VarInt, 0)
-
 	return &IndirectContainer{
 		maxCapacity: 1 << bpe,
-		Palette:     NewPrefixedArray(&pArray),
+		Palette:     NewPrefixedArray(make([]VarInt, 0)),
 		DataArray:   NewDataArray(bpe, SectionSize),
 	}
 }
 
 func (i *IndirectContainer) Get(index int) int32 {
 	paletteIndex := i.DataArray.Get(index)
-	if paletteIndex >= len(*i.Palette.Slice) {
+	if paletteIndex >= len(i.Palette.Slice) {
 		return 0
 	}
-	return int32((*i.Palette.Slice)[paletteIndex])
+	return int32(i.Palette.Slice[paletteIndex])
 }
 
 func (i *IndirectContainer) Set(index int, value int32) (Container, error) {
 	pIndex := -1
-	for idx, v := range *i.Palette.Slice {
+	for idx, v := range i.Palette.Slice {
 		if int32(v) == value {
 			pIndex = idx
 			break
@@ -159,7 +156,7 @@ func (i *IndirectContainer) Set(index int, value int32) (Container, error) {
 		return nil, nil
 	}
 
-	if len(*i.Palette.Slice) >= i.maxCapacity {
+	if len(i.Palette.Slice) >= i.maxCapacity {
 		newBPE := i.DataArray.BitsPerEntry + 1
 		if newBPE > MaxIndirectBits {
 			return i.upgradeToDirect(index, value)
@@ -168,9 +165,8 @@ func (i *IndirectContainer) Set(index int, value int32) (Container, error) {
 		i.resize(newBPE)
 	}
 
-	newSlice := append(*i.Palette.Slice, VarInt(value))
-	i.Palette.Slice = &newSlice
-	i.DataArray.Set(index, len(*i.Palette.Slice)-1)
+	i.Palette.Slice = append(i.Palette.Slice, VarInt(value))
+	i.DataArray.Set(index, len(i.Palette.Slice)-1)
 
 	return nil, nil
 }
@@ -196,8 +192,8 @@ func (i *IndirectContainer) upgradeToDirect(index int, value int32) (Container, 
 }
 
 func (i *IndirectContainer) Size() int {
-	pSize := VarInt(len(*i.Palette.Slice)).Len()
-	for _, v := range *i.Palette.Slice {
+	pSize := VarInt(len(i.Palette.Slice)).Len()
+	for _, v := range i.Palette.Slice {
 		pSize += v.Len()
 	}
 	dataLen := len(i.DataArray.Slice)

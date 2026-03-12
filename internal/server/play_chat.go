@@ -183,7 +183,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 	var signatureBytes []byte
 	if isChatMessageSigned {
 		signatureBytes = make([]byte, 256)
-		for i, b := range *data.Signature.Value.Slice {
+		for i, b := range data.Signature.Value.Slice {
 			signatureBytes[i] = byte(b)
 		}
 
@@ -243,7 +243,7 @@ func broadcastChatMessage(
 				if clientMessageID == -1 {
 					bArray := mc.NewArray[mc.Byte](256)
 					for i := 0; i < 256; i++ {
-						(*bArray.Slice)[i] = mc.Byte(sig[i])
+						bArray.Slice[i] = mc.Byte(sig[i])
 					}
 					_ = outPkt.Encode(bArray)
 				}

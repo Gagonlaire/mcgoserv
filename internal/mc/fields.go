@@ -233,23 +233,22 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
+	var buf [5]byte
+	i := 0
 	val := uint32(v)
 	for {
-		temp := byte(val & 0x7F)
+		buf[i] = byte(val & 0x7F)
 		val >>= 7
 		if val != 0 {
-			temp |= 0x80
+			buf[i] |= 0x80
 		}
-		var written int
-		if written, err = w.Write([]byte{temp}); err != nil {
-			return n, fmt.Errorf("error writing VarInt: %w", err)
-		}
-		n += int64(written)
+		i++
 		if val == 0 {
 			break
 		}
 	}
-	return n, nil
+	nn, err := w.Write(buf[:i])
+	return int64(nn), err
 }
 
 func (U *UUID) ReadFrom(r io.Reader) (n int64, err error) {
@@ -260,7 +259,7 @@ func (U *UUID) ReadFrom(r io.Reader) (n int64, err error) {
 	return int64(nBytes), nil
 }
 
-func (U *UUID) WriteTo(w io.Writer) (n int64, err error) {
+func (U UUID) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(U[:])
 	if err != nil {
 		return int64(nBytes), fmt.Errorf("error writing UUID: %w", err)
@@ -273,7 +272,7 @@ func (F *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
 	return int64(nBytes), err
 }
 
-func (F *FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
+func (F FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(F.Data)
 	return int64(nBytes), err
 }
@@ -301,7 +300,7 @@ func (P *PrefixedOptional[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-func (P *PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
+func (P PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := P.Has.WriteTo(w)
 	if err != nil {
 		return n, fmt.Errorf("error writing PrefixedOptional flag: %w", err)
@@ -322,14 +321,10 @@ func (P *PrefixedOptional[X]) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-// todo: this should not need reflection type check and accept the field interface directly
+// ReadFrom todo: this should not need reflection type check and accept the field interface directly
 func (a *Array[X]) ReadFrom(r io.Reader) (n int64, err error) {
-	if a.Slice == nil {
-		a.Slice = &[]X{}
-	}
-	currentSlice := *a.Slice
-	for i := range currentSlice {
-		elemAddr := &currentSlice[i]
+	for i := range a.Slice {
+		elemAddr := &a.Slice[i]
 		fieldInstance, ok := any(elemAddr).(Field)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
@@ -344,13 +339,9 @@ func (a *Array[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-func (a *Array[X]) WriteTo(w io.Writer) (n int64, err error) {
-	if a.Slice == nil {
-		return 0, nil
-	}
-	currentSlice := *a.Slice
-	for i := range currentSlice {
-		elemAddr := &currentSlice[i]
+func (a Array[X]) WriteTo(w io.Writer) (n int64, err error) {
+	for i := range a.Slice {
+		elemAddr := &a.Slice[i]
 		fieldInstance, ok := any(elemAddr).(Field)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
@@ -372,16 +363,13 @@ func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 		return n, fmt.Errorf("error reading PrefixedArray length: %w", err)
 	}
 	n += nn
-	if p.Slice == nil {
-		p.Slice = &[]X{}
-	}
-	if cap(*p.Slice) < int(length) {
-		*p.Slice = make([]X, length)
+	if cap(p.Slice) < int(length) {
+		p.Slice = make([]X, length)
 	} else {
-		*p.Slice = (*p.Slice)[:length]
+		p.Slice = p.Slice[:length]
 	}
 	for i := 0; i < int(length); i++ {
-		elemAddr := &(*p.Slice)[i]
+		elemAddr := &p.Slice[i]
 		fieldInstance, ok := any(elemAddr).(io.ReaderFrom)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
@@ -396,19 +384,15 @@ func (p *PrefixedArray[X]) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
-	if p.Slice == nil {
-		p.Slice = &[]X{}
-	}
-	currentSlice := *p.Slice
-	length := VarInt(len(currentSlice))
+func (p PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
+	length := VarInt(len(p.Slice))
 	nn, err := length.WriteTo(w)
 	if err != nil {
 		return n, fmt.Errorf("error writing PrefixedArray length: %w", err)
 	}
 	n += nn
 	for i := range length {
-		elemAddr := &currentSlice[i]
+		elemAddr := &p.Slice[i]
 		fieldInstance, ok := any(elemAddr).(io.WriterTo)
 		if !ok {
 			typeName := reflect.TypeOf(elemAddr).String()
@@ -424,8 +408,8 @@ func (p *PrefixedArray[X]) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
-	buf := make([]byte, 1)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	var buf [1]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return n, err
 	}
 	n += 1
@@ -435,18 +419,18 @@ func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 		return n, nil
 	}
 
-	if _, err := io.ReadFull(r, buf); err != nil {
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return n, err
 	}
 	n += 1
 	byte2 := uint64(buf[0])
 
-	fourBytes := make([]byte, 4)
-	if _, err := io.ReadFull(r, fourBytes); err != nil {
+	var fourBytes [4]byte
+	if _, err := io.ReadFull(r, fourBytes[:]); err != nil {
 		return n, err
 	}
 	n += 4
-	bytes3To4 := binary.BigEndian.Uint32(fourBytes)
+	bytes3To4 := binary.BigEndian.Uint32(fourBytes[:])
 
 	packed := (uint64(bytes3To4) << 16) | (byte2 << 8) | byte1
 
@@ -470,7 +454,7 @@ func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-func (L *LpVec3) WriteTo(w io.Writer) (n int64, err error) {
+func (L LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	maxCoordinate := math.Max(math.Abs(L.X), math.Max(math.Abs(L.Y), math.Abs(L.Z)))
 
 	if maxCoordinate < 3.051944088384301e-5 {
@@ -503,12 +487,12 @@ func (L *LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	packedZ := pack(L.Z/scaleFactorD) << 33
 	packed := packedZ | packedY | packedX | packedScale
 
-	buf := make([]byte, 6)
+	var buf [6]byte
 	buf[0] = byte(packed)
 	buf[1] = byte(packed >> 8)
 	valInt := uint32(packed >> 16)
 	binary.BigEndian.PutUint32(buf[2:], valInt)
-	if _, err := w.Write(buf); err != nil {
+	if _, err := w.Write(buf[:]); err != nil {
 		return 0, err
 	}
 	n += 6
@@ -561,7 +545,7 @@ func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-func (s *Slot) WriteTo(w io.Writer) (n int64, err error) {
+func (s Slot) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := VarInt(s.Count).WriteTo(w)
 	if err != nil {
 		return n, fmt.Errorf("error writing Slot count: %w", err)
@@ -593,20 +577,29 @@ func (s *Slot) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
-	nn, _ := String(p.Name).WriteTo(w)
+	nn, err := String(p.Name).WriteTo(w)
 	n += nn
-	nn, _ = String(p.Value).WriteTo(w)
-	n += nn
-	if p.Signature != "" {
-		nn, _ = Boolean(true).WriteTo(w)
-		nnn, _ := String(p.Signature).WriteTo(w)
-		n += nn + nnn
-	} else {
-		nn, _ = Boolean(false).WriteTo(w)
-		n += nn
+	if err != nil {
+		return n, err
 	}
-
-	return n, nil
+	nn, err = String(p.Value).WriteTo(w)
+	n += nn
+	if err != nil {
+		return n, err
+	}
+	if p.Signature != "" {
+		nn, err = Boolean(true).WriteTo(w)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+		nn, err = String(p.Signature).WriteTo(w)
+		n += nn
+		return n, err
+	}
+	nn, err = Boolean(false).WriteTo(w)
+	n += nn
+	return n, err
 }
 
 func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {

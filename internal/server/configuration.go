@@ -40,7 +40,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 		packet.PlayClientboundLogin,
 		mc.Int(c.Player.EntityID),
 		mc.Boolean(c.Server.Properties.Hardcore),
-		mc.NewPrefixedArray(&dimensionsName),
+		mc.NewPrefixedArray(dimensionsName),
 		mc.VarInt(c.Server.Properties.MaxPlayers),
 		mc.VarInt(c.Server.Properties.ViewDistance),
 		mc.VarInt(c.Server.Properties.SimulationDistance),
@@ -138,29 +138,22 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 	// todo: following packets must be sent in response of the Player loaded packet
 	// todo: send player inventory, rework inventory system
 
-	velocity := mc.LpVec3{
-		X: 0,
-		Y: 0,
-		Z: 0,
-	}
 	zeroAngle := mc.Angle(0)
 	data := mc.VarInt(0)
-	eID2 := mc.VarInt(c.Player.EntityID)
-	uuid := mc.UUID(c.Player.UUID)
 	// spawn newly connected player
 	pkt, _ = packet.NewPacket(
 		packet.PlayClientboundAddEntity,
-		&eID2,
-		&uuid,
+		mc.VarInt(c.Player.EntityID),
+		mc.UUID(c.Player.UUID),
 		mc.VarInt(mcdata.EntityPlayer),
 		mc.Double(c.Player.Pos[0]),
 		mc.Double(c.Player.Pos[1]),
 		mc.Double(c.Player.Pos[2]),
-		&velocity,
-		&zeroAngle,
-		&zeroAngle,
-		&zeroAngle,
-		&data,
+		mc.LpVec3{},
+		zeroAngle,
+		zeroAngle,
+		zeroAngle,
+		data,
 	)
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
@@ -168,20 +161,19 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(pkt *packet.Packet) {
 			continue
 		}
 
-		uuid := mc.UUID(player.UUID)
 		pkt, _ := packet.NewPacket(
 			packet.PlayClientboundAddEntity,
 			mc.VarInt(player.EntityID),
-			&uuid,
+			mc.UUID(player.UUID),
 			mc.VarInt(mcdata.EntityPlayer),
 			mc.Double(player.Pos[0]),
 			mc.Double(player.Pos[1]),
 			mc.Double(player.Pos[2]),
-			&velocity,
-			&zeroAngle,
-			&zeroAngle,
-			&zeroAngle,
-			&data,
+			mc.LpVec3{},
+			zeroAngle,
+			zeroAngle,
+			zeroAngle,
+			data,
 		)
 
 		_ = pkt.Send(c.Conn, c.CompressionThreshold)

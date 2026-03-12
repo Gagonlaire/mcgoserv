@@ -129,7 +129,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		c.ContextData["loginUUID"].(uuid.UUID),
 		c.ContextData["loginName"].(string),
 		permissionLevel,
-		*pArraySession.Slice,
+		pArraySession.Slice,
 		c.Server.Properties,
 	)
 

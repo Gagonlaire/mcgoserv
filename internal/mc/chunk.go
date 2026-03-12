@@ -82,7 +82,7 @@ func CreateChunk(x int, z int) *Chunk {
 
 	skyMask := BitSet{
 		PrefixedArray: PrefixedArray[Long]{
-			Slice: &skyMaskSlice,
+			Slice: skyMaskSlice,
 		},
 	}
 
@@ -94,12 +94,12 @@ func CreateChunk(x int, z int) *Chunk {
 			data[j] = Byte(fullBright)
 		}
 		arrays[i] = PrefixedArray[Byte]{
-			Slice: &data,
+			Slice: data,
 		}
 	}
 
 	skyLightArrays := PrefixedArray[PrefixedArray[Byte]]{
-		Slice: &arrays,
+		Slice: arrays,
 	}
 
 	return &Chunk{
@@ -111,7 +111,7 @@ func CreateChunk(x int, z int) *Chunk {
 
 		Size: VarInt(dataSize),
 		Data: Array[ChunkSection]{
-			Slice: &sections,
+			Slice: sections,
 		},
 		SkyLightMask:   skyMask,
 		SkyLightArrays: skyLightArrays,
@@ -120,11 +120,11 @@ func CreateChunk(x int, z int) *Chunk {
 
 func (c *Chunk) GetBlock(x, y, z, minY int) (int32, error) {
 	sectionIndex := (y - minY) >> 4
-	if sectionIndex < 0 || sectionIndex >= len(*c.Data.Slice) {
+	if sectionIndex < 0 || sectionIndex >= len(c.Data.Slice) {
 		return 0, fmt.Errorf("y out of bounds")
 	}
 
-	section := (*c.Data.Slice)[sectionIndex]
+	section := c.Data.Slice[sectionIndex]
 
 	relY := y & 15
 	index := (relY << 8) | (z << 4) | x
@@ -135,11 +135,11 @@ func (c *Chunk) GetBlock(x, y, z, minY int) (int32, error) {
 func (c *Chunk) SetBlock(x, y, z, minY int, blockState int32) error {
 	sectionIndex := (y - minY) >> 4
 
-	if sectionIndex < 0 || sectionIndex >= len(*c.Data.Slice) {
+	if sectionIndex < 0 || sectionIndex >= len(c.Data.Slice) {
 		return fmt.Errorf("y out of bounds")
 	}
 
-	sections := *c.Data.Slice
+	sections := c.Data.Slice
 	section := &sections[sectionIndex]
 	relY := y & 15
 	index := (relY << 8) | (z << 4) | x
@@ -163,12 +163,10 @@ func (c *Chunk) SetBlock(x, y, z, minY int, blockState int32) error {
 
 func (c *Chunk) ComputeSize() {
 	totalSize := 0
-	if c.Data.Slice != nil {
-		for _, section := range *c.Data.Slice {
-			totalSize += 2 // BlockCount size (short)
-			totalSize += section.BlockStates.Size()
-			totalSize += section.Biomes.Size()
-		}
+	for _, section := range c.Data.Slice {
+		totalSize += 2 // BlockCount size (short)
+		totalSize += section.BlockStates.Size()
+		totalSize += section.Biomes.Size()
 	}
 	c.Size = VarInt(totalSize)
 }

@@ -97,7 +97,7 @@ const (
 )
 
 var ServerDataPacks = PrefixedArray[DataPackIdentifier]{
-	Slice: &[]DataPackIdentifier{
+	Slice: []DataPackIdentifier{
 		{
 			Namespace: String("minecraft"),
 			ID:        String("core"),
@@ -121,13 +121,12 @@ func (v VarInt) Len() int {
 }
 
 func NewArray[E any](size uint32) *Array[E] {
-	slice := make([]E, size)
 	return &Array[E]{
-		Slice: &slice,
+		Slice: make([]E, size),
 	}
 }
 
-func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
+func NewPrefixedArray[E any](slice []E) *PrefixedArray[E] {
 	return &PrefixedArray[E]{
 		Slice: slice,
 	}
@@ -137,13 +136,13 @@ func NewPrefixedArray[E any](slice *[]E) *PrefixedArray[E] {
 // ex: convert []byte to PrefixedArray[Byte]
 func NewPrefixedArrayFromSlice[E, S any](slice []S, convert func(S) E) *PrefixedArray[E] {
 	if slice == nil {
-		return &PrefixedArray[E]{Slice: nil}
+		return &PrefixedArray[E]{}
 	}
 	newSlice := make([]E, len(slice))
 	for i, v := range slice {
 		newSlice[i] = convert(v)
 	}
-	return &PrefixedArray[E]{Slice: &newSlice}
+	return &PrefixedArray[E]{Slice: newSlice}
 }
 
 // NewPrefixedArrayFromIter creates a new PrefixedArray from an iterator with a conversion function and filtering.
@@ -155,7 +154,7 @@ func NewPrefixedArrayFromIter[E, S any](seq iter.Seq[S], convert func(S) (E, boo
 			newSlice = append(newSlice, mapped)
 		}
 	}
-	return &PrefixedArray[E]{Slice: &newSlice}
+	return &PrefixedArray[E]{Slice: newSlice}
 }
 
 // MapToSlice converts a PrefixedArray to a regular slice using a conversion function.
@@ -164,9 +163,8 @@ func MapToSlice[E any, T any](p *PrefixedArray[E], convert func(E) T) []T {
 	if p == nil || p.Slice == nil {
 		return nil
 	}
-	src := *p.Slice
-	dst := make([]T, len(src))
-	for i, v := range src {
+	dst := make([]T, len(p.Slice))
+	for i, v := range p.Slice {
 		dst[i] = convert(v)
 	}
 	return dst
@@ -180,10 +178,7 @@ func NewPrefixedOptional[E any](value *E) *PrefixedOptional[E] {
 }
 
 func (b *BitSet) Set(i int, value bool) {
-	if b.PrefixedArray.Slice == nil {
-		return
-	}
-	data := *b.PrefixedArray.Slice
+	data := b.PrefixedArray.Slice
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {
@@ -197,10 +192,7 @@ func (b *BitSet) Set(i int, value bool) {
 }
 
 func (b *BitSet) Get(i int) bool {
-	if b.PrefixedArray.Slice == nil {
-		return false
-	}
-	data := *b.PrefixedArray.Slice
+	data := b.PrefixedArray.Slice
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {

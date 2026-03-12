@@ -1,7 +1,6 @@
 package mc
 
 import (
-	"context"
 	"crypto/rsa"
 	"go/types"
 	"io"
@@ -145,7 +144,7 @@ type (
 	// Notes:
 	//  - The length must be known from the context.
 	Array[X any] struct {
-		Slice *[]X
+		Slice []X
 	}
 	// PrefixedArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Prefixed_Array.
@@ -154,7 +153,7 @@ type (
 	// Notes:
 	//  - A length-prefixed array.
 	PrefixedArray[X any] struct {
-		Slice *[]X
+		Slice []X
 	}
 	// DataArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.
@@ -290,11 +289,11 @@ func (p Position) WriteTo(w io.Writer) (n int64, err error) {
 	return Long(val).WriteTo(w)
 }
 
-func (d *DataArray) ReadFrom(r io.Reader) (n int64, err error) {
-	panic(context.TODO())
+func (d *DataArray) ReadFrom(_ io.Reader) (n int64, err error) {
+	panic("DataArray.ReadFrom: not implemented")
 }
 
-func (d *DataArray) WriteTo(w io.Writer) (n int64, err error) {
+func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
 	for i := range d.Slice {
 		nn, err := Long(d.Slice[i]).WriteTo(w)
 		if err != nil {
