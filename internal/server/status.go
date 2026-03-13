@@ -37,6 +37,7 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 	data.Version.Protocol = mcdata.ProtocolVersion
 	data.Players.Max = c.Server.Properties.MaxPlayers
 	data.Players.Online = c.Server.World.OnlinePlayersCount()
+	data.Players.Sample = make([]PlayerSample, 0, 5)
 	for _, player := range c.Server.World.PlayersByUUID {
 		if len(data.Players.Sample) >= 5 {
 			break

@@ -61,12 +61,6 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 func (c *Connection) ReadLoop() {
 	defer c.close()
 	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		default:
-		}
-
 		pkt, err := packet.Receive(c.Conn, c.CompressionThreshold)
 		if err != nil {
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
@@ -82,6 +76,7 @@ func (c *Connection) ReadLoop() {
 				data, err = handler.Decode(pkt)
 				if err != nil {
 					// todo: disconnect with clean reason
+					c.close()
 					continue
 				}
 				// todo: check if data remains, if so, disconnect with clean reason

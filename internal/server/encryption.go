@@ -63,33 +63,39 @@ func (ec *EncryptedConn) WriteInPlace(p []byte) (int, error) {
 
 type cfb8Stream struct {
 	block   cipher.Block
-	iv      []byte
-	tmp     []byte
+	ring    [32]byte // ring buffer: double blockSize to avoid per-byte copy
+	tmp     [16]byte
+	pos     int
 	decrypt bool
 }
 
 func newCFB8Stream(block cipher.Block, iv []byte, decrypt bool) cipher.Stream {
-	return &cfb8Stream{
-		block:   block,
-		iv:      iv,
-		tmp:     make([]byte, block.BlockSize()),
+	s := &cfb8Stream{
 		decrypt: decrypt,
+		block:   block,
 	}
+	copy(s.ring[:], iv)
+	return s
 }
 
 func (s *cfb8Stream) XORKeyStream(dst, src []byte) {
 	blockSize := s.block.BlockSize()
 
 	for i := range src {
-		s.block.Encrypt(s.tmp, s.iv)
+		s.block.Encrypt(s.tmp[:], s.ring[s.pos:s.pos+blockSize])
 		val := src[i] ^ s.tmp[0]
 		dst[i] = val
-		copy(s.iv, s.iv[1:])
 
 		if s.decrypt {
-			s.iv[blockSize-1] = val ^ s.tmp[0]
+			s.ring[s.pos+blockSize] = val ^ s.tmp[0]
 		} else {
-			s.iv[blockSize-1] = val
+			s.ring[s.pos+blockSize] = val
+		}
+		s.pos++
+
+		if s.pos == blockSize {
+			copy(s.ring[:blockSize], s.ring[blockSize:2*blockSize])
+			s.pos = 0
 		}
 	}
 }

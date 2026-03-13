@@ -34,8 +34,7 @@ var verifyBufPool = sync.Pool{
 }
 
 func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRequest) {
-	raw := string(data.Text)
-	input := strings.TrimPrefix(raw, "/")
+	input := strings.TrimPrefix(data.Text.Value, "/")
 	src := c.playerSource()
 	ctx := c.Server.Commander.ParseForSuggestion(src, input)
 
@@ -198,7 +197,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 
 func broadcastChatMessage(
 	sender *Connection,
-	message mc.String,
+	message mc.String256,
 	timestamp, salt mc.Long,
 	signature mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]],
 	signatureBytes []byte,

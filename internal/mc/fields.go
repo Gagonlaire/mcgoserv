@@ -211,22 +211,7 @@ func (d Double) WriteTo(w io.Writer) (n int64, err error) {
 	return int64(nn), err
 }
 
-func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
-	var length VarInt
-	nLen, err := length.ReadFrom(r)
-	if err != nil {
-		return 0, fmt.Errorf("error reading String length: %w", err)
-	}
-	buf := make([]byte, int(length))
-	nStr, err := io.ReadFull(r, buf)
-	if err != nil {
-		return nLen + int64(nStr), fmt.Errorf("error reading String: %w", err)
-	}
-	*s = String(buf)
-	return nLen + int64(nStr), nil
-}
-
-func (s String) WriteTo(w io.Writer) (n int64, err error) {
+func encodeString(w io.Writer, s string) (n int64, err error) {
 	length := VarInt(len(s))
 	n, err = length.WriteTo(w)
 	if err != nil {
@@ -237,6 +222,75 @@ func (s String) WriteTo(w io.Writer) (n int64, err error) {
 		return n + int64(nStr), fmt.Errorf("error writing String: %w", err)
 	}
 	return n + int64(nStr), nil
+}
+
+func decodeString(r io.Reader, target *string, maxN int32) (n int64, err error) {
+	var byteLength VarInt
+	nn, err := byteLength.ReadFrom(r)
+	if err != nil {
+		return n, fmt.Errorf("error reading String byteLength: %w", err)
+	}
+	n += nn
+	maxBytes := maxN * 3
+	if byteLength < 0 || int32(byteLength) > maxBytes {
+		return n, fmt.Errorf("string byteLength %d is out of bounds (must be between 0 and %d)", byteLength, maxBytes)
+	}
+	buf := make([]byte, byteLength)
+	readBytes, err := io.ReadFull(r, buf)
+	if err != nil {
+		return n + int64(readBytes), fmt.Errorf("error reading String bytes: %w", err)
+	}
+	n += int64(readBytes)
+	str := string(buf)
+	var codeUnits int32 = 0
+	for _, char := range str {
+		if char > 0xFFFF {
+			codeUnits += 2
+		} else {
+			codeUnits += 1
+		}
+	}
+	if codeUnits > maxN {
+		return n, fmt.Errorf("string code unit length %d is out of bounds (must be between 0 and %d)", codeUnits, maxN)
+	}
+	*target = str
+	return n, nil
+}
+
+func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
+	return decodeString(r, (*string)(s), 32767)
+}
+
+func (s String) WriteTo(w io.Writer) (n int64, err error) {
+	return encodeString(w, string(s))
+}
+
+func (s *String256) ReadFrom(r io.Reader) (n int64, err error) {
+	return decodeString(r, (*string)(s), 256)
+}
+
+func (s String256) WriteTo(w io.Writer) (n int64, err error) {
+	return encodeString(w, string(s))
+}
+
+func (s *String16) ReadFrom(r io.Reader) (n int64, err error) {
+	return decodeString(r, (*string)(s), 16)
+}
+
+func (s String16) WriteTo(w io.Writer) (n int64, err error) {
+	return encodeString(w, string(s))
+}
+
+func (b *BoundedString) ReadFrom(r io.Reader) (n int64, err error) {
+	limit := b.MaxLength
+	if limit <= 0 {
+		limit = 32767
+	}
+	return decodeString(r, &b.Value, limit)
+}
+
+func (b *BoundedString) WriteTo(w io.Writer) (n int64, err error) {
+	return encodeString(w, b.Value)
 }
 
 func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
@@ -384,6 +438,9 @@ func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 		return n, fmt.Errorf("error reading PrefixedArray length: %w", err)
 	}
 	n += nn
+	if p.MaxLength > 0 && int32(length) > p.MaxLength {
+		return n, fmt.Errorf("PrefixedArray length %d exceeds maximum length %d", length, p.MaxLength)
+	}
 	l := int(length)
 	if cap(p.Slice) < l {
 		p.Slice = make([]T, l)

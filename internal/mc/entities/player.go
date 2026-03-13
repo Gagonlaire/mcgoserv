@@ -31,6 +31,7 @@ type Player struct {
 
 type MovementTracker struct {
 	VisibleChunks map[mc.ChunkPos]struct{}
+	KeepChunks    map[mc.ChunkPos]bool
 	PacketCount   int
 	LastTickX     float64
 	LastTickY     float64

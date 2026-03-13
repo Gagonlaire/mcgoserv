@@ -199,7 +199,13 @@ func (c *Connection) updateChunkView(force bool) {
 
 	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
-	keepChunks := make(map[mc.ChunkPos]bool, (loadRadius*2+1)*(loadRadius*2+1))
+	keepChunks := c.Player.Movement.KeepChunks
+	if keepChunks == nil {
+		keepChunks = make(map[mc.ChunkPos]bool, (loadRadius*2+1)*(loadRadius*2+1))
+		c.Player.Movement.KeepChunks = keepChunks
+	} else {
+		clear(keepChunks)
+	}
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
 			keepChunks[mc.ChunkPos{X: x, Z: z}] = true

@@ -6,7 +6,7 @@ import (
 )
 
 type LoginStart struct {
-	Name       mc.String
+	Name       mc.String16
 	PlayerUUID mc.UUID
 }
 
@@ -24,7 +24,10 @@ func DecodeLoginStart(pkt *packet.InboundPacket) (*LoginStart, error) {
 }
 
 func DecodeEncryptionResponse(pkt *packet.InboundPacket) (*EncryptionResponse, error) {
-	data := &EncryptionResponse{}
+	data := &EncryptionResponse{
+		EncryptedSecret:      mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 128},
+		EncryptedVerifyToken: mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 128},
+	}
 	if err := pkt.Decode(&data.EncryptedSecret, &data.EncryptedVerifyToken); err != nil {
 		return nil, err
 	}

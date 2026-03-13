@@ -83,7 +83,14 @@ type (
 	//  - ≥ 1 ≤ (n×3) + 3 bytes
 	// Notes:
 	//  - UTF-8 string prefixed with its size in bytes as a VarInt. Maximum length of n characters, which varies by context; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Type:String.
-	String string
+	String        string
+	String256     string
+	String16      string
+	BoundedString struct {
+		Value     string
+		MaxLength int32
+	}
+
 	// Identifier Encodes:
 	//  - A namespaced identifier; https://minecraft.wiki/w/Java_Edition_protocol/Packets#Identifier.
 	// Size:
@@ -157,7 +164,8 @@ type (
 	// Notes:
 	//  - A length-prefixed array.
 	PrefixedArray[T any, PT FieldPtr[T]] struct {
-		Slice []T
+		Slice     []T
+		MaxLength int32
 	}
 	// DataArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.
@@ -245,7 +253,7 @@ type DataPackIdentifier struct {
 
 //go:generate-field-impl
 type ClientInformation struct {
-	Locale              String
+	Locale              String16
 	ViewDistance        Byte
 	ChatMode            VarInt
 	ChatColors          Boolean // Unused by vanilla server
@@ -258,12 +266,12 @@ type ClientInformation struct {
 
 //go:generate-field-impl
 type RegistryDataEntry struct {
-	Data PrefixedOptional[Byte, *Byte]
 	ID   String
+	Data PrefixedOptional[Byte, *Byte]
 }
 
 //go:generate-field-impl
 type RegistryData struct {
-	Entries PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 	ID      String
+	Entries PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 }

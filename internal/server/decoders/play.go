@@ -21,14 +21,14 @@ type SetPlayerPositionAndRotation struct {
 }
 
 type CommandSuggestionsRequest struct {
-	Text          mc.String
+	Text          mc.BoundedString
 	TransactionID mc.VarInt
 }
 
 type ChatMessage struct {
 	Signature    mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]]
 	Acknowledged *mc.FixedBitSet
-	Message      mc.String
+	Message      mc.String256
 	Timestamp    mc.Long
 	Salt         mc.Long
 	MessageCount mc.VarInt
@@ -43,7 +43,7 @@ type PlayerSession struct {
 }
 
 type ArgumentSignature struct {
-	ArgumentName mc.String
+	ArgumentName mc.String16
 	Signature    mc.Array[mc.Byte, *mc.Byte]
 }
 
@@ -127,7 +127,9 @@ func DecodeSetPlayerPositionAndRotation(pkt *packet.InboundPacket) (*SetPlayerPo
 }
 
 func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggestionsRequest, error) {
-	data := &CommandSuggestionsRequest{}
+	data := &CommandSuggestionsRequest{
+		Text: mc.BoundedString{MaxLength: 32500},
+	}
 	if err := pkt.Decode(&data.TransactionID, &data.Text); err != nil {
 		return nil, err
 	}
@@ -155,7 +157,10 @@ func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
 }
 
 func DecodePlayerSession(pkt *packet.InboundPacket) (*PlayerSession, error) {
-	data := &PlayerSession{}
+	data := &PlayerSession{
+		PublicKey:    mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 512},
+		KeySignature: mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 4096},
+	}
 	if err := pkt.Decode(
 		&data.SessionId,
 		&data.ExpiresAt,
@@ -184,10 +189,9 @@ func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, err
 	if err := pkt.Decode(&data.Command, &data.Timestamp, &data.Salt, &signaturesCount); err != nil {
 		return nil, err
 	}
-	// todo: implement ReaderFrom for ArgumentSignature: use a prefixed array instead
 	data.ArgumentSignatures = make([]ArgumentSignature, signaturesCount)
 	for i := 0; i < int(signaturesCount); i++ {
-		var argName mc.String
+		var argName mc.String16
 		var signature = mc.NewArray[mc.Byte, *mc.Byte](256)
 		if err := pkt.Decode(&argName, &signature); err != nil {
 			return nil, err
