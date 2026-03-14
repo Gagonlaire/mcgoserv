@@ -26,7 +26,7 @@ type CommandSuggestionsRequest struct {
 }
 
 type ChatMessage struct {
-	Signature    mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]]
+	Signature    mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
 	Acknowledged *mc.FixedBitSet
 	Message      mc.String256
 	Timestamp    mc.Long
@@ -36,15 +36,15 @@ type ChatMessage struct {
 }
 
 type PlayerSession struct {
-	PublicKey    mc.PrefixedArray[mc.Byte, *mc.Byte]
-	KeySignature mc.PrefixedArray[mc.Byte, *mc.Byte]
+	PublicKey    mc.PrefixedByteArray
+	KeySignature mc.PrefixedByteArray
 	ExpiresAt    mc.Long
 	SessionId    mc.UUID
 }
 
 type ArgumentSignature struct {
 	ArgumentName mc.String16
-	Signature    mc.Array[mc.Byte, *mc.Byte]
+	Signature    mc.ByteArray
 }
 
 type SignedChatCommand struct {
@@ -137,7 +137,7 @@ func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggest
 }
 
 func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
-	arr := mc.NewArray[mc.Byte, *mc.Byte](256)
+	arr := mc.NewByteArray(256)
 	data := &ChatMessage{
 		Signature:    mc.NewPrefixedOptional(&arr),
 		Acknowledged: mc.NewFixedBitSet(20),
@@ -158,8 +158,8 @@ func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
 
 func DecodePlayerSession(pkt *packet.InboundPacket) (*PlayerSession, error) {
 	data := &PlayerSession{
-		PublicKey:    mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 512},
-		KeySignature: mc.PrefixedArray[mc.Byte, *mc.Byte]{MaxLength: 4096},
+		PublicKey:    mc.PrefixedByteArray{MaxLength: 512},
+		KeySignature: mc.PrefixedByteArray{MaxLength: 4096},
 	}
 	if err := pkt.Decode(
 		&data.SessionId,
@@ -192,7 +192,7 @@ func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, err
 	data.ArgumentSignatures = make([]ArgumentSignature, signaturesCount)
 	for i := 0; i < int(signaturesCount); i++ {
 		var argName mc.String16
-		var signature = mc.NewArray[mc.Byte, *mc.Byte](256)
+		var signature = mc.NewByteArray(256)
 		if err := pkt.Decode(&argName, &signature); err != nil {
 			return nil, err
 		}

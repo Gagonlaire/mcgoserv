@@ -25,8 +25,8 @@ type Chunk struct {
 	BlockLightMask      BitSet
 	EmptySkyLightMask   BitSet
 	EmptyBlockLightMask BitSet
-	SkyLightArrays      PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
-	BlockLightArrays    PrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]
+	SkyLightArrays      PrefixedArray[PrefixedByteArray, *PrefixedByteArray]
+	BlockLightArrays    PrefixedArray[PrefixedByteArray, *PrefixedByteArray]
 }
 
 //go:generate-field-impl
@@ -82,18 +82,17 @@ func CreateChunk(x int, z int) *Chunk {
 
 	skyMask := BitSet{
 		PrefixedArray: PrefixedArray[Long, *Long]{
-			Slice: skyMaskSlice,
+			Data: skyMaskSlice,
 		},
 	}
 
-	arrays := make([]PrefixedArray[Byte, *Byte], len(sections))
+	arrays := make([]PrefixedByteArray, len(sections))
 	for i := range arrays {
-		data := make([]Byte, 2048)
-		fullBright := UnsignedByte(0xFF)
+		data := make([]byte, 2048)
 		for j := range data {
-			data[j] = Byte(fullBright)
+			data[j] = 0xFF
 		}
-		arrays[i] = PrefixedArray[Byte, *Byte]{Slice: data}
+		arrays[i] = PrefixedByteArray{Data: data}
 	}
 
 	return &Chunk{
@@ -107,20 +106,20 @@ func CreateChunk(x int, z int) *Chunk {
 		BlockEntities: NewPrefixedArray[BlockEntity, *BlockEntity]([]BlockEntity{}),
 
 		Size:             VarInt(dataSize),
-		Data:             Array[ChunkSection, *ChunkSection]{Slice: sections},
+		Data:             Array[ChunkSection, *ChunkSection]{Data: sections},
 		SkyLightMask:     skyMask,
-		SkyLightArrays:   NewPrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]](arrays),
-		BlockLightArrays: NewPrefixedArray[PrefixedArray[Byte, *Byte], *PrefixedArray[Byte, *Byte]]([]PrefixedArray[Byte, *Byte]{}),
+		SkyLightArrays:   NewPrefixedArray[PrefixedByteArray, *PrefixedByteArray](arrays),
+		BlockLightArrays: NewPrefixedArray[PrefixedByteArray, *PrefixedByteArray]([]PrefixedByteArray{}),
 	}
 }
 
 func (c *Chunk) GetBlock(x, y, z, minY int) (int32, error) {
 	sectionIndex := (y - minY) >> 4
-	if sectionIndex < 0 || sectionIndex >= len(c.Data.Slice) {
+	if sectionIndex < 0 || sectionIndex >= len(c.Data.Data) {
 		return 0, fmt.Errorf("y out of bounds")
 	}
 
-	section := c.Data.Slice[sectionIndex]
+	section := c.Data.Data[sectionIndex]
 
 	relY := y & 15
 	index := (relY << 8) | (z << 4) | x
@@ -131,11 +130,11 @@ func (c *Chunk) GetBlock(x, y, z, minY int) (int32, error) {
 func (c *Chunk) SetBlock(x, y, z, minY int, blockState int32) error {
 	sectionIndex := (y - minY) >> 4
 
-	if sectionIndex < 0 || sectionIndex >= len(c.Data.Slice) {
+	if sectionIndex < 0 || sectionIndex >= len(c.Data.Data) {
 		return fmt.Errorf("y out of bounds")
 	}
 
-	sections := c.Data.Slice
+	sections := c.Data.Data
 	section := &sections[sectionIndex]
 	relY := y & 15
 	index := (relY << 8) | (z << 4) | x
@@ -159,7 +158,7 @@ func (c *Chunk) SetBlock(x, y, z, minY int, blockState int32) error {
 
 func (c *Chunk) ComputeSize() {
 	totalSize := 0
-	for _, section := range c.Data.Slice {
+	for _, section := range c.Data.Data {
 		totalSize += 2 // BlockCount size (short)
 		totalSize += section.BlockStates.Size()
 		totalSize += section.Biomes.Size()

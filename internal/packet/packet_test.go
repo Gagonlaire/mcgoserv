@@ -35,7 +35,7 @@ var (
 		ptr(mc.UUID(uuid.New())),
 		ptr(mc.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
 		ptr(mc.Slot{Count: 64, ItemID: 1}),
-		&mc.PrefixedArray[mc.Long, *mc.Long]{Slice: longSlice},
+		&mc.PrefixedArray[mc.Long, *mc.Long]{Data: longSlice},
 	}
 )
 

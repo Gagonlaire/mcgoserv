@@ -120,26 +120,36 @@ func (v VarInt) Len() int {
 
 func NewArray[T any, PT FieldPtr[T]](size uint32) Array[T, PT] {
 	return Array[T, PT]{
-		Slice: make([]T, size),
+		Data: make([]T, size),
 	}
 }
 
+// NewByteArray creates a ByteArray with a pre-allocated Data slice of the given size.
+func NewByteArray(size uint32) ByteArray {
+	return ByteArray{Data: make([]byte, size)}
+}
+
+// NewPrefixedByteArray wraps an existing byte slice in a PrefixedByteArray.
+func NewPrefixedByteArray(data []byte) PrefixedByteArray {
+	return PrefixedByteArray{Data: data}
+}
+
 // NewPrefixedArray wraps an existing slice in a PrefixedArray.
-func NewPrefixedArray[T any, PT FieldPtr[T]](slice []T) PrefixedArray[T, PT] {
-	return PrefixedArray[T, PT]{Slice: slice}
+func NewPrefixedArray[T any, PT FieldPtr[T]](data []T) PrefixedArray[T, PT] {
+	return PrefixedArray[T, PT]{Data: data}
 }
 
 // MapToPrefixedArray converts a slice of one type to a PrefixedArray of another type using a conversion function.
 // ex: convert []byte to PrefixedArray[Byte]
-func MapToPrefixedArray[E any, PE FieldPtr[E], S any](slice []S, convert func(S) E) PrefixedArray[E, PE] {
-	if slice == nil {
+func MapToPrefixedArray[E any, PE FieldPtr[E], S any](data []S, convert func(S) E) PrefixedArray[E, PE] {
+	if data == nil {
 		return PrefixedArray[E, PE]{}
 	}
-	newSlice := make([]E, len(slice))
-	for i, v := range slice {
+	newSlice := make([]E, len(data))
+	for i, v := range data {
 		newSlice[i] = convert(v)
 	}
-	return PrefixedArray[E, PE]{Slice: newSlice}
+	return PrefixedArray[E, PE]{Data: newSlice}
 }
 
 // CollectToPrefixedArray creates a new PrefixedArray from an iterator with a conversion function and filtering.
@@ -151,17 +161,17 @@ func CollectToPrefixedArray[E any, PE FieldPtr[E], S any](seq iter.Seq[S], conve
 			newSlice = append(newSlice, mapped)
 		}
 	}
-	return PrefixedArray[E, PE]{Slice: newSlice}
+	return PrefixedArray[E, PE]{Data: newSlice}
 }
 
 // MapToSlice converts a PrefixedArray to a regular slice using a conversion function.
 // ex: convert PrefixedArray[Byte] to []byte
 func MapToSlice[E any, PE FieldPtr[E], T any](p PrefixedArray[E, PE], convert func(E) T) []T {
-	if p.Slice == nil {
+	if p.Data == nil {
 		return nil
 	}
-	dst := make([]T, len(p.Slice))
-	for i, v := range p.Slice {
+	dst := make([]T, len(p.Data))
+	for i, v := range p.Data {
 		dst[i] = convert(v)
 	}
 	return dst
@@ -175,7 +185,7 @@ func NewPrefixedOptional[T any, PT FieldPtr[T]](val *T) PrefixedOptional[T, PT] 
 }
 
 func (b *BitSet) Set(i int, value bool) {
-	data := b.Slice
+	data := b.Data
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {
@@ -189,7 +199,7 @@ func (b *BitSet) Set(i int, value bool) {
 }
 
 func (b *BitSet) Get(i int) bool {
-	data := b.Slice
+	data := b.Data
 	idx := i / 64
 	off := uint(i % 64)
 	if idx >= len(data) {
@@ -228,7 +238,7 @@ func NewDataArray(bitsPerEntry int, size int) *DataArray {
 	longCount := (size + valuesPerLong - 1) / valuesPerLong
 
 	return &DataArray{
-		Slice:        make([]uint64, longCount),
+		Data:         make([]uint64, longCount),
 		BitsPerEntry: bitsPerEntry,
 		Mask:         (1 << bitsPerEntry) - 1,
 		Size:         size,
@@ -244,7 +254,7 @@ func (D *DataArray) Set(index int, value int) {
 	cellIndex := index / valuesPerLong
 	bitIndex := (index % valuesPerLong) * D.BitsPerEntry
 
-	D.Slice[cellIndex] = (D.Slice[cellIndex] &^ (D.Mask << bitIndex)) | (uint64(value) & D.Mask << bitIndex)
+	D.Data[cellIndex] = (D.Data[cellIndex] &^ (D.Mask << bitIndex)) | (uint64(value) & D.Mask << bitIndex)
 }
 
 func (D *DataArray) Get(index int) int {
@@ -256,7 +266,7 @@ func (D *DataArray) Get(index int) int {
 	cellIndex := index / valuesPerLong
 	bitIndex := (index % valuesPerLong) * D.BitsPerEntry
 
-	return int((D.Slice[cellIndex] >> bitIndex) & D.Mask)
+	return int((D.Data[cellIndex] >> bitIndex) & D.Mask)
 }
 
 func (pm *PreviousMessages) Add(entry PreviousMessage) {

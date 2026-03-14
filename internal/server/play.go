@@ -301,12 +301,8 @@ func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 						if err != nil {
 							pubKeyBytes = []byte{}
 						}
-						pArrayPublicKey := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](pubKeyBytes, func(b byte) mc.Byte {
-							return mc.Byte(b)
-						})
-						pArraySignature := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](player.ChatSession.KeySignature, func(b byte) mc.Byte {
-							return mc.Byte(b)
-						})
+						pArrayPublicKey := mc.NewPrefixedByteArray(pubKeyBytes)
+						pArraySignature := mc.NewPrefixedByteArray(player.ChatSession.KeySignature)
 						_ = pkt.Encode(
 							mc.UUID(player.ChatSession.ID),
 							mc.Long(player.ChatSession.ExpiresAt),

@@ -155,7 +155,7 @@ type (
 	// Notes:
 	//  - The length must be known from the context.
 	Array[T any, PT FieldPtr[T]] struct {
-		Slice []T
+		Data []T
 	}
 	// PrefixedArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Prefixed_Array.
@@ -164,13 +164,32 @@ type (
 	// Notes:
 	//  - A length-prefixed array.
 	PrefixedArray[T any, PT FieldPtr[T]] struct {
-		Slice     []T
+		Data      []T
+		MaxLength int32
+	}
+	// ByteArray Encodes:
+	//  - Depends on context.
+	// Size:
+	//  - Varies
+	// Notes:
+	//  - This is just a sequence of zero or more bytes, its meaning should be explained somewhere else, e.g. in the packet description. The length must also be known from the context.
+	ByteArray struct {
+		Data []byte
+	}
+	// PrefixedByteArray Encodes:
+	//  - Depends on context.
+	// Size:
+	//  - size of VarInt + length of data bytes
+	// Notes:
+	//  - Optimized alternative to PrefixedArray[Byte, *Byte].
+	PrefixedByteArray struct {
+		Data      []byte
 		MaxLength int32
 	}
 	// DataArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.
 	DataArray struct {
-		Slice        []uint64
+		Data         []uint64
 		BitsPerEntry int
 		Mask         uint64
 		Size         int

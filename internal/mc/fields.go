@@ -6,6 +6,8 @@ import (
 	"io"
 	"math"
 	"strings"
+
+	"github.com/Gagonlaire/mcgoserv/internal/errutil"
 )
 
 func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
@@ -18,7 +20,7 @@ func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 		val = buf[0]
 	}
 	if err != nil {
-		return n, fmt.Errorf("error reading Boolean: %w", err)
+		return n, errutil.WrapIOErr(err, "error reading Boolean")
 	}
 	*b = val != 0
 	return 1, nil
@@ -31,14 +33,14 @@ func (b Boolean) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(val); err != nil {
-			return 0, fmt.Errorf("error writing Boolean: %w", err)
+			return 0, errutil.WrapIOErr(err, "error writing Boolean")
 		}
 		return 1, nil
 	}
 	var buf [1]byte
 	buf[0] = val
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, fmt.Errorf("error writing Boolean: %w", err)
+		return 0, errutil.WrapIOErr(err, "error writing Boolean")
 	}
 	return 1, nil
 }
@@ -47,14 +49,14 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 	if br, ok := r.(io.ByteReader); ok {
 		val, err := br.ReadByte()
 		if err != nil {
-			return 0, fmt.Errorf("error reading Byte: %w", err)
+			return 0, errutil.WrapIOErr(err, "error reading Byte")
 		}
 		*b = Byte(val)
 		return 1, nil
 	}
 	var buf [1]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Byte: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Byte")
 	}
 	*b = Byte(buf[0])
 	return 1, nil
@@ -63,14 +65,14 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 func (b Byte) WriteTo(w io.Writer) (n int64, err error) {
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(byte(b)); err != nil {
-			return 0, fmt.Errorf("error writing Byte: %w", err)
+			return 0, errutil.WrapIOErr(err, "error writing Byte")
 		}
 		return 1, nil
 	}
 	var buf [1]byte
 	buf[0] = byte(b)
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, fmt.Errorf("error writing Byte: %w", err)
+		return 0, errutil.WrapIOErr(err, "error writing Byte")
 	}
 	return 1, nil
 }
@@ -79,14 +81,14 @@ func (u *UnsignedByte) ReadFrom(r io.Reader) (n int64, err error) {
 	if br, ok := r.(io.ByteReader); ok {
 		val, err := br.ReadByte()
 		if err != nil {
-			return 0, fmt.Errorf("error reading Byte: %w", err)
+			return 0, errutil.WrapIOErr(err, "error reading UnsignedByte")
 		}
 		*u = UnsignedByte(val)
 		return 1, nil
 	}
 	var buf [1]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Byte: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading UnsignedByte")
 	}
 	*u = UnsignedByte(buf[0])
 	return 1, nil
@@ -95,7 +97,7 @@ func (u *UnsignedByte) ReadFrom(r io.Reader) (n int64, err error) {
 func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(byte(u)); err != nil {
-			return 0, fmt.Errorf("error writing Byte: %w", err)
+			return 0, errutil.WrapIOErr(err, "error writing UnsignedByte")
 		}
 		return 1, nil
 	}
@@ -103,7 +105,7 @@ func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [1]byte
 	buf[0] = byte(u)
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, fmt.Errorf("error writing Byte: %w", err)
+		return 0, errutil.WrapIOErr(err, "error writing UnsignedByte")
 	}
 	return 1, nil
 }
@@ -111,7 +113,7 @@ func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 func (s *Short) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [2]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Short: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Short")
 	}
 	*s = Short(binary.BigEndian.Uint16(buf[:]))
 	return 2, nil
@@ -122,13 +124,16 @@ func (s Short) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(s))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing Short")
+	}
+	return int64(nn), nil
 }
 
 func (u *UnsignedShort) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [2]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading UnsignedShort: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading UnsignedShort")
 	}
 	*u = UnsignedShort(binary.BigEndian.Uint16(buf[:]))
 	return 2, nil
@@ -139,13 +144,16 @@ func (u UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(u))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing UnsignedShort")
+	}
+	return int64(nn), nil
 }
 
 func (i *Int) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [4]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Int: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Int")
 	}
 	*i = Int(binary.BigEndian.Uint32(buf[:]))
 	return 4, nil
@@ -156,13 +164,16 @@ func (i Int) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint32(buf[:0], uint32(i))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing Int")
+	}
+	return int64(nn), nil
 }
 
 func (l *Long) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [8]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Long: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Long")
 	}
 	*l = Long(binary.BigEndian.Uint64(buf[:]))
 	return 8, nil
@@ -173,13 +184,16 @@ func (l Long) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint64(buf[:0], uint64(l))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing Long")
+	}
+	return int64(nn), nil
 }
 
 func (f *Float) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [4]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Float: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Float")
 	}
 	*f = Float(math.Float32frombits(binary.BigEndian.Uint32(buf[:])))
 	return 4, nil
@@ -190,13 +204,16 @@ func (f Float) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint32(buf[:0], math.Float32bits(float32(f)))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing Float")
+	}
+	return int64(nn), nil
 }
 
 func (d *Double) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [8]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, fmt.Errorf("error reading Double: %w", err)
+		return 0, errutil.WrapIOErr(err, "error reading Double")
 	}
 
 	*d = Double(math.Float64frombits(binary.BigEndian.Uint64(buf[:])))
@@ -208,18 +225,21 @@ func (d Double) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint64(buf[:0], math.Float64bits(float64(d)))
 
 	nn, err := w.Write(b)
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing Double")
+	}
+	return int64(nn), nil
 }
 
 func encodeString(w io.Writer, s string) (n int64, err error) {
 	length := VarInt(len(s))
 	n, err = length.WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing String length: %w", err)
+		return n, err
 	}
-	nStr, err := w.Write([]byte(s))
+	nStr, err := io.WriteString(w, s)
 	if err != nil {
-		return n + int64(nStr), fmt.Errorf("error writing String: %w", err)
+		return n + int64(nStr), errutil.WrapIOErr(err, "error writing String")
 	}
 	return n + int64(nStr), nil
 }
@@ -228,7 +248,7 @@ func decodeString(r io.Reader, target *string, maxN int32) (n int64, err error) 
 	var byteLength VarInt
 	nn, err := byteLength.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading String byteLength: %w", err)
+		return n, err
 	}
 	n += nn
 	maxBytes := maxN * 3
@@ -238,7 +258,7 @@ func decodeString(r io.Reader, target *string, maxN int32) (n int64, err error) 
 	buf := make([]byte, byteLength)
 	readBytes, err := io.ReadFull(r, buf)
 	if err != nil {
-		return n + int64(readBytes), fmt.Errorf("error reading String bytes: %w", err)
+		return n + int64(readBytes), errutil.WrapIOErr(err, "error reading String bytes")
 	}
 	n += int64(readBytes)
 	str := string(buf)
@@ -301,7 +321,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 		for i := 0; i < 5; i++ {
 			b, err := br.ReadByte()
 			if err != nil {
-				return n, fmt.Errorf("error reading VarInt: %w", err)
+				return n, errutil.WrapIOErr(err, "error reading VarInt")
 			}
 			n++
 			*v |= VarInt(b&0x7F) << position
@@ -315,7 +335,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 	for i := 0; i < 5; i++ {
 		var b [1]byte
 		if _, err = io.ReadFull(r, b[:]); err != nil {
-			return n, fmt.Errorf("error reading VarInt: %w", err)
+			return n, errutil.WrapIOErr(err, "error reading VarInt")
 		}
 		n++
 		*v |= VarInt(b[0]&0x7F) << position
@@ -343,33 +363,36 @@ func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 	nn, err := w.Write(buf[:i])
-	return int64(nn), err
+	if err != nil {
+		return int64(nn), errutil.WrapIOErr(err, "error writing VarInt")
+	}
+	return int64(nn), nil
 }
 
-func (U *UUID) ReadFrom(r io.Reader) (n int64, err error) {
-	nBytes, err := io.ReadFull(r, (*U)[:])
+func (u *UUID) ReadFrom(r io.Reader) (n int64, err error) {
+	nBytes, err := io.ReadFull(r, (*u)[:])
 	if err != nil {
-		return int64(nBytes), fmt.Errorf("error reading UUID: %w", err)
+		return int64(nBytes), errutil.WrapIOErr(err, "error reading UUID")
 	}
 	return int64(nBytes), nil
 }
 
-func (U UUID) WriteTo(w io.Writer) (n int64, err error) {
-	nBytes, err := w.Write(U[:])
+func (u UUID) WriteTo(w io.Writer) (n int64, err error) {
+	nBytes, err := w.Write(u[:])
 	if err != nil {
-		return int64(nBytes), fmt.Errorf("error writing UUID: %w", err)
+		return int64(nBytes), errutil.WrapIOErr(err, "error writing UUID")
 	}
 	return int64(nBytes), nil
 }
 
 func (F *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
 	nBytes, err := io.ReadFull(r, F.Data)
-	return int64(nBytes), err
+	return int64(nBytes), errutil.WrapIOErr(err, "error reading FixedBitSet")
 }
 
 func (F FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(F.Data)
-	return int64(nBytes), err
+	return int64(nBytes), errutil.WrapIOErr(err, "error writing FixedBitSet")
 }
 
 func (p *PrefixedOptional[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
@@ -408,11 +431,11 @@ func (p PrefixedOptional[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (a *Array[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
-	for i := range a.Slice {
-		var ptr PT = &a.Slice[i]
+	for i := range a.Data {
+		var ptr PT = &a.Data[i]
 		nn, err := ptr.ReadFrom(r)
 		if err != nil {
-			return n, fmt.Errorf("error reading element %d of Array: %w", i, err)
+			return n, err
 		}
 		n += nn
 	}
@@ -420,11 +443,11 @@ func (a *Array[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (a Array[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	for i := range a.Slice {
-		var ptr PT = &a.Slice[i]
+	for i := range a.Data {
+		var ptr PT = &a.Data[i]
 		nn, err := ptr.WriteTo(w)
 		if err != nil {
-			return n, fmt.Errorf("error writing element %d of Array: %w", i, err)
+			return n, err
 		}
 		n += nn
 	}
@@ -435,23 +458,23 @@ func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	var length VarInt
 	nn, err := length.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading PrefixedArray length: %w", err)
+		return n, err
 	}
 	n += nn
 	if p.MaxLength > 0 && int32(length) > p.MaxLength {
 		return n, fmt.Errorf("PrefixedArray length %d exceeds maximum length %d", length, p.MaxLength)
 	}
 	l := int(length)
-	if cap(p.Slice) < l {
-		p.Slice = make([]T, l)
+	if cap(p.Data) < l {
+		p.Data = make([]T, l)
 	} else {
-		p.Slice = p.Slice[:l]
+		p.Data = p.Data[:l]
 	}
-	for i := range p.Slice {
-		var ptr PT = &p.Slice[i]
+	for i := range p.Data {
+		var ptr PT = &p.Data[i]
 		nn, err := ptr.ReadFrom(r)
 		if err != nil {
-			return n, fmt.Errorf("error reading element %d of PrefixedArray: %w", i, err)
+			return n, err
 		}
 		n += nn
 	}
@@ -459,24 +482,77 @@ func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (p PrefixedArray[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	length := VarInt(len(p.Slice))
+	length := VarInt(len(p.Data))
 	nn, err := length.WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing PrefixedArray length: %w", err)
+		return n, err
 	}
 	n += nn
-	for i := range p.Slice {
-		var ptr PT = &p.Slice[i]
+	for i := range p.Data {
+		var ptr PT = &p.Data[i]
 		nn, err := ptr.WriteTo(w)
 		if err != nil {
-			return n, fmt.Errorf("error writing element %d of PrefixedArray: %w", i, err)
+			return n, err
 		}
 		n += nn
 	}
 	return n, nil
 }
 
-func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
+func (a *ByteArray) ReadFrom(r io.Reader) (n int64, err error) {
+	nBytes, err := io.ReadFull(r, a.Data)
+	if err != nil {
+		return int64(nBytes), errutil.WrapIOErr(err, "error reading ByteArray")
+	}
+	return int64(nBytes), nil
+}
+
+func (a ByteArray) WriteTo(w io.Writer) (n int64, err error) {
+	nBytes, err := w.Write(a.Data)
+	if err != nil {
+		return int64(nBytes), errutil.WrapIOErr(err, "error writing ByteArray")
+	}
+	return int64(nBytes), nil
+}
+
+func (p *PrefixedByteArray) ReadFrom(r io.Reader) (n int64, err error) {
+	var length VarInt
+	nn, err := length.ReadFrom(r)
+	if err != nil {
+		return nn, err
+	}
+	n += nn
+	if p.MaxLength > 0 && int32(length) > p.MaxLength {
+		return n, fmt.Errorf("PrefixedByteArray length %d exceeds maximum length %d", length, p.MaxLength)
+	}
+	l := int(length)
+	if cap(p.Data) < l {
+		p.Data = make([]byte, l)
+	} else {
+		p.Data = p.Data[:l]
+	}
+	nBytes, err := io.ReadFull(r, p.Data)
+	if err != nil {
+		return n + int64(nBytes), errutil.WrapIOErr(err, "error reading PrefixedByteArray data")
+	}
+	return n + int64(nBytes), nil
+}
+
+func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
+	length := VarInt(len(p.Data))
+	nn, err := length.WriteTo(w)
+	if err != nil {
+		return nn, err
+	}
+	n += nn
+	nBytes, err := w.Write(p.Data)
+	if err != nil {
+		return n + int64(nBytes), errutil.WrapIOErr(err, "error writing PrefixedByteArray data")
+	}
+	return n + int64(nBytes), nil
+}
+
+func (l *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [1]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return n, err
@@ -484,7 +560,7 @@ func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 	n += 1
 	byte1 := uint64(buf[0])
 	if byte1 == 0 {
-		L.X, L.Y, L.Z = 0, 0, 0
+		l.X, l.Y, l.Z = 0, 0, 0
 		return n, nil
 	}
 
@@ -516,15 +592,15 @@ func (L *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	scaleFactorD := float64(scaleFactor)
 
-	L.X = unpack(packed>>3) * scaleFactorD
-	L.Y = unpack(packed>>18) * scaleFactorD
-	L.Z = unpack(packed>>33) * scaleFactorD
+	l.X = unpack(packed>>3) * scaleFactorD
+	l.Y = unpack(packed>>18) * scaleFactorD
+	l.Z = unpack(packed>>33) * scaleFactorD
 
 	return n, nil
 }
 
-func (L LpVec3) WriteTo(w io.Writer) (n int64, err error) {
-	maxCoordinate := math.Max(math.Abs(L.X), math.Max(math.Abs(L.Y), math.Abs(L.Z)))
+func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
+	maxCoordinate := math.Max(math.Abs(l.X), math.Max(math.Abs(l.Y), math.Abs(l.Z)))
 
 	if maxCoordinate < 3.051944088384301e-5 {
 		if _, err := w.Write([]byte{0}); err != nil {
@@ -551,9 +627,9 @@ func (L LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	scaleFactorD := float64(scaleFactor)
-	packedX := pack(L.X/scaleFactorD) << 3
-	packedY := pack(L.Y/scaleFactorD) << 18
-	packedZ := pack(L.Z/scaleFactorD) << 33
+	packedX := pack(l.X/scaleFactorD) << 3
+	packedY := pack(l.Y/scaleFactorD) << 18
+	packedZ := pack(l.Z/scaleFactorD) << 33
 	packed := packedZ | packedY | packedX | packedScale
 
 	var buf [6]byte
@@ -583,7 +659,7 @@ func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
 
 	nn, err := count.ReadFrom(r)
 	if err != nil {
-		return nn, fmt.Errorf("error reading Slot count: %w", err)
+		return nn, err
 	}
 	n += nn
 
@@ -594,19 +670,19 @@ func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
 
 	nn, err = itemID.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading Slot itemID: %w", err)
+		return n, err
 	}
 	n += nn
 	s.ItemID = int32(itemID)
 
 	nn, err = componentToAdd.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading Slot componentToAdd: %w", err)
+		return n, err
 	}
 	n += nn
 	nn, err = componentToRemove.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading Slot componentToRemove: %w", err)
+		return n, err
 	}
 	n += nn
 
@@ -617,7 +693,7 @@ func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
 func (s Slot) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := VarInt(s.Count).WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing Slot count: %w", err)
+		return n, err
 	}
 	n += nn
 	if s.Count <= 0 {
@@ -626,19 +702,19 @@ func (s Slot) WriteTo(w io.Writer) (n int64, err error) {
 
 	nn, err = VarInt(s.ItemID).WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing Slot itemID: %w", err)
+		return n, err
 	}
 	n += nn
 
 	nn, err = VarInt(0).WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing Slot componentToAdd: %w", err)
+		return n, err
 	}
 	n += nn
 
 	nn, err = VarInt(0).WriteTo(w)
 	if err != nil {
-		return n, fmt.Errorf("error writing Slot componentToRemove: %w", err)
+		return n, err
 	}
 	n += nn
 
@@ -680,7 +756,7 @@ func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
 
 	n, err = value.ReadFrom(r)
 	if err != nil {
-		return n, fmt.Errorf("error reading Identifier: %w", err)
+		return n, err
 	}
 
 	parts := strings.Split(string(value), ":")
@@ -731,8 +807,8 @@ func (d *DataArray) ReadFrom(_ io.Reader) (n int64, err error) {
 }
 
 func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
-	for i := range d.Slice {
-		nn, err := Long(d.Slice[i]).WriteTo(w)
+	for i := range d.Data {
+		nn, err := Long(d.Data[i]).WriteTo(w)
 		if err != nil {
 			return n, err
 		}

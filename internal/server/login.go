@@ -38,8 +38,8 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	}
 	c.ContextData["verifyToken"] = verifyToken
 
-	pArrayPublicKey := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](c.Server.Keys.EncodedPublicKey, func(b byte) mc.Byte { return mc.Byte(b) })
-	pArrayVerifyToken := mc.MapToPrefixedArray[mc.Byte, *mc.Byte](verifyToken, func(b byte) mc.Byte { return mc.Byte(b) })
+	pArrayPublicKey := mc.NewPrefixedByteArray(c.Server.Keys.EncodedPublicKey)
+	pArrayVerifyToken := mc.NewPrefixedByteArray(verifyToken)
 	pkt, _ := packet.NewPacket(
 		packet.LoginClientboundHello,
 		mc.String(c.Server.ID),
@@ -57,8 +57,8 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	}
 
 	// todo: deprecated functions
-	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(data.EncryptedSecret, func(b mc.Byte) byte { return byte(b) }))
-	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, mc.MapToSlice(data.EncryptedVerifyToken, func(b mc.Byte) byte { return byte(b) }))
+	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedSecret.Data)
+	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedVerifyToken.Data)
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		// todo: replace with correct message
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
@@ -129,7 +129,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		c.ContextData["loginUUID"].(uuid.UUID),
 		c.ContextData["loginName"].(string),
 		permissionLevel,
-		pArraySession.Slice,
+		pArraySession.Data,
 		c.Server.Properties,
 	)
 

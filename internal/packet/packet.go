@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Gagonlaire/mcgoserv/internal/errutil"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/klauspost/compress/zlib"
 )
@@ -73,7 +74,7 @@ func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
 	p.Buffer.Reset()
 	if err := p.Encode(fields...); err != nil {
 		p.Free()
-		return nil, fmt.Errorf("error encoding packet: %w", err)
+		return nil, err
 	}
 	return p, nil
 }
@@ -81,7 +82,7 @@ func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
 func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 	var frameLength mc.VarInt
 	if _, err := frameLength.ReadFrom(conn); err != nil {
-		return nil, fmt.Errorf("read frame length: %w", err)
+		return nil, errutil.WrapIOErr(err, "error reading frame length")
 	}
 
 	if int(frameLength) > MaxFrameSize || frameLength < 0 {
@@ -95,14 +96,14 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 		}
 	}()
 	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
-		return nil, fmt.Errorf("read frame body: %w", err)
+		return nil, errutil.WrapIOErr(err, "error reading frame body")
 	}
 	var bodyBuf = rawBuf
 
 	if threshold >= 0 {
 		var dataLength mc.VarInt
 		if _, err := dataLength.ReadFrom(rawBuf); err != nil {
-			return nil, fmt.Errorf("read data length: %w", err)
+			return nil, errutil.WrapIOErr(err, "error reading data length")
 		}
 
 		if dataLength != 0 {
@@ -128,7 +129,7 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 			}()
 
 			if _, err := io.Copy(decompBuf, zlibReader); err != nil {
-				return nil, fmt.Errorf("decompress packet: %w", err)
+				return nil, errutil.WrapIOErr(err, "error reading compressed data")
 			}
 			bodyBuf = decompBuf
 		}
@@ -136,7 +137,7 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 
 	var packetID mc.VarInt
 	if _, err := packetID.ReadFrom(bodyBuf); err != nil {
-		return nil, fmt.Errorf("read packet ID: %w", err)
+		return nil, errutil.WrapIOErr(err, "error reading packet ID")
 	}
 
 	p := &InboundPacket{
@@ -160,18 +161,18 @@ func (p *InboundPacket) Forward(conn net.Conn, threshold int) error {
 }
 
 func (p *InboundPacket) Decode(fields ...mc.Field) error {
-	for i, f := range fields {
+	for _, f := range fields {
 		if _, err := f.ReadFrom(&p.reader); err != nil {
-			return fmt.Errorf("error decoding field %d: %w", i, err)
+			return err
 		}
 	}
 	return nil
 }
 
 func (p *OutboundPacket) Encode(fields ...io.WriterTo) error {
-	for i, f := range fields {
+	for _, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
-			return fmt.Errorf("error encoding field %d: %w", i, err)
+			return err
 		}
 	}
 	return nil
@@ -261,7 +262,11 @@ func getZlibWriter(w io.Writer) *zlib.Writer {
 func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, threshold int) error {
 	frame := bufferPool.Get().(*bytes.Buffer)
 	frame.Reset()
-	defer bufferPool.Put(frame)
+	defer func() {
+		if frame.Cap() <= MaxPooledBufferCap {
+			bufferPool.Put(frame)
+		}
+	}()
 
 	uncompressedSize := packetID.Len() + len(payload)
 	if uncompressedSize > MaxUncompressedSize {
@@ -272,7 +277,11 @@ func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, thresh
 		dataLength := mc.VarInt(uncompressedSize)
 		compBuf := bufferPool.Get().(*bytes.Buffer)
 		compBuf.Reset()
-		defer bufferPool.Put(compBuf)
+		defer func() {
+			if compBuf.Cap() <= MaxPooledBufferCap {
+				bufferPool.Put(compBuf)
+			}
+		}()
 
 		writer := getZlibWriter(compBuf)
 		_, _ = packetID.WriteTo(writer)

@@ -32,8 +32,8 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		c.close()
 		return
 	}
-	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	c.State = mc.StatePlay
+	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	dimensionsName := []mc.Identifier{"overworld", "the_nether", "the_end"}
 
 	out, _ := packet.NewPacket(0)
@@ -188,6 +188,8 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.ConnectionsByEID[c.Player.EntityID] = c
+	c.State = mc.StatePlay
 }
 
 func (s *Server) sendCommands(c *Connection) {

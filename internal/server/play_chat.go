@@ -79,8 +79,8 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 		return
 	}
 
-	publicKeyBytes := mc.MapToSlice(data.PublicKey, func(b mc.Byte) byte { return byte(b) })
-	signatureBytes := mc.MapToSlice(data.KeySignature, func(b mc.Byte) byte { return byte(b) })
+	publicKeyBytes := data.PublicKey.Data
+	signatureBytes := data.KeySignature.Data
 
 	if err := VerifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
@@ -182,9 +182,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 	var signatureBytes []byte
 	if isChatMessageSigned {
 		signatureBytes = make([]byte, 256)
-		for i, b := range data.Signature.Value.Slice {
-			signatureBytes[i] = byte(b)
-		}
+		copy(signatureBytes, data.Signature.Value.Data)
 
 		err, ok := verifyChatMessage(chatSession, c.Player.UUID, string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes)
 		if !ok {
@@ -199,7 +197,7 @@ func broadcastChatMessage(
 	sender *Connection,
 	message mc.String256,
 	timestamp, salt mc.Long,
-	signature mc.PrefixedOptional[mc.Array[mc.Byte, *mc.Byte], *mc.Array[mc.Byte, *mc.Byte]],
+	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
 	signatureBytes []byte,
 	lastSeenSignatures [][]byte,
 	isSigned bool,
@@ -240,10 +238,7 @@ func broadcastChatMessage(
 
 				_ = outPkt.Encode(mc.VarInt(clientMessageID + 1))
 				if clientMessageID == -1 {
-					bArray := mc.NewArray[mc.Byte, *mc.Byte](256)
-					for i := 0; i < 256; i++ {
-						bArray.Slice[i] = mc.Byte(sig[i])
-					}
+					bArray := mc.ByteArray{Data: sig[:256]}
 					_ = outPkt.Encode(bArray)
 				}
 			}
