@@ -1,12 +1,7 @@
 package server
 
 import (
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
-	"encoding/binary"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -17,7 +12,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
-	"github.com/google/uuid"
 )
 
 func (c *Connection) HandleKeepAlive(id *mc.Long) {
@@ -26,20 +20,16 @@ func (c *Connection) HandleKeepAlive(id *mc.Long) {
 }
 
 func (c *Connection) SendSpawnEntity(entity *world.Entity) {
-	entityUUID := mc.UUID(entity.UUID)
-	yaw := mc.Angle(entity.Rot[0] / 360.0 * 256.0)
-	pitch := mc.Angle(entity.Rot[1] / 360.0 * 256.0)
-	vel := mc.LpVec3{X: entity.Motion[0], Y: entity.Motion[1], Z: entity.Motion[2]}
-
 	// todo: check for head/body rotation
+	yaw := mc.Angle(entity.Rot[0] / 360.0 * 256.0)
 	pkt, _ := packet.NewPacket(
 		packet.PlayClientboundAddEntity,
 		mc.VarInt(entity.EntityID),
-		&entityUUID,
+		mc.UUID(entity.UUID),
 		mc.VarInt(entity.TypeID),
 		mc.Double(entity.Pos[0]), mc.Double(entity.Pos[1]), mc.Double(entity.Pos[2]),
-		&vel,
-		pitch,
+		mc.LpVec3{X: entity.Motion[0], Y: entity.Motion[1], Z: entity.Motion[2]},
+		mc.Angle(entity.Rot[1]/360.0*256.0),
 		yaw, // body yaw
 		yaw, // head yaw
 		mc.VarInt(0),
@@ -259,21 +249,6 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 
 	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
-}
-
-func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
-	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
-	payload = append(payload, playerUUID[:]...)
-	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))
-	payload = append(payload, publicKeyBytes...)
-	hash := sha1.Sum(payload)
-
-	for _, key := range mojangKeys {
-		if err := rsa.VerifyPKCS1v15(key, crypto.SHA1, hash[:], keySignature); err == nil {
-			return nil
-		}
-	}
-	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }
 
 func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.OutboundPacket, error) {

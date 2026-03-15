@@ -56,7 +56,6 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 	}
 
-	// todo: deprecated functions
 	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedSecret.Data)
 	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedVerifyToken.Data)
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
@@ -125,9 +124,13 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 			Signature: p.Signature,
 		}
 	})
+	loginUUID := c.ContextData["loginUUID"].(uuid.UUID)
+	loginName := c.ContextData["loginName"].(string)
+	logger.Info("UUID of player %s is %s", logger.Identity(loginName), logger.Identity(loginUUID))
+
 	c.Player = entities.NewPlayer(
-		c.ContextData["loginUUID"].(uuid.UUID),
-		c.ContextData["loginName"].(string),
+		loginUUID,
+		loginName,
 		permissionLevel,
 		pArraySession.Data,
 		c.Server.Properties,
@@ -135,18 +138,17 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 
 	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
 		pkt, _ := packet.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		c.SendSync(pkt)
 		c.CompressionThreshold = c.Server.Properties.NetworkCompressionThreshold
 	}
 
-	UUID := mc.UUID(c.ContextData["loginUUID"].(uuid.UUID))
 	pkt, _ := packet.NewPacket(
 		packet.LoginClientboundLoginFinished,
-		&UUID,
-		mc.String(c.ContextData["loginName"].(string)),
+		mc.UUID(loginUUID),
+		mc.String(loginName),
 		pArraySession,
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	c.SendSync(pkt)
 	delete(c.ContextData, "loginName")
 	delete(c.ContextData, "loginUUID")
 }
@@ -198,5 +200,5 @@ func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 	c.LastKeepAlive = c.Server.World.Time
 
 	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	c.SendSync(pkt)
 }

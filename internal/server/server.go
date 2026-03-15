@@ -108,7 +108,7 @@ func NewServer() *Server {
 func (s *Server) Start() {
 	startTime := time.Now()
 
-	logger.Info("Starting Minecraft server version %s", mcdata.GameVersion)
+	logger.Info("Starting Minecraft server version %s", logger.Value(mcdata.GameVersion))
 
 	logger.Info("Loading properties")
 	props, err := systems.LoadProperties("server.properties")
@@ -118,22 +118,22 @@ func (s *Server) Start() {
 	s.Properties = props
 	s.Addr = fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort)
 	s.EnforceSecureChat = props.EnforceSecureProfile && props.OnlineMode
-	logger.Info("Default game type: %s", mc.GameModeString(props.GameMode))
+	logger.Info("Default game type: %s", logger.Value(mc.GameModeString(props.GameMode)))
 
 	logger.Info("Generating keypair")
 	s.generateKeys()
 
 	s.loadServerIcon()
 
-	logger.Info("Starting Minecraft server on %s", s.Addr)
+	logger.Info("Starting Minecraft server on %s", logger.Network(s.Addr))
 	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		logger.Fatal("Failed to bind to %s: %v", s.Addr, err)
+		logger.Fatal("Failed to bind to %s: %v", logger.Network(s.Addr), err)
 	}
 
-	logger.Info("Preparing level \"%s\"", props.LevelName)
+	logger.Info("Preparing level \"%s\"", logger.Value(props.LevelName))
 	s.World = world.NewWorld()
-	logger.Info("Done (%s)! For help, type \"help\"", time.Since(startTime).Round(time.Millisecond))
+	logger.Info("Done (%s)! For help, type \"help\"", logger.Value(time.Since(startTime).Round(time.Millisecond)))
 
 	if props.EnableRcon {
 		s.startRCON()

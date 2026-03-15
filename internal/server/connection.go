@@ -136,6 +136,11 @@ func (c *Connection) Send(pkt *packet.OutboundPacket) {
 	}
 }
 
+func (c *Connection) SendSync(pkt *packet.OutboundPacket) {
+	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	pkt.Free()
+}
+
 func (c *Connection) Disconnect(reason tc.Component) {
 	var pkt *packet.OutboundPacket
 
@@ -157,23 +162,23 @@ func (c *Connection) close() {
 	c.closeOnce.Do(func() {
 		c.cancel()
 		if c.Player != nil {
+			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
 			delete(c.Server.ConnectionsByEID, c.Player.EntityID)
-			eID := mc.VarInt(c.Player.EntityID)
-			UUID := mc.UUID(c.Player.UUID)
-			pkt1, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), &UUID)
-			pkt2, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), eID)
+			infoRemove, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
+			entityRemove, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(c.Player.EntityID))
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
 				tc.PlayerName(c.Player.Name),
 			).SetColor(tc.ColorYellow)
-			pkt3, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
+			systemChat, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 
-			c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
-			c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
-			c.Server.Broadcaster.Broadcast(pkt3, systems.NotSender(c))
-			pkt1.Free()
-			pkt2.Free()
-			pkt3.Free()
+			c.Server.Broadcaster.Broadcast(infoRemove, systems.NotSender(c))
+			c.Server.Broadcaster.Broadcast(entityRemove, systems.NotSender(c))
+			c.Server.Broadcaster.Broadcast(systemChat, systems.NotSender(c))
+			logger.Component(logger.INFO, leftMessage)
+			infoRemove.Free()
+			entityRemove.Free()
+			systemChat.Free()
 			c.Server.World.RemoveEntityByUUID(c.Player.UUID)
 		}
 		c.Server.Connections.Delete(c)

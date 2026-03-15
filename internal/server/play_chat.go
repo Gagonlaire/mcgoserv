@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -325,6 +327,21 @@ func verifyChatMessage(
 	}
 
 	return "", true
+}
+
+func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
+	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
+	payload = append(payload, playerUUID[:]...)
+	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))
+	payload = append(payload, publicKeyBytes...)
+	hash := sha1.Sum(payload)
+
+	for _, key := range mojangKeys {
+		if err := rsa.VerifyPKCS1v15(key, crypto.SHA1, hash[:], keySignature); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("key signature could not be verified against any Mojang certificate key")
 }
 
 func (c *Connection) playerSource() *commander.CommandSource {

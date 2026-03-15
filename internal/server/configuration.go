@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
@@ -28,10 +30,16 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
 	// todo: move this to login -> avoid slot stealing and potential conflict
 	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
-		logger.Error("Failed to spawn player %s: %v", c.Player.Name, err)
+		logger.Error("Failed to spawn player %s: %v", logger.Identity(c.Player.Name), err)
 		c.close()
 		return
 	}
+	logger.Info("%s[/%s] logged in with entity id %s at (%s)",
+		logger.Identity(c.Player.Name),
+		logger.Network(c.Conn.RemoteAddr()),
+		logger.Value(c.Player.EntityID),
+		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2])),
+	)
 	c.State = mc.StatePlay
 	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	dimensionsName := []mc.Identifier{"overworld", "the_nether", "the_end"}
@@ -141,8 +149,6 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: following packets must be sent in response of the Player loaded packet
 	// todo: send player inventory, rework inventory system
 
-	zeroAngle := mc.Angle(0)
-	data := mc.VarInt(0)
 	// spawn newly connected player
 	pkt, _ := packet.NewPacket(
 		packet.PlayClientboundAddEntity,
@@ -153,10 +159,10 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		mc.Double(c.Player.Pos[1]),
 		mc.Double(c.Player.Pos[2]),
 		mc.LpVec3{},
-		zeroAngle,
-		zeroAngle,
-		zeroAngle,
-		data,
+		mc.Angle(0),
+		mc.Angle(0),
+		mc.Angle(0),
+		mc.VarInt(0),
 	)
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
 	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
@@ -173,10 +179,10 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 			mc.Double(player.Pos[1]),
 			mc.Double(player.Pos[2]),
 			mc.LpVec3{},
-			zeroAngle,
-			zeroAngle,
-			zeroAngle,
-			data,
+			mc.Angle(0),
+			mc.Angle(0),
+			mc.Angle(0),
+			mc.VarInt(0),
 		)
 
 		_ = pkt.Send(c.Conn, c.CompressionThreshold)
@@ -188,6 +194,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	logger.Component(logger.INFO, joinMessage)
 	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	c.State = mc.StatePlay
 }
