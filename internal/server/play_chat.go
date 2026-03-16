@@ -84,7 +84,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 	publicKeyBytes := data.PublicKey.Data
 	signatureBytes := data.KeySignature.Data
 
-	if err := VerifyChatSessionKey(
+	if err := verifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
 		c.Player.UUID,
 		int64(data.ExpiresAt),
@@ -134,21 +134,70 @@ func (c *Connection) HandleChatCommand(command *mc.String) {
 }
 
 func (c *Connection) HandleSignedChatCommand(data *decoders.SignedChatCommand) {
-	// todo: create a parse method that stores raw arguments for signature verification
-	if c.Server.EnforceSecureChat {
-		// todo: validate signatures
-	} else {
+	chatSession := &c.Player.ChatSession
 
+	if c.Server.EnforceSecureChat && len(data.ArgumentSignatures) > 0 && !chatSession.Signed {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPublicKeySignature))
+		return
+	}
+
+	if c.Server.EnforceSecureChat && chatSession.Signed && int32(data.MessageCount) > chatSession.LastSeenCount {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectBadChatIndex))
+		return
+	}
+
+	lastSeenSignatures := advanceSession(chatSession, data.Acknowledged)
+	if data.Checksum != computeLastSeenChecksum(lastSeenSignatures) {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
+		return
+	}
+
+	argSigMap := make(map[string][]byte, len(data.ArgumentSignatures))
+	for _, argSig := range data.ArgumentSignatures {
+		sigBytes := make([]byte, 256)
+		copy(sigBytes, argSig.Signature.Data)
+		argSigMap[string(argSig.ArgumentName)] = sigBytes
 	}
 
 	src := c.playerSource()
-	// todo: commands should maybe ran in a separate routine
-	_, err := c.Server.Commander.ExecuteInput(
-		c.ctx,
-		src,
-		string(data.Command),
-	)
+	signed := &commander.SignedData{
+		ArgSignatures:      argSigMap,
+		LastSeenSignatures: lastSeenSignatures,
+		Timestamp:          int64(data.Timestamp),
+		Salt:               int64(data.Salt),
+	}
+	parsed := c.Server.Commander.ParseSigned(src, string(data.Command), signed)
+	if c.Server.EnforceSecureChat && chatSession.Signed {
+		if err := validateSessionTiming(chatSession, int64(data.Timestamp)); err != "" {
+			c.Disconnect(tc.Translatable(err))
+			return
+		}
 
+		for _, node := range parsed.Nodes {
+			sigBytes, hasSig := argSigMap[node.Node.Name]
+			if !hasSig {
+				c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
+				return
+			}
+			argValue := string(data.Command)[node.Range.Start:node.Range.End]
+			if !verifyMessageSignature(
+				chatSession,
+				c.Player.UUID,
+				argValue,
+				int64(data.Timestamp),
+				int64(data.Salt),
+				chatSession.Index,
+				lastSeenSignatures,
+				sigBytes,
+			) {
+				c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
+				return
+			}
+		}
+	}
+
+	// todo: commands should maybe run in a separate goroutine
+	_, err := c.Server.Commander.Execute(c.ctx, parsed)
 	if err != nil {
 		src.SendMessage(commander.AsCommandError(err).ToComponent())
 	}
@@ -172,11 +221,8 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 		}
 	}
 
-	chatSession.LastSeenCount = 0
-	chatSession.Index++
-	lastSeenSignatures := getLastSeenSignatures(chatSession, data.Acknowledged)
-	expectedChecksum := computeLastSeenChecksum(lastSeenSignatures)
-	if data.Checksum != expectedChecksum {
+	lastSeenSignatures := advanceSession(chatSession, data.Acknowledged)
+	if data.Checksum != computeLastSeenChecksum(lastSeenSignatures) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
 		return
 	}
@@ -186,13 +232,112 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 		signatureBytes = make([]byte, 256)
 		copy(signatureBytes, data.Signature.Value.Data)
 
-		err, ok := verifyChatMessage(chatSession, c.Player.UUID, string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes)
-		if !ok {
+		if err := validateSessionTiming(chatSession, int64(data.Timestamp)); err != "" {
 			c.Disconnect(tc.Translatable(err))
+			return
+		}
+		if !verifyMessageSignature(chatSession, c.Player.UUID, string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes) {
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
+			return
 		}
 	}
 
 	broadcastChatMessage(c, data.Message, data.Timestamp, data.Salt, data.Signature, signatureBytes, lastSeenSignatures, isChatMessageSigned)
+}
+
+// SendSignedMessage todo: change chat type to accept inline def
+func (c *Connection) SendSignedMessage(target *Connection, message string, signature []byte, signed *commander.SignedData, chatType int32) {
+	var sig mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
+	isSigned := len(signature) > 0
+	if isSigned {
+		sigArray := mc.NewByteArray(256)
+		sigArray.Data = signature
+		sig = mc.NewPrefixedOptional(&sigArray)
+	}
+
+	sendSignedChatPacket(
+		c, target,
+		mc.String256(message),
+		mc.Long(signed.Timestamp), mc.Long(signed.Salt),
+		sig, signature, signed.LastSeenSignatures,
+		isSigned, chatType,
+	)
+}
+
+func advanceSession(session *mc.ChatSession, acknowledged *mc.FixedBitSet) [][]byte {
+	session.LastSeenCount = 0
+	session.Index++
+	return getLastSeenSignatures(session, acknowledged)
+}
+
+func validateSessionTiming(session *mc.ChatSession, timestampMillis int64) mcdata.TranslationKey {
+	now := time.Now()
+	if now.UnixMilli() > session.ExpiresAt {
+		return mcdata.MultiplayerDisconnectExpiredPublicKey
+	}
+	messageTime := time.UnixMilli(timestampMillis)
+	if messageTime.Before(now.Add(-maxChatTimeSkewPast)) || messageTime.After(now.Add(maxChatTimeSkewFuture)) {
+		return mcdata.MultiplayerDisconnectChatValidationFailed
+	}
+	if session.Index < 0 {
+		return mcdata.MultiplayerDisconnectBadChatIndex
+	}
+	return ""
+}
+
+func sendSignedChatPacket(
+	sender *Connection,
+	target *Connection,
+	message mc.String256,
+	timestamp, salt mc.Long,
+	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
+	signatureBytes []byte,
+	lastSeenSignatures [][]byte,
+	isSigned bool,
+	chatType int32,
+) {
+	targetSession := &target.Player.ChatSession
+	globalIndex := targetSession.GlobalIndex
+	targetSession.GlobalIndex++
+	outPkt, _ := packet.NewPacket(
+		packet.PlayClientboundPlayerChat,
+		mc.VarInt(globalIndex),
+		mc.UUID(sender.Player.UUID),
+		mc.VarInt(sender.Player.ChatSession.Index),
+		signature,
+		message,
+		timestamp,
+		salt,
+	)
+
+	if isSigned {
+		targetSession.LastSeenCount++
+		pm := &targetSession.PreviousMessages
+		messageID := int32(pm.Len())
+
+		_ = outPkt.Encode(mc.VarInt(len(lastSeenSignatures)))
+		for _, sig := range lastSeenSignatures {
+			clientMessageID := int32(-1)
+			for j := 0; j < pm.Len(); j++ {
+				if bytes.Equal(pm.Get(j).Signature, sig) {
+					clientMessageID = int32(j)
+					break
+				}
+			}
+
+			_ = outPkt.Encode(mc.VarInt(clientMessageID + 1))
+			if clientMessageID == -1 {
+				bArray := mc.ByteArray{Data: sig[:256]}
+				_ = outPkt.Encode(bArray)
+			}
+		}
+		pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
+	} else {
+		_ = outPkt.Encode(mc.VarInt(0))
+	}
+	// Unsigned Content is sent when you want to have a styled message (only with no secure chat)
+	_ = outPkt.Encode(mc.Boolean(false), mc.VarInt(0), mc.VarInt(chatType), tc.PlayerName(sender.Player.Name), mc.Boolean(false))
+	target.Send(outPkt)
 }
 
 func broadcastChatMessage(
@@ -204,54 +349,12 @@ func broadcastChatMessage(
 	lastSeenSignatures [][]byte,
 	isSigned bool,
 ) {
-	senderUUID := mc.UUID(sender.Player.UUID)
 	sender.Server.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
 		if conn.Player == nil {
 			return true
 		}
-
-		globalIndex := conn.Player.ChatSession.GlobalIndex
-		conn.Player.ChatSession.GlobalIndex++
-		outPkt, _ := packet.NewPacket(
-			packet.PlayClientboundPlayerChat,
-			mc.VarInt(globalIndex),
-			&senderUUID,
-			mc.VarInt(sender.Player.ChatSession.Index),
-			signature,
-			message,
-			timestamp,
-			salt,
-		)
-
-		if isSigned {
-			conn.Player.ChatSession.LastSeenCount++
-			pm := &conn.Player.ChatSession.PreviousMessages
-			messageID := int32(pm.Len())
-
-			_ = outPkt.Encode(mc.VarInt(len(lastSeenSignatures)))
-			for _, sig := range lastSeenSignatures {
-				clientMessageID := int32(-1)
-				for j := 0; j < pm.Len(); j++ {
-					if bytes.Equal(pm.Get(j).Signature, sig) {
-						clientMessageID = int32(j)
-					}
-				}
-
-				_ = outPkt.Encode(mc.VarInt(clientMessageID + 1))
-				if clientMessageID == -1 {
-					bArray := mc.ByteArray{Data: sig[:256]}
-					_ = outPkt.Encode(bArray)
-				}
-			}
-			pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
-		} else {
-			_ = outPkt.Encode(mc.VarInt(0))
-		}
-		// Unsigned Content is send when you want to have a styled message (only with no secure chat)
-		_ = outPkt.Encode(mc.Boolean(false), mc.VarInt(0), mc.VarInt(1), tc.PlayerName(sender.Player.Name), mc.Boolean(false))
-		conn.Send(outPkt)
-
+		sendSignedChatPacket(sender, conn, message, timestamp, salt, signature, signatureBytes, lastSeenSignatures, isSigned, 1)
 		return true
 	})
 }
@@ -281,7 +384,7 @@ func computeLastSeenChecksum(signatures [][]byte) mc.Byte {
 	return checksum
 }
 
-func verifyChatMessage(
+func verifyMessageSignature(
 	session *mc.ChatSession,
 	senderUUID uuid.UUID,
 	message string,
@@ -290,20 +393,7 @@ func verifyChatMessage(
 	index int32,
 	lastSeenSigs [][]byte,
 	signature []byte,
-) (mcdata.TranslationKey, bool) {
-	now := time.Now()
-	messageTime := time.UnixMilli(timestampMillis)
-
-	if now.UnixMilli() > session.ExpiresAt {
-		return mcdata.MultiplayerDisconnectExpiredPublicKey, false
-	}
-	if messageTime.Before(now.Add(-maxChatTimeSkewPast)) || messageTime.After(now.Add(maxChatTimeSkewFuture)) {
-		return mcdata.MultiplayerDisconnectChatValidationFailed, false
-	}
-	if index < 0 {
-		return mcdata.MultiplayerDisconnectBadChatIndex, false
-	}
-
+) bool {
 	buf := verifyBufPool.Get().([]byte)
 	defer verifyBufPool.Put(buf[:0])
 
@@ -322,14 +412,10 @@ func verifyChatMessage(
 	}
 
 	hash := sha256.Sum256(buf)
-	if err := rsa.VerifyPKCS1v15(session.PublicKey, crypto.SHA256, hash[:], signature); err != nil {
-		return mcdata.MultiplayerDisconnectChatValidationFailed, false
-	}
-
-	return "", true
+	return rsa.VerifyPKCS1v15(session.PublicKey, crypto.SHA256, hash[:], signature) == nil
 }
 
-func VerifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
+func verifyChatSessionKey(mojangKeys []*rsa.PublicKey, playerUUID uuid.UUID, expiresAt int64, publicKeyBytes []byte, keySignature []byte) error {
 	payload := make([]byte, 0, 16+8+len(publicKeyBytes))
 	payload = append(payload, playerUUID[:]...)
 	payload = binary.BigEndian.AppendUint64(payload, uint64(expiresAt))

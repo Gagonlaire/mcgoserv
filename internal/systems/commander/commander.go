@@ -18,10 +18,17 @@ type ParsedCommand struct {
 	Source  *CommandSource
 	Reader  *CommandReader
 	Args    ParsedArgs
+	Signed  *SignedData
 	Command Command
 	Nodes   []ParsedNode
 	Errors  []*CommandParsingError
 	Forks   bool
+}
+
+type SuggestionContext struct {
+	Node   *Node
+	Start  int
+	Length int
 }
 
 func NewDispatcher() *Dispatcher {
@@ -192,6 +199,7 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 			Ctx:    ctx,
 			Source: src,
 			Args:   parsed.Args,
+			Signed: parsed.Signed,
 		}
 		res, err := parsed.Command(cc)
 		if err != nil {
@@ -215,10 +223,15 @@ func (d *Dispatcher) ExecuteInput(ctx context.Context, src *CommandSource, input
 	return d.Execute(ctx, parsed)
 }
 
-type SuggestionContext struct {
-	Node   *Node
-	Start  int
-	Length int
+func (d *Dispatcher) ParseSigned(src *CommandSource, input string, signed *SignedData) *ParsedCommand {
+	parsed := d.Parse(src, input)
+	parsed.Signed = signed
+	return parsed
+}
+
+func (d *Dispatcher) ExecuteSignedInput(ctx context.Context, src *CommandSource, input string, signed *SignedData) (*CommandResult, error) {
+	parsed := d.ParseSigned(src, input, signed)
+	return d.Execute(ctx, parsed)
 }
 
 func (d *Dispatcher) ParseForSuggestion(src *CommandSource, input string) *SuggestionContext {

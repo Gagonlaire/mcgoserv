@@ -13,25 +13,18 @@ type CommandSource struct {
 	Rotation        [2]float32
 }
 
-func (s *CommandSource) HasPermission(level int) bool {
-	return s.PermissionLevel >= level
-}
-
-func (s *CommandSource) Clone() *CommandSource {
-	c := *s
-	return &c
+type SignedData struct {
+	ArgSignatures      map[string][]byte
+	LastSeenSignatures [][]byte
+	Timestamp          int64
+	Salt               int64
 }
 
 type CommandContext struct {
 	Ctx    context.Context
 	Source *CommandSource
 	Args   ParsedArgs
-}
-
-func (cc *CommandContext) SendMessage(msg any) {
-	if cc.Source.SendMessage != nil {
-		cc.Source.SendMessage(msg)
-	}
+	Signed *SignedData
 }
 
 type CommandResult struct {
@@ -40,3 +33,20 @@ type CommandResult struct {
 }
 
 type RedirectModifier func(ctx context.Context, src *CommandSource) ([]*CommandSource, error)
+
+func (s *CommandSource) HasPermission(level int) bool {
+	return s.PermissionLevel >= level
+}
+
+func (sd *SignedData) GetArgSignature(name string) []byte {
+	if sd == nil {
+		return nil
+	}
+	return sd.ArgSignatures[name]
+}
+
+func (cc *CommandContext) SendMessage(msg any) {
+	if cc.Source.SendMessage != nil {
+		cc.Source.SendMessage(msg)
+	}
+}
