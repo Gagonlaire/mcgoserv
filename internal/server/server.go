@@ -45,7 +45,6 @@ type Keys struct {
 type Server struct {
 	ctx               context.Context
 	Ticker            *systems.Ticker
-	Broadcaster       *systems.Broadcaster[*Connection, *packet.OutboundPacket]
 	Router            *Router
 	Properties        *systems.Properties
 	PlayerRegistry    *player_registry.PlayerRegistry
@@ -85,22 +84,6 @@ func NewServer() *Server {
 
 	s.Ticker = systems.NewTicker(mc.TicksPerSecond)
 	s.registerTickerSteps()
-
-	s.Broadcaster = systems.NewBroadcaster(
-		func(yield func(*Connection) bool) {
-			s.Connections.Range(func(key, value any) bool {
-				conn := key.(*Connection)
-				if conn.State == mc.StatePlay {
-					return yield(conn)
-				}
-				return true
-			})
-		},
-		func(conn *Connection, pkt *packet.OutboundPacket) {
-			pkt.Retain()
-			conn.OutboundPackets <- pkt
-		},
-	)
 
 	return s
 }
@@ -206,7 +189,7 @@ func (s *Server) Stop() {
 	}
 	s.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*Connection)
-		conn.Disconnect(tc.Text("Server closed"))
+		conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectServerShutdown))
 		return true
 	})
 	s.cancel()
@@ -290,8 +273,7 @@ func updateTime(s *Server) {
 		timePacket, _ := packet.NewPacket(packet.PlayClientboundSetTime, &worldAge, &timeOfDay, &timeOfDayIncreasing)
 
 		s.World.NextTimeUpdate = s.World.Time + 20
-		s.Broadcaster.Broadcast(timePacket)
-		timePacket.Free()
+		s.BroadcastAll(timePacket)
 	}
 }
 

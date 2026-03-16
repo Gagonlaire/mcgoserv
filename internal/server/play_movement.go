@@ -5,10 +5,11 @@ import (
 	"math"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
-	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
 const (
@@ -58,7 +59,7 @@ func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
 func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
 	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
 		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
-		// todo: change to a disconnect method with a reason
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPlayerMovement))
 		c.close()
 		return false
 	}
@@ -110,14 +111,14 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		)
 	}
 
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.BroadcastViewers(c, pkt)
 
 	if rotChanged {
 		pktHead, _ := packet.NewPacket(packet.PlayClientboundRotateHead,
 			mc.VarInt(c.Player.EntityID),
 			yaw,
 		)
-		c.Server.Broadcaster.Broadcast(pktHead, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pktHead)
 	}
 }
 
@@ -127,7 +128,8 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 
 	if math.IsNaN(x) || math.IsNaN(y) || math.IsNaN(z) ||
 		math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(z, 0) {
-		// todo: disconnect for invalid movement
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPlayerMovement))
+		c.close()
 		return false
 	}
 
@@ -174,7 +176,7 @@ func (c *Connection) broadcastTeleport() {
 		mc.Float(c.Player.Rot[0]*256/360), mc.Float(c.Player.Rot[1]*256/360),
 		mc.Boolean(c.Player.OnGround),
 	)
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.BroadcastViewers(c, pkt)
 }
 
 func (c *Connection) teleport(x, y, z float64, yaw, pitch float32) {

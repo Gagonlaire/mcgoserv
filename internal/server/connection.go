@@ -14,7 +14,6 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
 type QueuedPacket struct {
@@ -75,9 +74,8 @@ func (c *Connection) ReadLoop() {
 			if handler.Decode != nil {
 				data, err = handler.Decode(pkt)
 				if err != nil {
-					// todo: disconnect with clean reason
-					c.close()
-					continue
+					c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
+					return
 				}
 				// todo: check if data remains, if so, disconnect with clean reason
 			} else {
@@ -127,6 +125,7 @@ func (c *Connection) WriteLoop() {
 	}
 }
 
+// Send sends a packet asynchronously. Takes ownership of the packet.
 func (c *Connection) Send(pkt *packet.OutboundPacket) {
 	select {
 	case c.OutboundPackets <- pkt:
@@ -136,6 +135,7 @@ func (c *Connection) Send(pkt *packet.OutboundPacket) {
 	}
 }
 
+// SendSync sends a packet synchronously, blocking until it's sent. Takes ownership of the packet.
 func (c *Connection) SendSync(pkt *packet.OutboundPacket) {
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	pkt.Free()
@@ -172,13 +172,10 @@ func (c *Connection) close() {
 			).SetColor(tc.ColorYellow)
 			systemChat, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 
-			c.Server.Broadcaster.Broadcast(infoRemove, systems.NotSender(c))
-			c.Server.Broadcaster.Broadcast(entityRemove, systems.NotSender(c))
-			c.Server.Broadcaster.Broadcast(systemChat, systems.NotSender(c))
+			c.Server.BroadcastOthers(c, infoRemove)
+			c.Server.BroadcastOthers(c, entityRemove)
+			c.Server.BroadcastOthers(c, systemChat)
 			logger.Component(logger.INFO, leftMessage)
-			infoRemove.Free()
-			entityRemove.Free()
-			systemChat.Free()
 			c.Server.World.RemoveEntityByUUID(c.Player.UUID)
 		}
 		c.Server.Connections.Delete(c)

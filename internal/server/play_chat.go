@@ -116,7 +116,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 
 	player := []*entities.Player{c.Player}
 	pkt, _ := buildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
-	c.Server.Broadcaster.Broadcast(pkt)
+	c.Server.BroadcastAll(pkt)
 }
 
 func (c *Connection) HandleChatCommand(command *mc.String) {

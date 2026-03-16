@@ -11,7 +11,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
-	"github.com/Gagonlaire/mcgoserv/internal/systems"
 )
 
 func (c *Connection) HandleKeepAlive(id *mc.Long) {
@@ -68,7 +67,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 			mc.VarInt(mc.PoseSneaking),
 			mc.UnsignedByte(0xff),
 		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pkt2)
 	} else {
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
@@ -81,7 +80,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 			mc.VarInt(mc.PoseStanding),
 			mc.UnsignedByte(0xff),
 		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pkt2)
 	}
 }
 
@@ -101,7 +100,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 			mc.Byte(0x08),
 			mc.UnsignedByte(0xff),
 		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pkt2)
 	case mc.ActionStopSprinting:
 		pkt2, _ := packet.NewPacket(
 			packet.PlayClientboundSetEntityData,
@@ -111,7 +110,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 			mc.Byte(0),
 			mc.UnsignedByte(0xff),
 		)
-		c.Server.Broadcaster.Broadcast(pkt2, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pkt2)
 	}
 }
 
@@ -147,8 +146,8 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 				mc.Int(blockState),
 				mc.Boolean(false),
 			)
-			c.Server.Broadcaster.Broadcast(eventPkt, systems.NotSender(c))
-			c.Server.Broadcaster.Broadcast(pkt)
+			c.Server.BroadcastOthers(c, eventPkt)
+			c.Server.BroadcastAll(pkt)
 		}
 	case mc.StatusFinishDigging:
 		pkt, _ := packet.NewPacket(
@@ -156,7 +155,7 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 			data.Location,
 			mc.VarInt(0),
 		)
-		c.Server.Broadcaster.Broadcast(pkt)
+		c.Server.BroadcastAll(pkt)
 	}
 
 	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
@@ -169,7 +168,7 @@ func (c *Connection) AnimateEntity(animationID int) {
 		mc.VarInt(c.Player.EntityID),
 		mc.UnsignedByte(animationID),
 	)
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.BroadcastViewers(c, pkt)
 }
 
 func (c *Connection) HandleSetHeldItem(slot *mc.Short) {
@@ -184,7 +183,7 @@ func (c *Connection) HandleSetHeldItem(slot *mc.Short) {
 			mc.UnsignedByte(0),
 			&item,
 		)
-		c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+		c.Server.BroadcastViewers(c, pkt)
 	}
 }
 
@@ -224,11 +223,12 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 				data.Location,
 				mc.VarInt(block.DefaultStateID),
 			)
-			c.Server.Broadcaster.Broadcast(pkt)
+			c.Server.BroadcastAll(pkt)
 
 			// todo: fix to handle sound groups
 			// todo: check if faster rand exist
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			// todo: sounds weird, tweak values
 			pitch := 0.5 + r.Float64()*(2-0.5)
 			if soundId, ok := block.Sounds["place"]; ok {
 				soundPkt, _ := packet.NewPacket(
@@ -242,7 +242,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 					mc.Float(pitch),
 					mc.Long(0),
 				)
-				c.Server.Broadcaster.Broadcast(soundPkt, systems.NotSender(c))
+				c.Server.BroadcastOthers(c, soundPkt)
 			}
 		}
 	}

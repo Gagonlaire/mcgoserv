@@ -47,7 +47,7 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 		pArrayVerifyToken,
 		mc.Boolean(true),
 	)
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	c.SendSync(pkt)
 }
 
 func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse) {
@@ -59,8 +59,7 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedSecret.Data)
 	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedVerifyToken.Data)
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
-		// todo: replace with correct message
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectUnverifiedUsername))
 		return
 	}
 	delete(c.ContextData, "verifyToken")
@@ -82,23 +81,26 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	resp, err := http.Get(url)
 	if err != nil {
 		logger.Error("Failed to contact session server: %v", err)
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectAuthserversDown))
 		return
 	}
 	body, _ := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// todo: match the error message to the status code
 		logger.Error("Session server returned status %d: %s", resp.StatusCode, string(body))
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		if resp.StatusCode >= 500 {
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectAuthserversDown))
+		} else {
+			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectUnverifiedUsername))
+		}
 		return
 	}
 
 	var session api.MojangSession
 	if err := json.Unmarshal(body, &session); err != nil {
 		logger.Error("Failed to parse session server response: %v", err)
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectUnverifiedUsername))
 		return
 	}
 

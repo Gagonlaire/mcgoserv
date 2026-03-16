@@ -10,7 +10,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -106,7 +105,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: should also send gamemode
 	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
 	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
-	c.Server.Broadcaster.Broadcast(pkt1, systems.NotSender(c))
+	c.Server.BroadcastOthers(c, pkt1)
 	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
 	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 
@@ -164,7 +163,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		mc.Angle(0),
 		mc.VarInt(0),
 	)
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.BroadcastViewers(c, pkt)
 	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
 		if player.UUID == c.Player.UUID {
 			continue
@@ -193,7 +192,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		tc.PlayerName(c.Player.Name),
 	).SetColor(tc.ColorYellow)
 	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
-	c.Server.Broadcaster.Broadcast(pkt, systems.NotSender(c))
+	c.Server.BroadcastOthers(c, pkt)
 	logger.Component(logger.INFO, joinMessage)
 	c.Server.ConnectionsByEID[c.Player.EntityID] = c
 	c.State = mc.StatePlay

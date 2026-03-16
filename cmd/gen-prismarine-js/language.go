@@ -24,7 +24,6 @@ var allowedPrefixes = []string{
 	"commands.",
 	"command.",
 	"advancements.",
-	"disconnect.",
 	"argument.",
 	"parsing.",
 }
