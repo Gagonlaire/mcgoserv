@@ -61,7 +61,8 @@ func sendFiltered(conn *Connection, pkt *packet.OutboundPacket, filters []Filter
 func (s *Server) iteratePlay(fn func(*Connection)) {
 	s.Connections.Range(func(key, _ any) bool {
 		conn := key.(*Connection)
-		if conn.State == mc.StatePlay && conn.Player.Loaded {
+		// todo: it should also check if the player is loaded but this ignore some packets (like the chat init)
+		if conn.State == mc.StatePlay {
 			fn(conn)
 		}
 		return true
