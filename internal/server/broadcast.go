@@ -10,6 +10,9 @@ type Filter func(target *Connection) bool
 
 // BroadcastAll sends a packet to every player. Takes ownership of the packet.
 func (s *Server) BroadcastAll(pkt *packet.OutboundPacket, filters ...Filter) {
+	if pkt == nil {
+		return
+	}
 	s.iteratePlay(func(conn *Connection) {
 		sendFiltered(conn, pkt, filters)
 	})
@@ -18,6 +21,9 @@ func (s *Server) BroadcastAll(pkt *packet.OutboundPacket, filters ...Filter) {
 
 // BroadcastOthers sends a packet to every player except sender. Takes ownership of the packet.
 func (s *Server) BroadcastOthers(sender *Connection, pkt *packet.OutboundPacket, filters ...Filter) {
+	if pkt == nil {
+		return
+	}
 	s.iteratePlay(func(conn *Connection) {
 		if conn != sender {
 			sendFiltered(conn, pkt, filters)
@@ -28,6 +34,9 @@ func (s *Server) BroadcastOthers(sender *Connection, pkt *packet.OutboundPacket,
 
 // BroadcastViewers sends a packet to players watching the sender's chunk, excluding the sender. Takes ownership of the packet.
 func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket, filters ...Filter) {
+	if pkt == nil {
+		return
+	}
 	dim := world.GetEntityDimension(&sender.Player.LivingEntity.BaseEntity)
 	cx, cz := world.GetChunkPosition(sender.Player.Pos[0], sender.Player.Pos[2])
 	chunk := dim.GetChunk(cx, cz)
@@ -37,8 +46,8 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 		if watcherID == senderEID {
 			continue
 		}
-		if conn, ok := s.ConnectionsByEID[watcherID]; ok {
-			sendFiltered(conn, pkt, filters)
+		if v, ok := s.ConnectionsByEID.Load(watcherID); ok {
+			sendFiltered(v.(*Connection), pkt, filters)
 		}
 	}
 	pkt.Free()

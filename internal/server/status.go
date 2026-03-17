@@ -56,12 +56,12 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 	data.EnforceSecureChat = false
 	jsonData, _ := json.Marshal(data)
 
-	pkt, _ := packet.NewPacket(packet.StatusClientboundStatusResponse, mc.String(jsonData))
+	pkt := c.NewPacket(packet.StatusClientboundStatusResponse, mc.String(jsonData))
 	c.SendSync(pkt)
 }
 
 func (c *Connection) HandlePing(timestamp *mc.Long) {
-	pkt, _ := packet.NewPacket(packet.StatusClientboundPongResponse, timestamp)
+	pkt := c.NewPacket(packet.StatusClientboundPongResponse, timestamp)
 	c.SendSync(pkt)
 	c.close()
 }

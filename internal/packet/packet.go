@@ -25,12 +25,14 @@ type InboundPacket struct {
 	reader   bytes.Reader
 	ID       mc.VarInt
 	refCount int32
+	err      error
 }
 
 type OutboundPacket struct {
 	Buffer   *bytes.Buffer
 	ID       mc.VarInt
 	refCount int32
+	err      error
 }
 
 var bufferPool = sync.Pool{
@@ -151,8 +153,17 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 	return p, nil
 }
 
+func (p *OutboundPacket) Err() error { return p.err }
+
 func (p *OutboundPacket) Send(conn net.Conn, threshold int) error {
-	return writeFramedPacket(conn, p.ID, p.Buffer.Bytes(), threshold)
+	if p.err != nil {
+		return p.err
+	}
+	if err := writeFramedPacket(conn, p.ID, p.Buffer.Bytes(), threshold); err != nil {
+		p.err = err
+		return err
+	}
+	return nil
 }
 
 // Forward is only used by packet sniffer
@@ -160,9 +171,15 @@ func (p *InboundPacket) Forward(conn net.Conn, threshold int) error {
 	return writeFramedPacket(conn, p.ID, p.data, threshold)
 }
 
+func (p *InboundPacket) Err() error { return p.err }
+
 func (p *InboundPacket) Decode(fields ...mc.Field) error {
+	if p.err != nil {
+		return p.err
+	}
 	for _, f := range fields {
 		if _, err := f.ReadFrom(&p.reader); err != nil {
+			p.err = err
 			return err
 		}
 	}
@@ -170,8 +187,12 @@ func (p *InboundPacket) Decode(fields ...mc.Field) error {
 }
 
 func (p *OutboundPacket) Encode(fields ...io.WriterTo) error {
+	if p.err != nil {
+		return p.err
+	}
 	for _, f := range fields {
 		if _, err := f.WriteTo(p.Buffer); err != nil {
+			p.err = err
 			return err
 		}
 	}
@@ -179,6 +200,9 @@ func (p *OutboundPacket) Encode(fields ...io.WriterTo) error {
 }
 
 func (p *OutboundPacket) ResetWith(ID int, fields ...io.WriterTo) error {
+	if p.err != nil {
+		return p.err
+	}
 	p.ID = mc.VarInt(ID)
 	p.Buffer.Reset()
 
@@ -188,6 +212,8 @@ func (p *OutboundPacket) ResetWith(ID int, fields ...io.WriterTo) error {
 func (p *InboundPacket) Bytes() []byte { return p.data }
 
 func (p *InboundPacket) Len() int { return len(p.data) }
+
+func (p *InboundPacket) Remaining() int { return p.reader.Len() }
 
 // Retain increments the reference count for the packet.
 func (p *InboundPacket) Retain() {

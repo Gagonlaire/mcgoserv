@@ -13,8 +13,7 @@ type CommandError interface {
 }
 
 func AsCommandError(err error) CommandError {
-	var ce CommandError
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[CommandError](err); ok {
 		return ce
 	}
 	panic("commander: trying to convert non-command error to CommandError")

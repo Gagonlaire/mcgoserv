@@ -41,7 +41,7 @@ func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRe
 	ctx := c.Server.Commander.ParseForSuggestion(src, input)
 
 	if ctx == nil || ctx.Node.SuggestFn == nil {
-		resp, _ := packet.NewPacket(
+		resp := c.NewPacket(
 			packet.PlayClientboundCommandSuggestions,
 			data.TransactionID,
 			mc.VarInt(0),
@@ -54,17 +54,19 @@ func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRe
 
 	startIndex := ctx.Start + 1
 	entries := ctx.Node.SuggestFn(src, input[ctx.Start:ctx.Start+ctx.Length])
-	resp, _ := packet.NewPacket(
+	resp := c.NewPacket(
 		packet.PlayClientboundCommandSuggestions,
 		data.TransactionID,
 		mc.VarInt(startIndex),
 		mc.VarInt(ctx.Length),
 		mc.VarInt(len(entries)),
 	)
-	for _, entry := range entries {
-		_ = resp.Encode(mc.String(entry.Text), mc.Boolean(entry.Tooltip != nil))
-		if entry.Tooltip != nil {
-			_ = resp.Encode(entry.Tooltip)
+	if resp != nil {
+		for _, entry := range entries {
+			_ = resp.Encode(mc.String(entry.Text), mc.Boolean(entry.Tooltip != nil))
+			if entry.Tooltip != nil {
+				_ = resp.Encode(entry.Tooltip)
+			}
 		}
 	}
 	c.Send(resp)
@@ -208,7 +210,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 	isChatMessageSigned := chatSession.Signed && bool(data.Signature.Has)
 	if c.Server.EnforceSecureChat {
 		if !isChatMessageSigned {
-			unsignedErrorPkt, _ := packet.NewPacket(
+			unsignedErrorPkt := c.NewPacket(
 				packet.PlayClientboundSystemChat,
 				tc.Text("The server refused to deliver an unsigned message. You can enable chat signing by changing your signing mode or through a prompt screen").SetColor(tc.ColorRed),
 				mc.Boolean(false),
@@ -299,7 +301,7 @@ func sendSignedChatPacket(
 	targetSession := &target.Player.ChatSession
 	globalIndex := targetSession.GlobalIndex
 	targetSession.GlobalIndex++
-	outPkt, _ := packet.NewPacket(
+	outPkt := sender.NewPacket(
 		packet.PlayClientboundPlayerChat,
 		mc.VarInt(globalIndex),
 		mc.UUID(sender.Player.UUID),
@@ -309,6 +311,9 @@ func sendSignedChatPacket(
 		timestamp,
 		salt,
 	)
+	if outPkt == nil {
+		return
+	}
 
 	if isSigned {
 		targetSession.LastSeenCount++
@@ -439,7 +444,7 @@ func (c *Connection) playerSource() *commander.CommandSource {
 		Rotation:        c.Player.Rot,
 		SendMessage: func(msg any) {
 			if comp, ok := msg.(tc.Component); ok {
-				pkt, _ := packet.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
+				pkt := c.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
 				c.Send(pkt)
 			}
 		},

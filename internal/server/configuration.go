@@ -16,12 +16,12 @@ import (
 
 func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]) {
 	for _, registryData := range mc.RegistriesData {
-		pkt, _ := packet.NewPacket(packet.ConfigurationClientboundRegistryData, &registryData)
+		pkt := c.NewPacket(packet.ConfigurationClientboundRegistryData, &registryData)
 		c.Send(pkt)
 	}
 
 	// todo: send the update tags (optional but cause enchantment registry to not work)
-	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundFinishConfiguration)
+	pkt := c.NewPacket(packet.ConfigurationClientboundFinishConfiguration)
 	c.Send(pkt)
 }
 
@@ -31,7 +31,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: move this to login -> avoid slot stealing and potential conflict
 	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
 		logger.Error("Failed to spawn player %s: %v", logger.Identity(c.Player.Name), err)
-		c.close()
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
 		return
 	}
 	logger.Info("%s[/%s] logged in with entity id %s at (%s)",
@@ -41,9 +41,13 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2])),
 	)
 	c.State = mc.StatePlay
-	c.Server.ConnectionsByEID[c.Player.EntityID] = c
+	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
 
-	out, _ := packet.NewPacket(0)
+	out := c.NewPacket(0)
+	if out == nil {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
 	defer out.Free()
 
 	// todo: get the correct dimension type and name from player
@@ -76,7 +80,11 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	_ = out.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	c.Server.sendCommands(c)
+	if err := c.Server.sendCommands(c); err != nil {
+		logger.Error("Player disconnected during configuration: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
 
 	_ = out.ResetWith(
 		packet.PlayClientboundPlayerPosition,
@@ -101,7 +109,9 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
 	c.Server.BroadcastOthers(c, pkt1)
 	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
-	_ = pkt1.Send(c.Conn, c.CompressionThreshold)
+	if pkt1 != nil {
+		_ = pkt1.Send(c.Conn, c.CompressionThreshold)
+	}
 
 	_ = out.ResetWith(
 		packet.PlayClientboundSetTime,
@@ -139,35 +149,48 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	c.Player.Movement.LastChunkX = cx
 	c.Player.Movement.LastChunkZ = cz
 
+	if err := out.Err(); err != nil {
+		logger.Error("Player disconnected during configuration: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
+
 	// todo: following packets must be sent in response of the Player loaded packet
 	// todo: send player inventory, rework inventory system
 
 	// spawn newly connected player
-	pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&c.Player.LivingEntity.BaseEntity))
+	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&c.Player.LivingEntity.BaseEntity))
 	c.Server.BroadcastViewers(c, pkt)
 	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
 		if player.UUID == c.Player.UUID {
 			continue
 		}
 
-		pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&player.LivingEntity.BaseEntity))
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		spawnPkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&player.LivingEntity.BaseEntity))
+		if spawnPkt != nil {
+			_ = spawnPkt.Send(c.Conn, c.CompressionThreshold)
+			spawnPkt.Free()
+		}
 	}
 
 	joinMessage := tc.Translatable(
 		mcdata.MultiplayerPlayerJoined,
 		tc.PlayerName(c.Player.Name),
 	).SetColor(tc.ColorYellow)
-	pkt, _ = packet.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
+	pkt = c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.BroadcastOthers(c, pkt)
 	logger.Component(logger.INFO, joinMessage)
-	c.Server.ConnectionsByEID[c.Player.EntityID] = c
+	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
 	c.State = mc.StatePlay
 }
 
-func (s *Server) sendCommands(c *Connection) {
+func (s *Server) sendCommands(c *Connection) error {
 	flattenGraph, idMap, filteredChildren := s.Commander.FlattenGraph(c.Player.PermissionLevel)
-	pkt, _ := packet.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
+	pkt := c.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
+	if pkt == nil {
+		return fmt.Errorf("failed to create commands packet")
+	}
+	defer pkt.Free()
 
 	for _, node := range flattenGraph {
 		flags := node.GetFlags()
@@ -195,7 +218,7 @@ func (s *Server) sendCommands(c *Connection) {
 	}
 	_ = pkt.Encode(mc.VarInt(0))
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
-	pkt.Free()
+	return pkt.Err()
 }
 
 func (c *Connection) HandleClientInformation(information *mc.ClientInformation) {
@@ -217,7 +240,7 @@ func (c *Connection) HandleClientInformation(information *mc.ClientInformation) 
 	c.Player.Information = *information
 
 	if shouldUpdateChunks {
-		pkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))
+		pkt := c.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))
 
 		c.Send(pkt)
 		c.updateChunkView(true)

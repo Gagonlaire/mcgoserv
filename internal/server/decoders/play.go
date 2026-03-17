@@ -186,22 +186,24 @@ func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, err
 	}
 	var signaturesCount mc.VarInt
 
-	if err := pkt.Decode(&data.Command, &data.Timestamp, &data.Salt, &signaturesCount); err != nil {
+	_ = pkt.Decode(&data.Command, &data.Timestamp, &data.Salt, &signaturesCount)
+	if err := pkt.Err(); err != nil {
 		return nil, err
 	}
+
 	data.ArgumentSignatures = make([]ArgumentSignature, signaturesCount)
 	for i := 0; i < int(signaturesCount); i++ {
 		var argName mc.String16
 		var signature = mc.NewByteArray(256)
-		if err := pkt.Decode(&argName, &signature); err != nil {
-			return nil, err
-		}
+		_ = pkt.Decode(&argName, &signature)
 		data.ArgumentSignatures[i] = ArgumentSignature{
 			ArgumentName: argName,
 			Signature:    signature,
 		}
 	}
-	if err := pkt.Decode(&data.MessageCount, &data.Acknowledged, &data.Checksum); err != nil {
+	_ = pkt.Decode(&data.MessageCount, &data.Acknowledged, &data.Checksum)
+
+	if err := pkt.Err(); err != nil {
 		return nil, err
 	}
 	return data, nil

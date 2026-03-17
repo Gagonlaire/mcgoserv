@@ -21,7 +21,7 @@ func (c *Connection) HandleKeepAlive(id *mc.Long) {
 
 func (c *Connection) SendSpawnEntity(entity *world.Entity) {
 	// todo: check for head/body rotation
-	pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
+	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
 	c.Send(pkt)
 }
 
@@ -37,7 +37,7 @@ func (c *Connection) SendKeepAlive() {
 	}
 
 	c.LastKeepAliveID = c.Server.World.Time
-	pkt, _ := packet.NewPacket(packetId, mc.Long(c.Server.World.Time))
+	pkt := c.NewPacket(packetId, mc.Long(c.Server.World.Time))
 	c.Send(pkt)
 }
 
@@ -45,7 +45,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 	c.Player.Input = byte(*flags)
 
 	if (*flags)&mc.InputSneak != 0 {
-		pkt2, _ := packet.NewPacket(
+		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
 			mc.UnsignedByte(0),
@@ -58,7 +58,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 		)
 		c.Server.BroadcastViewers(c, pkt2)
 	} else {
-		pkt2, _ := packet.NewPacket(
+		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
 			mc.UnsignedByte(0),
@@ -81,7 +81,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	// todo: jumping seems to stop sprinting animation particles
 	switch mc.PlayerCommand(data.ActionID) {
 	case mc.ActionStartSprinting:
-		pkt2, _ := packet.NewPacket(
+		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
 			mc.UnsignedByte(0),
@@ -91,7 +91,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 		)
 		c.Server.BroadcastViewers(c, pkt2)
 	case mc.ActionStopSprinting:
-		pkt2, _ := packet.NewPacket(
+		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
 			mc.UnsignedByte(0),
@@ -123,12 +123,12 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
 
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), 0)
-			pkt, _ := packet.NewPacket(
+			pkt := c.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				data.Location,
 				mc.VarInt(0),
 			)
-			eventPkt, _ := packet.NewPacket(
+			eventPkt := c.NewPacket(
 				packet.PlayClientboundLevelEvent,
 				mc.Int(2001),
 				data.Location,
@@ -139,7 +139,7 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 			c.Server.BroadcastAll(pkt)
 		}
 	case mc.StatusFinishDigging:
-		pkt, _ := packet.NewPacket(
+		pkt := c.NewPacket(
 			packet.PlayClientboundBlockUpdate,
 			data.Location,
 			mc.VarInt(0),
@@ -147,12 +147,12 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 		c.Server.BroadcastAll(pkt)
 	}
 
-	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
+	pkt := c.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
 }
 
 func (c *Connection) AnimateEntity(animationID int) {
-	pkt, _ := packet.NewPacket(
+	pkt := c.NewPacket(
 		packet.PlayClientboundAnimate,
 		mc.VarInt(c.Player.EntityID),
 		mc.UnsignedByte(animationID),
@@ -165,7 +165,7 @@ func (c *Connection) HandleSetHeldItem(slot *mc.Short) {
 	inventoryId := mc.HotbarToInternal(int(*slot))
 	item := c.Player.Inventory.Get(inventoryId)
 	if item.Count > 0 {
-		pkt, _ := packet.NewPacket(
+		pkt := c.NewPacket(
 			packet.PlayClientboundSetEquipment,
 			mc.VarInt(c.Player.EntityID),
 			// todo: check item slot to know if main or off hand
@@ -207,7 +207,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
 
-			pkt, _ := packet.NewPacket(
+			pkt := c.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				data.Location,
 				mc.VarInt(block.DefaultStateID),
@@ -220,7 +220,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 			// todo: sounds weird, tweak values
 			pitch := 0.5 + r.Float64()*(2-0.5)
 			if soundId, ok := block.Sounds["place"]; ok {
-				soundPkt, _ := packet.NewPacket(
+				soundPkt := c.NewPacket(
 					packet.PlayClientboundSound,
 					mc.VarInt(soundId+1),
 					mc.VarInt(4),
@@ -236,12 +236,15 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 		}
 	}
 
-	pkt, _ := packet.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
+	pkt := c.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
 }
 
 func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.OutboundPacket, error) {
-	pkt, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
+	pkt, err := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
+	if err != nil {
+		return nil, err
+	}
 	playerCount := mc.VarInt(len(players))
 
 	_ = pkt.Encode(actions, playerCount)

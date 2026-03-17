@@ -52,7 +52,7 @@ type Server struct {
 	Commander         *commander.Dispatcher
 	World             *world.World
 	cancel            context.CancelFunc
-	ConnectionsByEID  map[mc.EntityID]*Connection
+	ConnectionsByEID  sync.Map
 	Connections       sync.Map
 	ID                string
 	Addr              string
@@ -71,7 +71,6 @@ func NewServer() *Server {
 			"ops.json",
 			"usercache.json",
 		),
-		ConnectionsByEID: make(map[mc.EntityID]*Connection),
 	}
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", s))
 	s.ctx = ctx
@@ -193,7 +192,13 @@ func (s *Server) Stop() {
 		return true
 	})
 	s.cancel()
-	s.wg.Wait()
+	done := make(chan struct{})
+	go func() { s.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		logger.Warn("Shutdown timed out, forcing exit")
+	}
 	// todo: save world
 }
 
@@ -267,10 +272,11 @@ func updateTime(s *Server) {
 	}
 
 	if s.World.Time >= s.World.NextTimeUpdate {
-		worldAge := mc.Long(s.World.Time)
-		timeOfDay := mc.Long(s.World.DayTime)
-		timeOfDayIncreasing := mc.Boolean(true)
-		timePacket, _ := packet.NewPacket(packet.PlayClientboundSetTime, &worldAge, &timeOfDay, &timeOfDayIncreasing)
+		timePacket, err := packet.NewPacket(packet.PlayClientboundSetTime, mc.Long(s.World.Time), mc.Long(s.World.DayTime), mc.Boolean(true))
+		if err != nil {
+			logger.Error("error encoding time packet: %v", err)
+			return
+		}
 
 		s.World.NextTimeUpdate = s.World.Time + 20
 		s.BroadcastAll(timePacket)

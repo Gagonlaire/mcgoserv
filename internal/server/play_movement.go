@@ -1,9 +1,9 @@
 package server
 
 import (
-	"log"
 	"math"
 
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
@@ -61,7 +61,6 @@ func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
 	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
 		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPlayerMovement))
-		c.close()
 		return false
 	}
 
@@ -92,20 +91,20 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 
 	switch {
 	case posChanged && rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPosRot,
+		pkt = c.NewPacket(packet.PlayClientboundMoveEntityPosRot,
 			mc.VarInt(c.Player.EntityID),
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
 			yaw, pitch,
 			mc.Boolean(c.Player.OnGround),
 		)
 	case posChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityPos,
+		pkt = c.NewPacket(packet.PlayClientboundMoveEntityPos,
 			mc.VarInt(c.Player.EntityID),
 			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
 			mc.Boolean(c.Player.OnGround),
 		)
 	case rotChanged:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundMoveEntityRot,
+		pkt = c.NewPacket(packet.PlayClientboundMoveEntityRot,
 			mc.VarInt(c.Player.EntityID),
 			yaw, pitch,
 			mc.Boolean(c.Player.OnGround),
@@ -115,7 +114,7 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 	c.Server.BroadcastViewers(c, pkt)
 
 	if rotChanged {
-		pktHead, _ := packet.NewPacket(packet.PlayClientboundRotateHead,
+		pktHead := c.NewPacket(packet.PlayClientboundRotateHead,
 			mc.VarInt(c.Player.EntityID),
 			yaw,
 		)
@@ -130,7 +129,6 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	if math.IsNaN(x) || math.IsNaN(y) || math.IsNaN(z) ||
 		math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(z, 0) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPlayerMovement))
-		c.close()
 		return false
 	}
 
@@ -153,7 +151,7 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 
 	maxDistSq := 100.0 * float64(multiplier)
 	if distSq-velocitySq > maxDistSq {
-		log.Printf("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
+		logger.Warn("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
 		c.teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1])
 		return false
 	}
@@ -170,7 +168,7 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 }
 
 func (c *Connection) broadcastTeleport() {
-	pkt, _ := packet.NewPacket(
+	pkt := c.NewPacket(
 		packet.PlayClientboundTeleportEntity,
 		encoders.NewTeleportEntity(c.Player.EntityID, c.Player.Pos, c.Player.Rot, c.Player.OnGround),
 	)
@@ -179,7 +177,7 @@ func (c *Connection) broadcastTeleport() {
 
 func (c *Connection) teleport(x, y, z float64, yaw, pitch float32) {
 	// todo: correct usage of tp id and flags, also add velocity
-	pkt, _ := packet.NewPacket(
+	pkt := c.NewPacket(
 		packet.PlayClientboundPlayerPosition,
 		mc.Double(x), mc.Double(y), mc.Double(z),
 		mc.Float(yaw), mc.Float(pitch),
@@ -212,7 +210,7 @@ func (c *Connection) updateChunkView(force bool) {
 		}
 	}
 
-	centerPkt, _ := packet.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	centerPkt := c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	c.Send(centerPkt)
 	selfID := c.Player.EntityID
 
@@ -222,15 +220,17 @@ func (c *Connection) updateChunkView(force bool) {
 		}
 		chunk := dim.GetChunk(pos.X, pos.Z)
 		if count := len(chunk.Entities); count > 0 {
-			removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(count))
-			for entityID := range chunk.Entities {
-				_ = removePkt.Encode(mc.VarInt(entityID))
+			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(count))
+			if removePkt != nil {
+				for entityID := range chunk.Entities {
+					_ = removePkt.Encode(mc.VarInt(entityID))
+				}
+				c.Send(removePkt)
 			}
-			c.Send(removePkt)
 		}
 		delete(chunk.Watchers, selfID)
 		delete(c.Player.Movement.VisibleChunks, pos)
-		forgetPkt, _ := packet.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
+		forgetPkt := c.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
 		c.Send(forgetPkt)
 	}
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
@@ -240,7 +240,7 @@ func (c *Connection) updateChunkView(force bool) {
 				continue
 			}
 			chunk := dim.GetChunk(x, z)
-			chunkPkt, _ := packet.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
+			chunkPkt := c.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
 			c.Send(chunkPkt)
 			for entityID := range chunk.Entities {
 				if entityID == selfID {
@@ -256,7 +256,7 @@ func (c *Connection) updateChunkView(force bool) {
 	oldChunk := dim.GetChunk(c.Player.Movement.LastChunkX, c.Player.Movement.LastChunkZ)
 	newChunk := dim.GetChunk(cx, cz)
 	selfEntity := &c.Player.LivingEntity.BaseEntity
-	removePkt, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
+	removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
 
 	for watcherID := range oldChunk.Watchers {
 		if watcherID == selfID {
@@ -265,7 +265,9 @@ func (c *Connection) updateChunkView(force bool) {
 		if _, stillSees := newChunk.Watchers[watcherID]; stillSees {
 			continue
 		}
-		c.Server.ConnectionsByEID[watcherID].Send(removePkt)
+		if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
+			conn.(*Connection).Send(removePkt)
+		}
 	}
 	for watcherID := range newChunk.Watchers {
 		if watcherID == selfID {
@@ -274,7 +276,9 @@ func (c *Connection) updateChunkView(force bool) {
 		if _, alreadySaw := oldChunk.Watchers[watcherID]; alreadySaw {
 			continue
 		}
-		c.Server.ConnectionsByEID[watcherID].SendSpawnEntity(selfEntity)
+		if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
+			conn.(*Connection).SendSpawnEntity(selfEntity)
+		}
 	}
 
 	c.Player.Movement.LastChunkX = cx

@@ -40,7 +40,7 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 
 	pArrayPublicKey := mc.NewPrefixedByteArray(c.Server.Keys.EncodedPublicKey)
 	pArrayVerifyToken := mc.NewPrefixedByteArray(verifyToken)
-	pkt, _ := packet.NewPacket(
+	pkt := c.NewPacket(
 		packet.LoginClientboundHello,
 		mc.String(c.Server.ID),
 		pArrayPublicKey,
@@ -139,12 +139,12 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	)
 
 	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
-		pkt, _ := packet.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
+		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
 		c.SendSync(pkt)
 		c.CompressionThreshold = c.Server.Properties.NetworkCompressionThreshold
 	}
 
-	pkt, _ := packet.NewPacket(
+	pkt := c.NewPacket(
 		packet.LoginClientboundLoginFinished,
 		mc.UUID(loginUUID),
 		mc.String(loginName),
@@ -201,6 +201,6 @@ func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.Server.World.Time
 
-	pkt, _ := packet.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
+	pkt := c.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
 	c.SendSync(pkt)
 }

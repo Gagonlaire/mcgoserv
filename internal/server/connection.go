@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"sync"
 
@@ -62,6 +61,9 @@ func (c *Connection) ReadLoop() {
 	for {
 		pkt, err := packet.Receive(c.Conn, c.CompressionThreshold)
 		if err != nil {
+			if c.ctx.Err() != nil {
+				return
+			}
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 				logger.Error("error reading packet from %s: %v", c.Conn.RemoteAddr(), err)
 			}
@@ -77,16 +79,25 @@ func (c *Connection) ReadLoop() {
 					c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 					return
 				}
-				// todo: check if data remains, if so, disconnect with clean reason
+				if pkt.Remaining() > 0 {
+					// todo: add more context
+					c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
+					return
+				}
 			} else {
 				data = pkt
 			}
 
 			if handler.Ticked {
-				c.InboundPackets <- QueuedPacket{
+				select {
+				case c.InboundPackets <- QueuedPacket{
 					Process: handler.Process,
 					Data:    data,
 					Raw:     pkt,
+				}:
+				case <-c.ctx.Done():
+					pkt.Free()
+					return
 				}
 			} else {
 				handler.Process(c, data)
@@ -107,18 +118,11 @@ func (c *Connection) WriteLoop() {
 			return
 		case pkt := <-c.OutboundPackets:
 			err := pkt.Send(c.Conn, c.CompressionThreshold)
-			id := pkt.ID
 			pkt.Free()
 			if err != nil {
 				if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-					log.Printf("error sending packet from %s: %v", c.Conn.RemoteAddr(), err)
+					logger.Error("error sending packet to %s: %v", c.Conn.RemoteAddr(), err)
 				}
-				return
-			}
-
-			if (c.State == mc.StateLogin && id == packet.LoginClientboundLoginDisconnect) ||
-				(c.State == mc.StateConfiguration && id == packet.ConfigurationClientboundDisconnect) ||
-				(c.State == mc.StatePlay && id == packet.PlayClientboundDisconnect) {
 				return
 			}
 		}
@@ -127,6 +131,9 @@ func (c *Connection) WriteLoop() {
 
 // Send sends a packet asynchronously. Takes ownership of the packet.
 func (c *Connection) Send(pkt *packet.OutboundPacket) {
+	if pkt == nil {
+		return
+	}
 	select {
 	case c.OutboundPackets <- pkt:
 		return
@@ -137,8 +144,22 @@ func (c *Connection) Send(pkt *packet.OutboundPacket) {
 
 // SendSync sends a packet synchronously, blocking until it's sent. Takes ownership of the packet.
 func (c *Connection) SendSync(pkt *packet.OutboundPacket) {
+	if pkt == nil {
+		return
+	}
 	_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	pkt.Free()
+}
+
+// NewPacket creates a new outbound packet, logging and returning nil on encoding error.
+func (c *Connection) NewPacket(ID int, fields ...io.WriterTo) *packet.OutboundPacket {
+	pkt, err := packet.NewPacket(ID, fields...)
+	if err != nil {
+		logger.Error("error encoding packet %s: %v",
+			packet.PacketName(mc.GetStateName(c.State), "Clientbound", ID), err)
+		return nil
+	}
+	return pkt
 }
 
 func (c *Connection) Disconnect(reason tc.Component) {
@@ -146,16 +167,21 @@ func (c *Connection) Disconnect(reason tc.Component) {
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt, _ = packet.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reason.ToJSON()))
 	case mc.StateConfiguration:
-		pkt, _ = packet.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reason.ToJSON()))
 	case mc.StatePlay:
-		pkt, _ = packet.NewPacket(packet.PlayClientboundDisconnect, reason)
+		pkt = c.NewPacket(packet.PlayClientboundDisconnect, reason)
 	default:
+		c.close()
 		return
 	}
 
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	if pkt != nil {
+		_ = pkt.Send(c.Conn, c.CompressionThreshold)
+		pkt.Free()
+	}
+	c.close()
 }
 
 func (c *Connection) close() {
@@ -163,14 +189,14 @@ func (c *Connection) close() {
 		c.cancel()
 		if c.Player != nil {
 			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
-			delete(c.Server.ConnectionsByEID, c.Player.EntityID)
-			infoRemove, _ := packet.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
-			entityRemove, _ := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(c.Player.EntityID))
+			c.Server.ConnectionsByEID.Delete(c.Player.EntityID)
+			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
+			entityRemove := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(c.Player.EntityID))
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
 				tc.PlayerName(c.Player.Name),
 			).SetColor(tc.ColorYellow)
-			systemChat, _ := packet.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
+			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 
 			c.Server.BroadcastOthers(c, infoRemove)
 			c.Server.BroadcastOthers(c, entityRemove)
