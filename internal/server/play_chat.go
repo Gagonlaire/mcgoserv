@@ -146,7 +146,7 @@ func (c *Connection) HandleSignedChatCommand(data *decoders.SignedChatCommand) {
 		return
 	}
 
-	lastSeenSignatures := advanceSession(chatSession, data.Acknowledged)
+	lastSeenSignatures := advanceSession(chatSession, &data.Acknowledged)
 	if data.Checksum != computeLastSeenChecksum(lastSeenSignatures) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
 		return
@@ -221,7 +221,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 		}
 	}
 
-	lastSeenSignatures := advanceSession(chatSession, data.Acknowledged)
+	lastSeenSignatures := advanceSession(chatSession, &data.Acknowledged)
 	if data.Checksum != computeLastSeenChecksum(lastSeenSignatures) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
 		return

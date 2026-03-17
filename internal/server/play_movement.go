@@ -10,6 +10,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
+	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
 
 const (
@@ -85,8 +86,8 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		return
 	}
 
-	yaw := mc.Angle(c.Player.Rot[0] / 360.0 * 256.0)
-	pitch := mc.Angle(c.Player.Rot[1] / 360.0 * 256.0)
+	yaw := mc.DegreesToAngle(c.Player.Rot[0])
+	pitch := mc.DegreesToAngle(c.Player.Rot[1])
 	var pkt *packet.OutboundPacket
 
 	switch {
@@ -169,12 +170,9 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 }
 
 func (c *Connection) broadcastTeleport() {
-	pkt, _ := packet.NewPacket(packet.PlayClientboundTeleportEntity,
-		mc.VarInt(c.Player.EntityID),
-		mc.Double(c.Player.Pos[0]), mc.Double(c.Player.Pos[1]), mc.Double(c.Player.Pos[2]),
-		mc.Double(0), mc.Double(0), mc.Double(0),
-		mc.Float(c.Player.Rot[0]*256/360), mc.Float(c.Player.Rot[1]*256/360),
-		mc.Boolean(c.Player.OnGround),
+	pkt, _ := packet.NewPacket(
+		packet.PlayClientboundTeleportEntity,
+		encoders.NewTeleportEntity(c.Player.EntityID, c.Player.Pos, c.Player.Rot, c.Player.OnGround),
 	)
 	c.Server.BroadcastViewers(c, pkt)
 }

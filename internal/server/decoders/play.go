@@ -27,7 +27,7 @@ type CommandSuggestionsRequest struct {
 
 type ChatMessage struct {
 	Signature    mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
-	Acknowledged *mc.FixedBitSet
+	Acknowledged mc.FixedBitSet
 	Message      mc.String256
 	Timestamp    mc.Long
 	Salt         mc.Long
@@ -48,7 +48,7 @@ type ArgumentSignature struct {
 }
 
 type SignedChatCommand struct {
-	Acknowledged       *mc.FixedBitSet
+	Acknowledged       mc.FixedBitSet
 	Command            mc.String
 	ArgumentSignatures []ArgumentSignature
 	Timestamp          mc.Long
@@ -148,7 +148,7 @@ func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
 		&data.Salt,
 		&data.Signature,
 		&data.MessageCount,
-		data.Acknowledged,
+		&data.Acknowledged,
 		&data.Checksum,
 	); err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, err
 			Signature:    signature,
 		}
 	}
-	if err := pkt.Decode(&data.MessageCount, data.Acknowledged, &data.Checksum); err != nil {
+	if err := pkt.Decode(&data.MessageCount, &data.Acknowledged, &data.Checksum); err != nil {
 		return nil, err
 	}
 	return data, nil

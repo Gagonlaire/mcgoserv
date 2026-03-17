@@ -552,6 +552,45 @@ func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
 	return n + int64(nBytes), nil
 }
 
+func (i *IDOrX[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
+	var id VarInt
+	nn, err := id.ReadFrom(r)
+	if err != nil {
+		return nn, err
+	}
+	n += nn
+	if id == 0 {
+		if i.Data == nil {
+			i.Data = new(T)
+		}
+		var ptr PT = i.Data
+		nn, err = ptr.ReadFrom(r)
+		if err != nil {
+			return n + nn, err
+		}
+		n += nn
+		i.ID = 0
+	} else {
+		i.Data = nil
+		i.ID = int32(id) - 1
+	}
+	return n, nil
+}
+
+func (i IDOrX[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
+	if i.Data != nil {
+		nn, err := VarInt(0).WriteTo(w)
+		if err != nil {
+			return nn, err
+		}
+		n += nn
+		var ptr PT = i.Data
+		nn, err = ptr.WriteTo(w)
+		return n + nn, err
+	}
+	return VarInt(i.ID + 1).WriteTo(w)
+}
+
 func (l *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [1]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {

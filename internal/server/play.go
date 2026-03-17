@@ -11,6 +11,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
+	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
 
 func (c *Connection) HandleKeepAlive(id *mc.Long) {
@@ -20,19 +21,7 @@ func (c *Connection) HandleKeepAlive(id *mc.Long) {
 
 func (c *Connection) SendSpawnEntity(entity *world.Entity) {
 	// todo: check for head/body rotation
-	yaw := mc.Angle(entity.Rot[0] / 360.0 * 256.0)
-	pkt, _ := packet.NewPacket(
-		packet.PlayClientboundAddEntity,
-		mc.VarInt(entity.EntityID),
-		mc.UUID(entity.UUID),
-		mc.VarInt(entity.TypeID),
-		mc.Double(entity.Pos[0]), mc.Double(entity.Pos[1]), mc.Double(entity.Pos[2]),
-		mc.LpVec3{X: entity.Motion[0], Y: entity.Motion[1], Z: entity.Motion[2]},
-		mc.Angle(entity.Rot[1]/360.0*256.0),
-		yaw, // body yaw
-		yaw, // head yaw
-		mc.VarInt(0),
-	)
+	pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
 	c.Send(pkt)
 }
 

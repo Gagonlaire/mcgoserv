@@ -10,6 +10,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -41,37 +42,35 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	)
 	c.State = mc.StatePlay
 	c.Server.ConnectionsByEID[c.Player.EntityID] = c
-	dimensionsName := []mc.Identifier{"overworld", "the_nether", "the_end"}
 
 	out, _ := packet.NewPacket(0)
 	defer out.Free()
 
-	_ = out.ResetWith(
-		packet.PlayClientboundLogin,
-		mc.Int(c.Player.EntityID),
-		mc.Boolean(c.Server.Properties.Hardcore),
-		mc.NewPrefixedArray[mc.Identifier, *mc.Identifier](dimensionsName),
-		mc.VarInt(c.Server.Properties.MaxPlayers),
-		mc.VarInt(c.Server.Properties.ViewDistance),
-		mc.VarInt(c.Server.Properties.SimulationDistance),
-		mc.Boolean(false),
-		mc.Boolean(true),
-		mc.Boolean(false),
-		// todo: get the correct dimension type and name from player
-		mc.VarInt(0),
-		mc.Identifier("overworld"),
-		// todo: hash world seed
-		mc.Long(1),
-		mc.UnsignedByte(c.Player.GameMode),
-		mc.Byte(c.Player.PreviousGameMode),
-		mc.Boolean(false),
-		mc.Boolean(false),
-		// todo: get the correct value
-		mc.Boolean(false),
-		mc.VarInt(100),
-		mc.VarInt(64),
-		mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
-	)
+	// todo: get the correct dimension type and name from player
+	// todo: hash world seed
+	// todo: get the correct has death location value
+	_ = out.ResetWith(packet.PlayClientboundLogin, &encoders.Login{
+		EntityID:            mc.Int(c.Player.EntityID),
+		IsHardcore:          mc.Boolean(c.Server.Properties.Hardcore),
+		DimensionNames:      mc.NewPrefixedArray[mc.Identifier, *mc.Identifier]([]mc.Identifier{"overworld", "the_nether", "the_end"}),
+		MaxPlayers:          mc.VarInt(c.Server.Properties.MaxPlayers),
+		ViewDistance:        mc.VarInt(c.Server.Properties.ViewDistance),
+		SimulationDistance:  mc.VarInt(c.Server.Properties.SimulationDistance),
+		ReducedDebugInfo:    false,
+		EnableRespawnScreen: true,
+		DoLimitedCrafting:   false,
+		DimensionType:       0,
+		DimensionName:       "overworld",
+		HashedSeed:          1,
+		GameMode:            mc.UnsignedByte(c.Player.GameMode),
+		PreviousGameMode:    mc.Byte(c.Player.PreviousGameMode),
+		IsDebug:             false,
+		IsFlat:              false,
+		HasDeathLocation:    false,
+		PortalCooldown:      100,
+		SeaLevel:            64,
+		EnforceSecureChat:   mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
+	})
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	_ = out.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
@@ -82,13 +81,8 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	_ = out.ResetWith(
 		packet.PlayClientboundPlayerPosition,
 		mc.VarInt(0),
-		mc.Double(c.Player.Pos[0]),
-		mc.Double(c.Player.Pos[1]),
-		mc.Double(c.Player.Pos[2]),
-		// todo: replace with velocity
-		mc.Double(c.Player.Motion[0]),
-		mc.Double(c.Player.Motion[1]),
-		mc.Double(c.Player.Motion[2]),
+		mc.NewCoordinate(c.Player.Pos),
+		mc.NewCoordinate(c.Player.Motion),
 		mc.Float(c.Player.Rot[0]),
 		mc.Float(c.Player.Rot[1]),
 		mc.Int(0),
@@ -149,41 +143,14 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: send player inventory, rework inventory system
 
 	// spawn newly connected player
-	pkt, _ := packet.NewPacket(
-		packet.PlayClientboundAddEntity,
-		mc.VarInt(c.Player.EntityID),
-		mc.UUID(c.Player.UUID),
-		mc.VarInt(mcdata.EntityPlayer),
-		mc.Double(c.Player.Pos[0]),
-		mc.Double(c.Player.Pos[1]),
-		mc.Double(c.Player.Pos[2]),
-		mc.LpVec3{},
-		mc.Angle(0),
-		mc.Angle(0),
-		mc.Angle(0),
-		mc.VarInt(0),
-	)
+	pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&c.Player.LivingEntity.BaseEntity))
 	c.Server.BroadcastViewers(c, pkt)
 	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
 		if player.UUID == c.Player.UUID {
 			continue
 		}
 
-		pkt, _ := packet.NewPacket(
-			packet.PlayClientboundAddEntity,
-			mc.VarInt(player.EntityID),
-			mc.UUID(player.UUID),
-			mc.VarInt(mcdata.EntityPlayer),
-			mc.Double(player.Pos[0]),
-			mc.Double(player.Pos[1]),
-			mc.Double(player.Pos[2]),
-			mc.LpVec3{},
-			mc.Angle(0),
-			mc.Angle(0),
-			mc.Angle(0),
-			mc.VarInt(0),
-		)
-
+		pkt, _ := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(&player.LivingEntity.BaseEntity))
 		_ = pkt.Send(c.Conn, c.CompressionThreshold)
 	}
 

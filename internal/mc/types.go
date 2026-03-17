@@ -90,7 +90,6 @@ type (
 		Value     string
 		MaxLength int32
 	}
-
 	// Identifier Encodes:
 	//  - A namespaced identifier; https://minecraft.wiki/w/Java_Edition_protocol/Packets#Identifier.
 	// Size:
@@ -176,15 +175,20 @@ type (
 	ByteArray struct {
 		Data []byte
 	}
-	// PrefixedByteArray Encodes:
-	//  - Depends on context.
-	// Size:
-	//  - size of VarInt + length of data bytes
-	// Notes:
-	//  - Optimized alternative to PrefixedArray[Byte, *Byte].
+	// PrefixedByteArray not a protocol type, just useful in certain contexts
 	PrefixedByteArray struct {
 		Data      []byte
 		MaxLength int32
+	}
+	// IDOrX of X Encodes:
+	//  - https://minecraft.wiki/w/Java_Edition_protocol/Packets#ID_or_X.
+	// Size:
+	//  - size of VarInt + (size of X or 0)
+	// Notes:
+	//  - Either a registry ID or an inline data definition of type X.
+	IDOrX[T any, PT FieldPtr[T]] struct {
+		Data *T
+		ID   int32
 	}
 	// DataArray of X Encodes:
 	//  - https://minecraft.wiki/w/Java_Edition_protocol/Chunk_format#Data_Array_format.

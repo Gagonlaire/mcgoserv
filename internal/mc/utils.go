@@ -1,6 +1,7 @@
 package mc
 
 import (
+	"io"
 	"iter"
 	"math"
 
@@ -213,9 +214,9 @@ func (P *PrefixedOptional[T, PT]) Set(value PT) {
 	P.Has = value != nil
 }
 
-func NewFixedBitSet(n int) *FixedBitSet {
+func NewFixedBitSet(n int) FixedBitSet {
 	byteSize := int(math.Ceil(float64(n) / 8.0))
-	return &FixedBitSet{
+	return FixedBitSet{
 		BitCount: n,
 		Data:     make([]byte, byteSize),
 	}
@@ -311,4 +312,25 @@ func GetStateName(state State) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func DegreesToAngle(degrees float32) Angle {
+	return Angle(degrees / 360.0 * 256.0)
+}
+
+type Coordinate [3]Double
+
+func NewCoordinate(pos [3]float64) Coordinate {
+	return Coordinate{Double(pos[0]), Double(pos[1]), Double(pos[2])}
+}
+
+func (p Coordinate) WriteTo(w io.Writer) (n int64, err error) {
+	for _, d := range p {
+		nn, err := d.WriteTo(w)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
 }
