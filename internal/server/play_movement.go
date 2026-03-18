@@ -246,7 +246,9 @@ func (c *Connection) updateChunkView(force bool) {
 				if entityID == selfID {
 					continue
 				}
-				c.SendSpawnEntity(c.Server.World.EntitiesByID[entityID])
+				if entity := c.Server.World.EntitiesByID[entityID]; entity != nil {
+					c.SendSpawnEntity(entity)
+				}
 			}
 			chunk.Watchers[selfID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}
@@ -257,17 +259,25 @@ func (c *Connection) updateChunkView(force bool) {
 	newChunk := dim.GetChunk(cx, cz)
 	selfEntity := &c.Player.LivingEntity.BaseEntity
 	removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
-
-	for watcherID := range oldChunk.Watchers {
-		if watcherID == selfID {
-			continue
+	if removePkt != nil {
+		for watcherID := range oldChunk.Watchers {
+			if watcherID == selfID {
+				continue
+			}
+			if _, stillSees := newChunk.Watchers[watcherID]; stillSees {
+				continue
+			}
+			if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
+				removePkt.Retain()
+				target := conn.(*Connection)
+				select {
+				case target.OutboundPackets <- removePkt:
+				case <-target.ctx.Done():
+					removePkt.Free()
+				}
+			}
 		}
-		if _, stillSees := newChunk.Watchers[watcherID]; stillSees {
-			continue
-		}
-		if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
-			conn.(*Connection).Send(removePkt)
-		}
+		removePkt.Free()
 	}
 	for watcherID := range newChunk.Watchers {
 		if watcherID == selfID {

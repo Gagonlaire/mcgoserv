@@ -15,3 +15,7 @@ func Network(v any) string {
 func Value(v any) string {
 	return internal.ColorGreen + internal.AnsiBold + fmt.Sprint(v) + internal.AnsiReset
 }
+
+func FmtWarn(v any) string {
+	return internal.ColorYellow + internal.AnsiBold + fmt.Sprint(v) + internal.AnsiReset
+}

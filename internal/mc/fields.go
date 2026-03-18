@@ -101,7 +101,6 @@ func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 		}
 		return 1, nil
 	}
-
 	var buf [1]byte
 	buf[0] = byte(u)
 	if _, err = w.Write(buf[:]); err != nil {
@@ -122,7 +121,6 @@ func (s *Short) ReadFrom(r io.Reader) (n int64, err error) {
 func (s Short) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [2]byte
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(s))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing Short")
@@ -142,7 +140,6 @@ func (u *UnsignedShort) ReadFrom(r io.Reader) (n int64, err error) {
 func (u UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [2]byte
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(u))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing UnsignedShort")
@@ -162,7 +159,6 @@ func (i *Int) ReadFrom(r io.Reader) (n int64, err error) {
 func (i Int) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [4]byte
 	b := binary.BigEndian.AppendUint32(buf[:0], uint32(i))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing Int")
@@ -182,7 +178,6 @@ func (l *Long) ReadFrom(r io.Reader) (n int64, err error) {
 func (l Long) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [8]byte
 	b := binary.BigEndian.AppendUint64(buf[:0], uint64(l))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing Long")
@@ -202,7 +197,6 @@ func (f *Float) ReadFrom(r io.Reader) (n int64, err error) {
 func (f Float) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [4]byte
 	b := binary.BigEndian.AppendUint32(buf[:0], math.Float32bits(float32(f)))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing Float")
@@ -215,7 +209,6 @@ func (d *Double) ReadFrom(r io.Reader) (n int64, err error) {
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
 		return 0, errutil.WrapIOErr(err, "error reading Double")
 	}
-
 	*d = Double(math.Float64frombits(binary.BigEndian.Uint64(buf[:])))
 	return 8, nil
 }
@@ -223,7 +216,6 @@ func (d *Double) ReadFrom(r io.Reader) (n int64, err error) {
 func (d Double) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [8]byte
 	b := binary.BigEndian.AppendUint64(buf[:0], math.Float64bits(float64(d)))
-
 	nn, err := w.Write(b)
 	if err != nil {
 		return int64(nn), errutil.WrapIOErr(err, "error writing Double")
@@ -316,7 +308,6 @@ func (b *BoundedString) WriteTo(w io.Writer) (n int64, err error) {
 func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 	var position uint
 	*v = 0
-
 	if br, ok := r.(io.ByteReader); ok {
 		for i := 0; i < 5; i++ {
 			b, err := br.ReadByte()
@@ -330,7 +321,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 			}
 			position += 7
 		}
-		return n, fmt.Errorf("VarInt too long")
+		return n, fmt.Errorf("error reading VarInt")
 	}
 	for i := 0; i < 5; i++ {
 		var b [1]byte
@@ -344,7 +335,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 		}
 		position += 7
 	}
-	return n, fmt.Errorf("VarInt too long")
+	return n, fmt.Errorf("error reading VarInt")
 }
 
 func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
@@ -397,21 +388,20 @@ func (F FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
 
 func (p *PrefixedOptional[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	nn, err := p.Has.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
-
 	if p.Has {
 		if p.Value == nil {
 			p.Value = new(T)
 		}
 		var ptr PT = p.Value
 		nn, err := ptr.ReadFrom(r)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	} else {
 		p.Value = nil
 	}
@@ -434,10 +424,10 @@ func (a *Array[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	for i := range a.Data {
 		var ptr PT = &a.Data[i]
 		nn, err := ptr.ReadFrom(r)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	}
 	return n, nil
 }
@@ -446,10 +436,10 @@ func (a Array[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 	for i := range a.Data {
 		var ptr PT = &a.Data[i]
 		nn, err := ptr.WriteTo(w)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	}
 	return n, nil
 }
@@ -457,10 +447,10 @@ func (a Array[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	var length VarInt
 	nn, err := length.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
 	if p.MaxLength > 0 && int32(length) > p.MaxLength {
 		return n, fmt.Errorf("PrefixedArray length %d exceeds maximum length %d", length, p.MaxLength)
 	}
@@ -473,10 +463,10 @@ func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	for i := range p.Data {
 		var ptr PT = &p.Data[i]
 		nn, err := ptr.ReadFrom(r)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	}
 	return n, nil
 }
@@ -484,17 +474,17 @@ func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 func (p PrefixedArray[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 	length := VarInt(len(p.Data))
 	nn, err := length.WriteTo(w)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
 	for i := range p.Data {
 		var ptr PT = &p.Data[i]
 		nn, err := ptr.WriteTo(w)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	}
 	return n, nil
 }
@@ -518,10 +508,10 @@ func (a ByteArray) WriteTo(w io.Writer) (n int64, err error) {
 func (p *PrefixedByteArray) ReadFrom(r io.Reader) (n int64, err error) {
 	var length VarInt
 	nn, err := length.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return nn, err
 	}
-	n += nn
 	if p.MaxLength > 0 && int32(length) > p.MaxLength {
 		return n, fmt.Errorf("PrefixedByteArray length %d exceeds maximum length %d", length, p.MaxLength)
 	}
@@ -541,10 +531,10 @@ func (p *PrefixedByteArray) ReadFrom(r io.Reader) (n int64, err error) {
 func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
 	length := VarInt(len(p.Data))
 	nn, err := length.WriteTo(w)
+	n += nn
 	if err != nil {
 		return nn, err
 	}
-	n += nn
 	nBytes, err := w.Write(p.Data)
 	if err != nil {
 		return n + int64(nBytes), errutil.WrapIOErr(err, "error writing PrefixedByteArray data")
@@ -555,20 +545,20 @@ func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
 func (i *IDOrX[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 	var id VarInt
 	nn, err := id.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return nn, err
 	}
-	n += nn
 	if id == 0 {
 		if i.Data == nil {
 			i.Data = new(T)
 		}
 		var ptr PT = i.Data
 		nn, err = ptr.ReadFrom(r)
+		n += nn
 		if err != nil {
 			return n + nn, err
 		}
-		n += nn
 		i.ID = 0
 	} else {
 		i.Data = nil
@@ -580,10 +570,10 @@ func (i *IDOrX[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
 func (i IDOrX[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 	if i.Data != nil {
 		nn, err := VarInt(0).WriteTo(w)
+		n += nn
 		if err != nil {
 			return nn, err
 		}
-		n += nn
 		var ptr PT = i.Data
 		nn, err = ptr.WriteTo(w)
 		return n + nn, err
@@ -602,52 +592,43 @@ func (l *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
 		l.X, l.Y, l.Z = 0, 0, 0
 		return n, nil
 	}
-
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return n, err
 	}
 	n += 1
 	byte2 := uint64(buf[0])
-
 	var fourBytes [4]byte
 	if _, err := io.ReadFull(r, fourBytes[:]); err != nil {
 		return n, err
 	}
 	n += 4
 	bytes3To4 := binary.BigEndian.Uint32(fourBytes[:])
-
 	packed := (uint64(bytes3To4) << 16) | (byte2 << 8) | byte1
-
 	scaleFactor := byte1 & 3
 	if (byte1 & 4) == 4 {
 		rest := VarInt(0)
-
 		nn, err := rest.ReadFrom(r)
+		n += nn
 		if err != nil {
 			return n + nn, err
 		}
-		n += nn
 		scaleFactor |= uint64(rest) << 2
 	}
 	scaleFactorD := float64(scaleFactor)
-
 	l.X = unpack(packed>>3) * scaleFactorD
 	l.Y = unpack(packed>>18) * scaleFactorD
 	l.Z = unpack(packed>>33) * scaleFactorD
-
 	return n, nil
 }
 
 func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	maxCoordinate := math.Max(math.Abs(l.X), math.Max(math.Abs(l.Y), math.Abs(l.Z)))
-
 	if maxCoordinate < 3.051944088384301e-5 {
 		if _, err := w.Write([]byte{0}); err != nil {
 			return 0, err
 		}
 		return 1, nil
 	}
-
 	maxCoordinateI := int64(maxCoordinate)
 	var scaleFactor int64
 	if maxCoordinate > float64(maxCoordinateI) {
@@ -655,22 +636,18 @@ func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	} else {
 		scaleFactor = maxCoordinateI
 	}
-
 	needContinuation := (scaleFactor & 3) != scaleFactor
-
 	var packedScale int64
 	if needContinuation {
 		packedScale = (scaleFactor & 3) | 4
 	} else {
 		packedScale = scaleFactor
 	}
-
 	scaleFactorD := float64(scaleFactor)
 	packedX := pack(l.X/scaleFactorD) << 3
 	packedY := pack(l.Y/scaleFactorD) << 18
 	packedZ := pack(l.Z/scaleFactorD) << 33
 	packed := packedZ | packedY | packedX | packedScale
-
 	var buf [6]byte
 	buf[0] = byte(packed)
 	buf[1] = byte(packed >> 8)
@@ -680,83 +657,70 @@ func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 		return 0, err
 	}
 	n += 6
-
 	if needContinuation {
 		buf := VarInt(scaleFactor >> 2)
-
 		nn, err := buf.WriteTo(w)
 		n += nn
-
 		return n, err
 	}
-
 	return n, nil
 }
 
 func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
 	var count, itemID, componentToAdd, componentToRemove VarInt
-
 	nn, err := count.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return nn, err
 	}
-	n += nn
-
 	s.Count = int32(count)
 	if count <= 0 {
 		return
 	}
-
 	nn, err = itemID.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
 	s.ItemID = int32(itemID)
-
 	nn, err = componentToAdd.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
 	nn, err = componentToRemove.ReadFrom(r)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
-
 	// todo: component to add/remove should not be higher than 0 for now
 	return n, nil
 }
 
 func (s Slot) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := VarInt(s.Count).WriteTo(w)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
 	if s.Count <= 0 {
 		return n, nil
 	}
-
 	nn, err = VarInt(s.ItemID).WriteTo(w)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
-
 	nn, err = VarInt(0).WriteTo(w)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
-
 	nn, err = VarInt(0).WriteTo(w)
+	n += nn
 	if err != nil {
 		return n, err
 	}
-	n += nn
-
 	return n, nil
 }
 
@@ -792,15 +756,12 @@ func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
 
 func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
 	var value String
-
 	n, err = value.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
-
 	parts := strings.Split(string(value), ":")
 	count := len(parts)
-
 	if count < 1 || count > 2 {
 		return n, fmt.Errorf("invalid Identifier: too many or not enough colons in %s", value)
 	}
@@ -809,7 +770,6 @@ func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
 			return n, fmt.Errorf("invalid Identifier: invalid namespace %s", parts[0])
 		}
 	}
-
 	*i = Identifier(parts[count-1])
 	for _, c := range *i {
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '_' || c == '-' || c == '.' || c == '/') {
@@ -848,10 +808,10 @@ func (d *DataArray) ReadFrom(_ io.Reader) (n int64, err error) {
 func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
 	for i := range d.Data {
 		nn, err := Long(d.Data[i]).WriteTo(w)
+		n += nn
 		if err != nil {
 			return n, err
 		}
-		n += nn
 	}
 	return n, nil
 }

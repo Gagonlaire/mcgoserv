@@ -140,7 +140,11 @@ func (w *World) RemoveEntityByUUID(entityUUID uuid.UUID) {
 }
 
 func (w *World) UpdateEntityChunk(entityID EntityID, oldX, oldZ, newX, newZ float64) {
-	dimension := GetEntityDimension(w.EntitiesByID[entityID])
+	entity := w.EntitiesByID[entityID]
+	if entity == nil {
+		return
+	}
+	dimension := GetEntityDimension(entity)
 
 	oldChunkX, oldChunkZ := GetChunkPosition(oldX, oldZ)
 	newChunkX, newChunkZ := GetChunkPosition(newX, newZ)

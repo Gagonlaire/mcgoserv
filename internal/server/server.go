@@ -36,6 +36,11 @@ const (
 	KeepAliveTimeout  = 300
 )
 
+type contextKey struct{}
+
+// ContextKey is used to store the *Server in a context.Context.
+var ContextKey = contextKey{}
+
 type Keys struct {
 	PrivateKey       *rsa.PrivateKey
 	EncodedPublicKey []byte
@@ -72,7 +77,7 @@ func NewServer() *Server {
 			"usercache.json",
 		),
 	}
-	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "server", s))
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), ContextKey, s))
 	s.ctx = ctx
 	s.cancel = cancel
 
@@ -290,7 +295,6 @@ func processIncomingPackets(s *Server) {
 		c := key.(*Connection)
 
 		// todo: move to a tick start or end handler
-		// todo: fix disconnect logic, loop seems to run after after the disconnect, nullptr on player
 		if c.Player != nil {
 			c.Player.Movement.PacketCount = 0
 			c.Player.Movement.LastTickX = c.Player.Pos[0]
@@ -298,28 +302,17 @@ func processIncomingPackets(s *Server) {
 			c.Player.Movement.LastTickZ = c.Player.Pos[2]
 		}
 
+	drainPackets:
 		for {
 			select {
 			case pkt := <-c.InboundPackets:
-				{
-					// todo: This ignores some packets if they come before the player is loaded
-					/*if !c.Player.Loaded &&
-						!(pkt.ID == packet.PlayServerboundKeepAlive || pkt.ID == packet.PlayServerboundPlayerLoaded) {
-						pkt.Free()
-						continue
-					}*/
-
-					//---- NEW ROUTER ----//
-					pkt.Process(c, pkt.Data)
-					pkt.Raw.Free()
-				}
+				pkt.Process(c, pkt.Data)
+				pkt.Raw.Free()
 			default:
-				goto keepAlive
+				break drainPackets
 			}
 		}
 
-		// todo: fix, configuration keep alive cannot be reached there
-	keepAlive:
 		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
 			if currentTick-c.LastKeepAlive > KeepAliveTimeout {
 				logger.Info("keep-alive timeout for %s", c.Conn.RemoteAddr())

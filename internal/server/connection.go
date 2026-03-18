@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -75,12 +76,7 @@ func (c *Connection) ReadLoop() {
 
 			if handler.Decode != nil {
 				data, err = handler.Decode(pkt)
-				if err != nil {
-					c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
-					return
-				}
-				if pkt.Remaining() > 0 {
-					// todo: add more context
+				if err != nil || pkt.Remaining() > 0 {
 					c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 					return
 				}
@@ -104,7 +100,10 @@ func (c *Connection) ReadLoop() {
 				pkt.Free()
 			}
 		} else {
-			logger.Warn("Missing handler for packet %s", packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)))
+			logger.Warn("Missing handler for packet: %s %s",
+				logger.FmtWarn(packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID))),
+				logger.FmtWarn(fmt.Sprintf("(0x%x)", pkt.ID)),
+			)
 			pkt.Free()
 		}
 	}

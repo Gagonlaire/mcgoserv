@@ -6,6 +6,8 @@ logs/
 versions/
 libraries/
 /server*
+*.sarif
+nilaway.json
 
 ### Access control related
 banned-players.json

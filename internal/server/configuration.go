@@ -34,15 +34,14 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
 		return
 	}
+	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
+	c.State = mc.StatePlay
 	logger.Info("%s[/%s] logged in with entity id %s at (%s)",
 		logger.Identity(c.Player.Name),
 		logger.Network(c.Conn.RemoteAddr()),
 		logger.Value(c.Player.EntityID),
 		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2])),
 	)
-	c.State = mc.StatePlay
-	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
-
 	out := c.NewPacket(0)
 	if out == nil {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
@@ -180,8 +179,6 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	pkt = c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.BroadcastOthers(c, pkt)
 	logger.Component(logger.INFO, joinMessage)
-	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
-	c.State = mc.StatePlay
 }
 
 func (s *Server) sendCommands(c *Connection) error {

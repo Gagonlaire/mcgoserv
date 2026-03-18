@@ -54,10 +54,19 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	// As of 1.21, the vanilla server never uses encryption in offline mode.
 	if !c.Server.Properties.OnlineMode {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
+		return
 	}
 
-	decryptedSecret, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedSecret.Data)
-	decryptedVerifyToken, _ := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedVerifyToken.Data)
+	decryptedSecret, err := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedSecret.Data)
+	if err != nil {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
+	decryptedVerifyToken, err := rsa.DecryptPKCS1v15(rand.Reader, c.Server.Keys.PrivateKey, data.EncryptedVerifyToken.Data)
+	if err != nil {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
 	if !bytes.Equal(decryptedVerifyToken, c.ContextData["verifyToken"].([]byte)) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectUnverifiedUsername))
 		return
@@ -84,8 +93,8 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectAuthserversDown))
 		return
 	}
-	body, _ := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Error("Session server returned status %d: %s", resp.StatusCode, string(body))
