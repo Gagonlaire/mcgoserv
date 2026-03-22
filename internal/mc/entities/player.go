@@ -17,10 +17,10 @@ type Player struct {
 	ChatSession         mc.ChatSession
 	PermissionLevel     int
 	SelectedItemSlot    int32
-	FoodTickTimer       int32   `nbt:"foodTickTimer"`
-	FoodSaturationLevel float32 `nbt:"foodSaturationLevel"`
-	FoodLevel           int32   `nbt:"foodLevel"`
-	FoodExhaustionLevel float32 `nbt:"foodExhaustionLevel"`
+	FoodTickTimer       int32
+	FoodSaturationLevel float32
+	FoodLevel           int32
+	FoodExhaustionLevel float32
 	Score               int32
 	PushingAgainstWall  bool
 	PreviousGameMode    int8
@@ -30,14 +30,15 @@ type Player struct {
 }
 
 type MovementTracker struct {
-	VisibleChunks map[mc.ChunkPos]struct{}
-	KeepChunks    map[mc.ChunkPos]bool
-	PacketCount   int
-	LastTickX     float64
-	LastTickY     float64
-	LastTickZ     float64
-	LastChunkX    int
-	LastChunkZ    int
+	VisibleChunks   map[mc.ChunkPos]struct{}
+	KeepChunks      map[mc.ChunkPos]bool
+	PacketCount     int
+	PendingTeleport int32
+	LastTickX       float64
+	LastTickY       float64
+	LastTickZ       float64
+	LastChunkX      int
+	LastChunkZ      int
 }
 
 func NewPlayer(

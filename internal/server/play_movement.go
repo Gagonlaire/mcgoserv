@@ -2,6 +2,7 @@ package server
 
 import (
 	"math"
+	"math/rand/v2"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -20,7 +21,9 @@ const (
 )
 
 func (c *Connection) HandleConfirmTeleportation(teleportID *mc.VarInt) {
-	// todo: unlock movement packets
+	if int32(*teleportID) == c.Player.Movement.PendingTeleport {
+		c.Player.Movement.PendingTeleport = 0
+	}
 }
 
 func (c *Connection) HandleSetPlayerPosition(data *decoders.SetPlayerPosition) {
@@ -47,6 +50,9 @@ func (c *Connection) HandleSetPlayerRotation(data *decoders.SetPlayerRotation) {
 }
 
 func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
+	if c.Player.Movement.PendingTeleport != 0 {
+		return
+	}
 	c.Player.OnGround = (*flags)&0x01 != 0
 	c.syncMovement(
 		c.Player.Pos[0],
@@ -58,6 +64,10 @@ func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
 }
 
 func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
+	if c.Player.Movement.PendingTeleport != 0 {
+		return false
+	}
+
 	if math.IsNaN(float64(yaw)) || math.IsNaN(float64(pitch)) ||
 		math.IsInf(float64(yaw), 0) || math.IsInf(float64(pitch), 0) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPlayerMovement))
@@ -81,7 +91,7 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		deltaZ > maxDelta || deltaZ < minDelta
 
 	if needsTeleport {
-		c.broadcastTeleport()
+		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1], 0)
 		return
 	}
 
@@ -123,8 +133,10 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 }
 
 func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
-	// todo: implement logic for vehicule, sleeping and flying.
-	// todo: ignore movement packets if there is a teleportation pending
+	// todo: implement logic for vehicle, sleeping and flying.
+	if c.Player.Movement.PendingTeleport != 0 {
+		return false
+	}
 
 	if math.IsNaN(x) || math.IsNaN(y) || math.IsNaN(z) ||
 		math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(z, 0) {
@@ -152,7 +164,7 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	maxDistSq := 100.0 * float64(multiplier)
 	if distSq-velocitySq > maxDistSq {
 		logger.Warn("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
-		c.teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1])
+		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1], 0)
 		return false
 	}
 
@@ -167,26 +179,102 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	return true
 }
 
-func (c *Connection) broadcastTeleport() {
-	pkt := c.NewPacket(
-		packet.PlayClientboundTeleportEntity,
-		encoders.NewTeleportEntity(c.Player.EntityID, c.Player.Pos, c.Player.Rot, c.Player.OnGround),
-	)
-	c.Server.BroadcastViewers(c, pkt)
-}
+func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.TeleportationFlags) {
+	oldX, oldZ := c.Player.Pos[0], c.Player.Pos[2]
 
-func (c *Connection) teleport(x, y, z float64, yaw, pitch float32) {
-	// todo: correct usage of tp id and flags, also add velocity
+	// todo: move this logic into a helper func
+	if flags&mc.TpRelativeX != 0 {
+		x += c.Player.Pos[0]
+	}
+	if flags&mc.TpRelativeY != 0 {
+		y += c.Player.Pos[1]
+	}
+	if flags&mc.TpRelativeZ != 0 {
+		z += c.Player.Pos[2]
+	}
+	if flags&mc.TpRelativeYaw != 0 {
+		yaw += c.Player.Rot[0]
+	}
+	if flags&mc.TpRelativePitch != 0 {
+		pitch += c.Player.Rot[1]
+	}
+
+	c.Player.Pos[0] = x
+	c.Player.Pos[1] = y
+	c.Player.Pos[2] = z
+	c.Player.Rot[0] = yaw
+	c.Player.Rot[1] = pitch
+	c.Player.Movement.LastTickX = x
+	c.Player.Movement.LastTickY = y
+	c.Player.Movement.LastTickZ = z
+
+	teleportID := rand.Int32N(math.MaxInt32)
+	if teleportID == 0 {
+		teleportID = 1
+	}
+	c.Player.Movement.PendingTeleport = teleportID
 	pkt := c.NewPacket(
 		packet.PlayClientboundPlayerPosition,
+		mc.VarInt(teleportID),
 		mc.Double(x), mc.Double(y), mc.Double(z),
+		mc.Double(0), mc.Double(0), mc.Double(0),
 		mc.Float(yaw), mc.Float(pitch),
-		mc.Byte(0),
-		mc.VarInt(0),
+		mc.Int(flags),
 	)
 	c.Send(pkt)
+	c.Server.World.UpdateEntityChunk(c.Player.EntityID, oldX, oldZ, x, z)
+
+	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+	oldCX, oldCZ := world.GetChunkPosition(oldX, oldZ)
+	newCX, newCZ := world.GetChunkPosition(x, z)
+	oldChunk := dim.GetChunk(oldCX, oldCZ)
+	newChunk := dim.GetChunk(newCX, newCZ)
+
+	selfID := c.Player.EntityID
+	selfEntity := &c.Player.LivingEntity.BaseEntity
+
+	for watcherID := range oldChunk.Watchers {
+		if watcherID == selfID {
+			continue
+		}
+		conn, ok := c.Server.ConnectionsByEID.Load(watcherID)
+		if !ok {
+			continue
+		}
+		target := conn.(*Connection)
+
+		if _, seesAfter := newChunk.Watchers[watcherID]; seesAfter {
+			tpPkt := c.NewPacket(
+				packet.PlayClientboundEntityPositionSync,
+				encoders.NewTeleportEntity(selfID, c.Player.Pos, c.Player.Rot, c.Player.OnGround),
+			)
+			target.Send(tpPkt)
+		} else {
+			logger.Info("%s left %s's view (teleport)", c.Player.Name, target.Player.Name)
+			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
+			target.Send(removePkt)
+		}
+	}
+
+	for watcherID := range newChunk.Watchers {
+		if watcherID == selfID {
+			continue
+		}
+		if _, sawBefore := oldChunk.Watchers[watcherID]; sawBefore {
+			continue
+		}
+		if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
+			target := conn.(*Connection)
+			logger.Info("%s joined %s's view (teleport)", c.Player.Name, target.Player.Name)
+			target.SendSpawnEntity(selfEntity)
+		}
+	}
+	// todo: this create a double check on entity tracking, updateChunkView is doing too much,
+	// the entity tracking should be in a separate system or a func
+	c.updateChunkView(false)
 }
 
+// todo: doing too much, remove entity tracking and update
 func (c *Connection) updateChunkView(force bool) {
 	// todo: check chunk batch start/stop
 	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])

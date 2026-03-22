@@ -100,7 +100,7 @@ func (c *Connection) ReadLoop() {
 				pkt.Free()
 			}
 		} else {
-			logger.Warn("Missing handler for packet: %s %s",
+			logger.Warn("Missing handler for packet: %s%s",
 				logger.FmtWarn(packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID))),
 				logger.FmtWarn(fmt.Sprintf("(0x%x)", pkt.ID)),
 			)

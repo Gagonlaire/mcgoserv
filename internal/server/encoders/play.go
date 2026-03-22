@@ -52,7 +52,7 @@ func NewAddEntity(entity *entities.BaseEntity) *AddEntity {
 
 type TeleportEntity struct {
 	EntityID mc.VarInt
-	Pos      mc.Coordinate
+	Position mc.Coordinate
 	Velocity mc.Coordinate
 	Yaw      mc.Float
 	Pitch    mc.Float
@@ -62,7 +62,7 @@ type TeleportEntity struct {
 func (t *TeleportEntity) WriteTo(w io.Writer) (n int64, err error) {
 	fields := [6]io.WriterTo{
 		t.EntityID,
-		t.Pos, t.Velocity,
+		t.Position, t.Velocity,
 		t.Yaw, t.Pitch,
 		t.OnGround,
 	}
@@ -80,7 +80,7 @@ func NewTeleportEntity(entityID int32, pos [3]float64, rot [2]float32, onGround 
 	// todo: create a helper for float angle conversion
 	return &TeleportEntity{
 		EntityID: mc.VarInt(entityID),
-		Pos:      mc.NewCoordinate(pos),
+		Position: mc.NewCoordinate(pos),
 		Yaw:      mc.Float(rot[0] * 256 / 360),
 		Pitch:    mc.Float(rot[1] * 256 / 360),
 		OnGround: mc.Boolean(onGround),

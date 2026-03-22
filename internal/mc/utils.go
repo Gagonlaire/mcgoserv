@@ -97,6 +97,18 @@ const (
 	MaxQuantizedValue = 32766.0
 )
 
+const (
+	TpRelativeX         = TeleportationFlags(1 << 0)
+	TpRelativeY         = TeleportationFlags(1 << 1)
+	TpRelativeZ         = TeleportationFlags(1 << 2)
+	TpRelativeYaw       = TeleportationFlags(1 << 3)
+	TpRelativePitch     = TeleportationFlags(1 << 4)
+	TpRelativeVelocityX = TeleportationFlags(1 << 5)
+	TpRelativeVelocityY = TeleportationFlags(1 << 6)
+	TpRelativeVelocityZ = TeleportationFlags(1 << 7)
+	TpRotateVelocity    = TeleportationFlags(1 << 8)
+)
+
 var ServerDataPacks = NewPrefixedArray[DataPackIdentifier, *DataPackIdentifier]([]DataPackIdentifier{
 	{
 		Namespace: "minecraft",

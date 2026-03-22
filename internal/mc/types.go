@@ -231,6 +231,8 @@ type State int
 
 type Pose int
 
+type TeleportationFlags int
+
 type ProfileProperty struct {
 	Name      string
 	Value     string

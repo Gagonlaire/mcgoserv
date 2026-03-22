@@ -16,20 +16,21 @@ type Entity interface {
 	DecodeNBT(data []byte) error
 }
 
+// BaseEntity todo: we should use encoder functions instead of nbt struct tags
 type BaseEntity struct {
 	Dimension    any
-	CustomName   string            `nbt:"CustomName,omitempty"`
-	Motion       [3]float64        `nbt:"Motion"`
-	Pos          [3]float64        `nbt:"Pos"`
-	TypeID       mcdata.EntityType `nbt:"id"`
-	Rot          [2]float32        `nbt:"Rot"`
-	FallDistance float32           `nbt:"FallDistance"`
+	CustomName   string
+	Motion       [3]float64
+	Pos          [3]float64
+	TypeID       mcdata.EntityType
+	Rot          [2]float32
+	FallDistance float32
 	EntityID     int32
-	Fire         int16     `nbt:"Fire"`
-	Air          int16     `nbt:"Air"`
-	UUID         uuid.UUID `nbt:"UUID"`
-	OnGround     bool      `nbt:"OnGround"`
-	NoGravity    bool      `nbt:"NoGravity"`
+	Fire         int16
+	Air          int16
+	UUID         uuid.UUID
+	OnGround     bool
+	NoGravity    bool
 }
 
 func (e *BaseEntity) ID() int32            { return e.EntityID }
@@ -37,10 +38,10 @@ func (e *BaseEntity) Position() [3]float64 { return e.Pos }
 
 type LivingEntity struct {
 	BaseEntity
-	Health     float32 `nbt:"Health"`
-	Absorption float32 `nbt:"AbsorptionAmount"`
-	HurtTime   int16   `nbt:"HurtTime"`
-	DeathTime  int16   `nbt:"DeathTime"`
+	Health     float32
+	Absorption float32
+	HurtTime   int16
+	DeathTime  int16
 	// todo: implement attributes and effects
 }
 

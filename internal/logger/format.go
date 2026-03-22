@@ -17,5 +17,5 @@ func Value(v any) string {
 }
 
 func FmtWarn(v any) string {
-	return internal.ColorYellow + internal.AnsiBold + fmt.Sprint(v) + internal.AnsiReset
+	return internal.ColorYellow + fmt.Sprint(v) + internal.AnsiReset
 }
