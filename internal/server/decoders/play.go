@@ -137,9 +137,8 @@ func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggest
 }
 
 func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
-	arr := mc.NewByteArray(256)
 	data := &ChatMessage{
-		Signature:    mc.NewPrefixedOptional(&arr),
+		Signature:    mc.NewPrefixedOptional[mc.ByteArray, *mc.ByteArray](mc.NewByteArray(256)),
 		Acknowledged: mc.NewFixedBitSet(20),
 	}
 	if err := pkt.Decode(

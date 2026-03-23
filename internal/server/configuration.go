@@ -104,10 +104,10 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	allPlayers := c.Server.World.Players()
 
 	// todo: should also send gamemode
-	actions := mc.ActionAddPlayer | mc.ActionUpdateListed
+	actions := mc.ListActionAddPlayer | mc.ListActionUpdateListed
 	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
 	c.Server.BroadcastOthers(c, pkt1)
-	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ActionInitializeChat, allPlayers)
+	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ListActionInitializeChat, allPlayers)
 	if pkt1 != nil {
 		_ = pkt1.Send(c.Conn, c.CompressionThreshold)
 	}

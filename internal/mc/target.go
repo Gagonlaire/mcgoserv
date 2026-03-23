@@ -2,7 +2,14 @@ package mc
 
 import "github.com/google/uuid"
 
-type TargetType int
+type TargetType VarInt
+
+// todo: shorter names
+const (
+	TargetTypePlayerName TargetType = iota
+	TargetTypeUUID
+	TargetTypeSelector
+)
 
 type EntityTarget struct {
 	Selector *Selector
@@ -17,6 +24,16 @@ type Optional[T any] struct {
 }
 
 type SelectorVariable byte
+
+// todo: shorter names
+const (
+	SelectorVariableNearestPlayer SelectorVariable = 'p'
+	SelectorVariableNearestEntity SelectorVariable = 'n'
+	SelectorVariableRandomPlayer  SelectorVariable = 'r'
+	SelectorVariableAllPlayers    SelectorVariable = 'a'
+	SelectorVariableAllEntities   SelectorVariable = 'e'
+	SelectorVariableSelf          SelectorVariable = 's'
+)
 
 type Selector struct {
 	Sort     string
@@ -33,25 +50,10 @@ type NumberRange[T int | float64] struct {
 	Max Optional[T]
 }
 
-const (
-	SelectorNearestPlayer SelectorVariable = 'p'
-	SelectorNearestEntity SelectorVariable = 'n'
-	SelectorRandomPlayer  SelectorVariable = 'r'
-	SelectorAllPlayers    SelectorVariable = 'a'
-	SelectorAllEntities   SelectorVariable = 'e'
-	SelectorSelf          SelectorVariable = 's'
-)
-
-const (
-	TargetTypePlayerName TargetType = iota
-	TargetTypeUUID
-	TargetTypeSelector
-)
-
 func ValidSelectorVariable(b byte) bool {
 	switch SelectorVariable(b) {
-	case SelectorNearestPlayer, SelectorNearestEntity, SelectorRandomPlayer,
-		SelectorAllPlayers, SelectorAllEntities, SelectorSelf:
+	case SelectorVariableNearestPlayer, SelectorVariableNearestEntity, SelectorVariableRandomPlayer,
+		SelectorVariableAllPlayers, SelectorVariableAllEntities, SelectorVariableSelf:
 		return true
 	}
 	return false

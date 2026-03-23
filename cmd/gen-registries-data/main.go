@@ -47,7 +47,7 @@ var RegistriesData = []RegistryData{
 {{- range .Entries }}
 				{
 					ID:   String("minecraft:{{.}}"),
-					Data: PrefixedOptional[Byte, *Byte]{Has: false},
+					Data: PrefixedOptional[Byte, *Byte]{},
 				},
 {{- end }}
 			},

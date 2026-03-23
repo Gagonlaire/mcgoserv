@@ -49,7 +49,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 
 		if e.single {
 			v := sel.Variable
-			if (v == mc.SelectorAllEntities || v == mc.SelectorAllPlayers) && !sel.Limit.Present {
+			if (v == mc.SelectorVariableAllEntities || v == mc.SelectorVariableAllPlayers) && !sel.Limit.Present {
 				r.SetCursor(start)
 				return nil, commander.NewParsingErrorAt(
 					tc.Translatable(mcdata.ArgumentEntityToomany),
@@ -157,7 +157,7 @@ func (g GameProfileType) Parse(r *commander.CommandReader) (any, error) {
 			return nil, err
 		}
 
-		if sel.Variable == mc.SelectorAllEntities || sel.Variable == mc.SelectorNearestEntity {
+		if sel.Variable == mc.SelectorVariableAllEntities || sel.Variable == mc.SelectorVariableNearestEntity {
 			r.SetCursor(start)
 			return nil, commander.NewParsingError(
 				tc.Translatable(mcdata.ArgumentPlayerEntities),

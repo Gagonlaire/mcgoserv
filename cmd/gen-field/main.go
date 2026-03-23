@@ -69,7 +69,7 @@ const writeToTpl = `func (s *{{.StructName}}) WriteTo(w io.Writer) (n int64, err
 func main() {
 	fset := token.NewFileSet()
 	pkgs, _ := parser.ParseDir(fset, "internal/mc", nil, parser.ParseComments)
-	f, err := os.Create("internal/mc/fields_gen.go")
+	f, err := os.Create("internal/mc/field_gen.go")
 	if err != nil {
 		panic(err)
 	}

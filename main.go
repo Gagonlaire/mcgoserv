@@ -2,7 +2,7 @@
 //go:generate go run ./cmd/gen-packet-id
 //go:generate go run ./cmd/gen-prismarine-js
 
-//go:generate go run ./cmd/gen-fields
+//go:generate go run ./cmd/gen-field
 //go:generate go run ./cmd/gen-version
 
 package main

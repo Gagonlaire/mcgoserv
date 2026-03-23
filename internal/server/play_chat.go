@@ -117,7 +117,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 	c.Player.ChatSession.Signed = true
 
 	player := []*entities.Player{c.Player}
-	pkt, _ := buildPlayerInfoUpdatePacket(mc.ActionInitializeChat, player)
+	pkt, _ := buildPlayerInfoUpdatePacket(mc.ListActionInitializeChat, player)
 	c.Server.BroadcastAll(pkt)
 }
 
@@ -254,7 +254,7 @@ func (c *Connection) SendSignedMessage(target *Connection, message string, signa
 	if isSigned {
 		sigArray := mc.NewByteArray(256)
 		sigArray.Data = signature
-		sig = mc.NewPrefixedOptional(&sigArray)
+		sig = mc.NewPrefixedOptional[mc.ByteArray, *mc.ByteArray](sigArray)
 	}
 
 	sendSignedChatPacket(

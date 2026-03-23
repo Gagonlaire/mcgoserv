@@ -8,7 +8,191 @@ import (
 	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/errutil"
+	"github.com/google/uuid"
 )
+
+type Field interface {
+	io.ReaderFrom
+	io.WriterTo
+}
+
+type FieldPtr[T any] interface {
+	*T
+	Field
+}
+
+type (
+	// Boolean Encodes:
+	//  - Either false or true.
+	// Size:
+	//  - 1 byte
+	// Notes:
+	//  - True is encoded as 0x01, false as 0x00.
+	Boolean bool
+	// Byte Encodes:
+	//  - An integer between -128 and 127.
+	// Size:
+	//  - 1 byte
+	// Notes:
+	//  - Signed 8-bit integer, two's complement.
+	Byte int8
+	// UnsignedByte Encodes:
+	//  - An integer between 0 and 255.
+	// Size:
+	//  - 1 byte
+	// Notes:
+	//  - Unsigned 8-bit integer.
+	UnsignedByte uint8
+	// Short Encodes:
+	//  - An integer between -32768 and 32767.
+	// Size:
+	//  - 2 bytes
+	// Notes:
+	//  - Signed 16-bit integer, two's complement.
+	Short int16
+	// UnsignedShort Encodes:
+	//  - An integer between 0 and 65535.
+	// Size:
+	//  - 2 bytes
+	// Notes:
+	//  - Unsigned 16-bit integer
+	UnsignedShort uint16
+	// Int Encodes:
+	//  - An integer between -2147483648 and 2147483647.
+	// Size:
+	//  - 4 bytes
+	// Notes:
+	//  - Signed 32-bit integer, two's complement.
+	Int int32
+	// Long Encodes:
+	//  - An integer between -9223372036854775808 and 9223372036854775807.
+	// Size:
+	//  - 8 bytes
+	// Notes:
+	//  - Signed 64-bit integer, two's complement.
+	Long int64
+	// Float Encodes:
+	//  - A single-precision 32-bit IEEE 754 floating point number.
+	// Size:
+	//  - 4 bytes
+	Float float32
+	// Double Encodes:
+	//  - A double-precision 64-bit IEEE 754 floating point number.
+	// Size:
+	//  - 8 bytes
+	Double float64
+	// String (n) Encodes:
+	//  - A sequence of Unicode scalar values.
+	// Size:
+	//  - ≥ 1 ≤ (n×3) + 3 bytes
+	// Notes:
+	//  - UTF-8 string prefixed with its size in bytes as a VarInt. Maximum length of n characters, which varies by context; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Type:String.
+	String        string
+	String256     string
+	String16      string
+	BoundedString struct {
+		Value     string
+		MaxLength int32
+	}
+	// Identifier Encodes:
+	//  - A namespaced identifier; https://minecraft.wiki/w/Java_Edition_protocol/Packets#Identifier.
+	// Size:
+	//  - ≥ 1 and ≤ (32767×3) + 3
+	// Notes:
+	//  - Encoded as a String with max length of 32767.
+	Identifier string
+	// VarInt (n) Encodes:
+	//  - An integer between -2147483648 and 2147483647.
+	// Size:
+	//  - ≥ 1 ≤ 5 bytes
+	// Notes:
+	//  - Variable-length data encoding a two's complement signed 32-bit integer; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#VarInt_and_VarLong.
+	VarInt int32
+	// Angle Encodes:
+	//  - A rotation angle in steps of 1/256 of a full turn
+	// Size:
+	//  - 1 byte
+	// Notes:
+	//  - Whether or not this is signed does not matter, since the resulting angles are the same.
+	Angle = UnsignedByte
+	// UUID Encodes:
+	//  - A UUID; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#Type:UUID.
+	// Size:
+	//  - 16 bytes
+	// Notes:
+	//  - Encoded as an unsigned 128-bit integer (or two unsigned 64-bit integers: the most significant 64 bits and then the least significant 64 bits).
+	UUID uuid.UUID
+	// LpVec3 Encodes:
+	//  - https://minecraft.wiki/w/Java_Edition_protocol/Data_types#LpVec3.
+	// Size:
+	//  - Varies
+	// Notes:
+	//  - Usually used for low velocities.
+	LpVec3 struct {
+		X, Y, Z float64
+	}
+	// Position Encodes:
+	//  - An integer/block position: x (-33554432 to 33554431), z (-33554432 to 33554431), y (-2048 to 2047)
+	// Size:
+	//  - 8 bytes
+	// Notes:
+	//  - Encoded as a single 64-bit integer, with the x, y, and z coordinates packed into it. The x coordinate is stored in the most significant 26 bits, the z coordinate in the next 26 bits, and the y coordinate in the least significant 12 bits.
+	Position struct {
+		X int32
+		Y int32
+		Z int32
+	}
+)
+
+type Coordinate [3]Double
+
+func NewCoordinate(pos [3]float64) Coordinate {
+	return Coordinate{Double(pos[0]), Double(pos[1]), Double(pos[2])}
+}
+
+func (p Coordinate) WriteTo(w io.Writer) (n int64, err error) {
+	for _, d := range p {
+		nn, err := d.WriteTo(w)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
+}
+
+func DegreesToAngle(degrees float32) Angle {
+	return Angle(degrees / 360.0 * 256.0)
+}
+
+func (v VarInt) Len() int {
+	val := uint32(v)
+
+	if v < 0 {
+		return 5
+	}
+	n := 1
+	for val >= 0x80 {
+		val >>= 7
+		n++
+	}
+	return n
+}
+
+const (
+	MaxQuantizedValue = 32766.0
+)
+
+func pack(value float64) int64 {
+	return int64(math.Round((value*0.5 + 0.5) * MaxQuantizedValue))
+}
+
+func unpack(value uint64) float64 {
+	v := float64(value & 32767)
+	v = math.Min(v, MaxQuantizedValue)
+
+	return v*2.0/MaxQuantizedValue - 1.0
+}
 
 func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 	var val byte
@@ -376,209 +560,51 @@ func (u UUID) WriteTo(w io.Writer) (n int64, err error) {
 	return int64(nBytes), nil
 }
 
-func (F *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
-	nBytes, err := io.ReadFull(r, F.Data)
-	return int64(nBytes), errutil.WrapIOErr(err, "error reading FixedBitSet")
-}
-
-func (F FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
-	nBytes, err := w.Write(F.Data)
-	return int64(nBytes), errutil.WrapIOErr(err, "error writing FixedBitSet")
-}
-
-func (p *PrefixedOptional[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
-	nn, err := p.Has.ReadFrom(r)
-	n += nn
+func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
+	var value String
+	n, err = value.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
-	if p.Has {
-		if p.Value == nil {
-			p.Value = new(T)
+	parts := strings.Split(string(value), ":")
+	count := len(parts)
+	if count < 1 || count > 2 {
+		return n, fmt.Errorf("invalid Identifier: too many or not enough colons in %s", value)
+	}
+	if count == 2 {
+		if parts[0] != "minecraft" && parts[0] != "" {
+			return n, fmt.Errorf("invalid Identifier: invalid namespace %s", parts[0])
 		}
-		var ptr PT = p.Value
-		nn, err := ptr.ReadFrom(r)
-		n += nn
-		if err != nil {
-			return n, err
-		}
-	} else {
-		p.Value = nil
 	}
-	return n, nil
-}
-
-func (p PrefixedOptional[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	if n, err = p.Has.WriteTo(w); err != nil || !p.Has {
-		return n, err
-	}
-	if p.Value == nil {
-		return n, fmt.Errorf("invalid state: PrefixedOptional flag is true but Value is nil")
-	}
-	var ptr PT = p.Value
-	nn, err := ptr.WriteTo(w)
-	return n + nn, err
-}
-
-func (a *Array[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
-	for i := range a.Data {
-		var ptr PT = &a.Data[i]
-		nn, err := ptr.ReadFrom(r)
-		n += nn
-		if err != nil {
-			return n, err
+	*i = Identifier(parts[count-1])
+	for _, c := range *i {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '_' || c == '-' || c == '.' || c == '/') {
+			return n, fmt.Errorf("invalid Identifier: forbidden character '%c' in path %s", c, *i)
 		}
 	}
 	return n, nil
 }
 
-func (a Array[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	for i := range a.Data {
-		var ptr PT = &a.Data[i]
-		nn, err := ptr.WriteTo(w)
-		n += nn
-		if err != nil {
-			return n, err
-		}
-	}
-	return n, nil
+func (i Identifier) WriteTo(w io.Writer) (n int64, err error) {
+	// NOTE: we only support the default namespace
+	return String("minecraft:" + i).WriteTo(w)
 }
 
-func (p *PrefixedArray[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
-	var length VarInt
-	nn, err := length.ReadFrom(r)
-	n += nn
+func (p *Position) ReadFrom(r io.Reader) (n int64, err error) {
+	var val Long
+	n, err = val.ReadFrom(r)
 	if err != nil {
-		return n, err
+		return
 	}
-	if p.MaxLength > 0 && int32(length) > p.MaxLength {
-		return n, fmt.Errorf("PrefixedArray length %d exceeds maximum length %d", length, p.MaxLength)
-	}
-	l := int(length)
-	if cap(p.Data) < l {
-		p.Data = make([]T, l)
-	} else {
-		p.Data = p.Data[:l]
-	}
-	for i := range p.Data {
-		var ptr PT = &p.Data[i]
-		nn, err := ptr.ReadFrom(r)
-		n += nn
-		if err != nil {
-			return n, err
-		}
-	}
-	return n, nil
+	p.X = int32(val >> 38)
+	p.Y = int32(val << 52 >> 52)
+	p.Z = int32(val << 26 >> 38)
+	return
 }
 
-func (p PrefixedArray[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	length := VarInt(len(p.Data))
-	nn, err := length.WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	for i := range p.Data {
-		var ptr PT = &p.Data[i]
-		nn, err := ptr.WriteTo(w)
-		n += nn
-		if err != nil {
-			return n, err
-		}
-	}
-	return n, nil
-}
-
-func (a *ByteArray) ReadFrom(r io.Reader) (n int64, err error) {
-	nBytes, err := io.ReadFull(r, a.Data)
-	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error reading ByteArray")
-	}
-	return int64(nBytes), nil
-}
-
-func (a ByteArray) WriteTo(w io.Writer) (n int64, err error) {
-	nBytes, err := w.Write(a.Data)
-	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error writing ByteArray")
-	}
-	return int64(nBytes), nil
-}
-
-func (p *PrefixedByteArray) ReadFrom(r io.Reader) (n int64, err error) {
-	var length VarInt
-	nn, err := length.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return nn, err
-	}
-	if p.MaxLength > 0 && int32(length) > p.MaxLength {
-		return n, fmt.Errorf("PrefixedByteArray length %d exceeds maximum length %d", length, p.MaxLength)
-	}
-	l := int(length)
-	if cap(p.Data) < l {
-		p.Data = make([]byte, l)
-	} else {
-		p.Data = p.Data[:l]
-	}
-	nBytes, err := io.ReadFull(r, p.Data)
-	if err != nil {
-		return n + int64(nBytes), errutil.WrapIOErr(err, "error reading PrefixedByteArray data")
-	}
-	return n + int64(nBytes), nil
-}
-
-func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
-	length := VarInt(len(p.Data))
-	nn, err := length.WriteTo(w)
-	n += nn
-	if err != nil {
-		return nn, err
-	}
-	nBytes, err := w.Write(p.Data)
-	if err != nil {
-		return n + int64(nBytes), errutil.WrapIOErr(err, "error writing PrefixedByteArray data")
-	}
-	return n + int64(nBytes), nil
-}
-
-func (i *IDOrX[T, PT]) ReadFrom(r io.Reader) (n int64, err error) {
-	var id VarInt
-	nn, err := id.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return nn, err
-	}
-	if id == 0 {
-		if i.Data == nil {
-			i.Data = new(T)
-		}
-		var ptr PT = i.Data
-		nn, err = ptr.ReadFrom(r)
-		n += nn
-		if err != nil {
-			return n + nn, err
-		}
-		i.ID = 0
-	} else {
-		i.Data = nil
-		i.ID = int32(id) - 1
-	}
-	return n, nil
-}
-
-func (i IDOrX[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
-	if i.Data != nil {
-		nn, err := VarInt(0).WriteTo(w)
-		n += nn
-		if err != nil {
-			return nn, err
-		}
-		var ptr PT = i.Data
-		nn, err = ptr.WriteTo(w)
-		return n + nn, err
-	}
-	return VarInt(i.ID + 1).WriteTo(w)
+func (p Position) WriteTo(w io.Writer) (n int64, err error) {
+	val := ((int64(p.X) & 0x3FFFFFF) << 38) | (int64(p.Y) & 0xFFF) | ((int64(p.Z) & 0x3FFFFFF) << 12)
+	return Long(val).WriteTo(w)
 }
 
 func (l *LpVec3) ReadFrom(r io.Reader) (n int64, err error) {
@@ -648,12 +674,12 @@ func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 	packedY := pack(l.Y/scaleFactorD) << 18
 	packedZ := pack(l.Z/scaleFactorD) << 33
 	packed := packedZ | packedY | packedX | packedScale
-	var buf [6]byte
-	buf[0] = byte(packed)
-	buf[1] = byte(packed >> 8)
+	var writeBuf [6]byte
+	writeBuf[0] = byte(packed)
+	writeBuf[1] = byte(packed >> 8)
 	valInt := uint32(packed >> 16)
-	binary.BigEndian.PutUint32(buf[2:], valInt)
-	if _, err := w.Write(buf[:]); err != nil {
+	binary.BigEndian.PutUint32(writeBuf[2:], valInt)
+	if _, err := w.Write(writeBuf[:]); err != nil {
 		return 0, err
 	}
 	n += 6
@@ -662,156 +688,6 @@ func (l LpVec3) WriteTo(w io.Writer) (n int64, err error) {
 		nn, err := buf.WriteTo(w)
 		n += nn
 		return n, err
-	}
-	return n, nil
-}
-
-func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {
-	var count, itemID, componentToAdd, componentToRemove VarInt
-	nn, err := count.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return nn, err
-	}
-	s.Count = int32(count)
-	if count <= 0 {
-		return
-	}
-	nn, err = itemID.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	s.ItemID = int32(itemID)
-	nn, err = componentToAdd.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	nn, err = componentToRemove.ReadFrom(r)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	// todo: component to add/remove should not be higher than 0 for now
-	return n, nil
-}
-
-func (s Slot) WriteTo(w io.Writer) (n int64, err error) {
-	nn, err := VarInt(s.Count).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	if s.Count <= 0 {
-		return n, nil
-	}
-	nn, err = VarInt(s.ItemID).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	nn, err = VarInt(0).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	nn, err = VarInt(0).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	return n, nil
-}
-
-func (p *ProfileProperty) ReadFrom(_ io.Reader) (int64, error) {
-	panic("Not implemented")
-}
-
-func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
-	nn, err := String(p.Name).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	nn, err = String(p.Value).WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-	if p.Signature != "" {
-		nn, err = Boolean(true).WriteTo(w)
-		n += nn
-		if err != nil {
-			return n, err
-		}
-		nn, err = String(p.Signature).WriteTo(w)
-		n += nn
-		return n, err
-	}
-	nn, err = Boolean(false).WriteTo(w)
-	n += nn
-	return n, err
-}
-
-func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
-	var value String
-	n, err = value.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-	parts := strings.Split(string(value), ":")
-	count := len(parts)
-	if count < 1 || count > 2 {
-		return n, fmt.Errorf("invalid Identifier: too many or not enough colons in %s", value)
-	}
-	if count == 2 {
-		if parts[0] != "minecraft" && parts[0] != "" {
-			return n, fmt.Errorf("invalid Identifier: invalid namespace %s", parts[0])
-		}
-	}
-	*i = Identifier(parts[count-1])
-	for _, c := range *i {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '_' || c == '-' || c == '.' || c == '/') {
-			return n, fmt.Errorf("invalid Identifier: forbidden character '%c' in path %s", c, *i)
-		}
-	}
-	return n, nil
-}
-
-func (i Identifier) WriteTo(w io.Writer) (n int64, err error) {
-	// NOTE: we only support the default namespace
-	return String("minecraft:" + i).WriteTo(w)
-}
-
-func (p *Position) ReadFrom(r io.Reader) (n int64, err error) {
-	var val Long
-	n, err = val.ReadFrom(r)
-	if err != nil {
-		return
-	}
-	p.X = int32(val >> 38)
-	p.Y = int32(val << 52 >> 52)
-	p.Z = int32(val << 26 >> 38)
-	return
-}
-
-func (p Position) WriteTo(w io.Writer) (n int64, err error) {
-	val := ((int64(p.X) & 0x3FFFFFF) << 38) | (int64(p.Y) & 0xFFF) | ((int64(p.Z) & 0x3FFFFFF) << 12)
-	return Long(val).WriteTo(w)
-}
-
-func (d *DataArray) ReadFrom(_ io.Reader) (n int64, err error) {
-	panic("DataArray.ReadFrom: not implemented")
-}
-
-func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
-	for i := range d.Data {
-		nn, err := Long(d.Data[i]).WriteTo(w)
-		n += nn
-		if err != nil {
-			return n, err
-		}
 	}
 	return n, nil
 }

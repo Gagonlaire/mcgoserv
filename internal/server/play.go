@@ -44,7 +44,7 @@ func (c *Connection) SendKeepAlive() {
 func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 	c.Player.Input = byte(*flags)
 
-	if (*flags)&mc.InputSneak != 0 {
+	if mc.PlayerInput(*flags)&mc.InputSneak != 0 {
 		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
@@ -53,7 +53,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 			mc.Byte(0x02),
 			mc.UnsignedByte(6),
 			mc.VarInt(20),
-			mc.VarInt(mc.PoseSneaking),
+			mc.VarInt(mc.EntityPoseSneaking),
 			mc.UnsignedByte(0xff),
 		)
 		c.Server.BroadcastViewers(c, pkt2)
@@ -66,7 +66,7 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 			mc.Byte(0),
 			mc.UnsignedByte(6),
 			mc.VarInt(20),
-			mc.VarInt(mc.PoseStanding),
+			mc.VarInt(mc.EntityPoseStanding),
 			mc.UnsignedByte(0xff),
 		)
 		c.Server.BroadcastViewers(c, pkt2)
@@ -80,7 +80,7 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	// todo: jumping seems to stop sprinting animation particles
 	switch mc.PlayerCommand(data.ActionID) {
-	case mc.ActionStartSprinting:
+	case mc.CommandStartSprinting:
 		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
@@ -90,7 +90,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 			mc.UnsignedByte(0xff),
 		)
 		c.Server.BroadcastViewers(c, pkt2)
-	case mc.ActionStopSprinting:
+	case mc.CommandStopSprinting:
 		pkt2 := c.NewPacket(
 			packet.PlayClientboundSetEntityData,
 			mc.VarInt(c.Player.EntityID),
@@ -117,7 +117,7 @@ func (c *Connection) HandleSwingArm(hand *mc.VarInt) {
 
 func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 	switch data.Status {
-	case mc.StatusStartDigging:
+	case mc.VarInt(mc.ActionStartDigging):
 		if c.Player.GameMode == 1 {
 			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
@@ -138,7 +138,7 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 			c.Server.BroadcastOthers(c, eventPkt)
 			c.Server.BroadcastAll(pkt)
 		}
-	case mc.StatusFinishDigging:
+	case mc.VarInt(mc.ActionFinishDigging):
 		pkt := c.NewPacket(
 			packet.PlayClientboundBlockUpdate,
 			data.Location,
@@ -240,28 +240,28 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 	c.Send(pkt)
 }
 
-func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Player) (*packet.OutboundPacket, error) {
+func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entities.Player) (*packet.OutboundPacket, error) {
 	pkt, err := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
 	if err != nil {
 		return nil, err
 	}
 	playerCount := mc.VarInt(len(players))
 
-	_ = pkt.Encode(actions, playerCount)
+	_ = pkt.Encode(mc.UnsignedByte(actions), playerCount)
 	for _, player := range players {
 		_ = pkt.Encode(mc.UUID(player.UUID))
 
 		for bit := 0; bit < 8; bit++ {
-			currentAction := mc.PlayerAction(1 << bit)
+			currentAction := mc.PlayerListAction(1 << bit)
 
 			if actions&currentAction != 0 {
 				switch currentAction {
-				case mc.ActionAddPlayer:
+				case mc.ListActionAddPlayer:
 					_ = pkt.Encode(mc.String(player.Name), mc.VarInt(len(player.ProfileProperties)))
 					for _, prop := range player.ProfileProperties {
 						_ = pkt.Encode(prop)
 					}
-				case mc.ActionInitializeChat:
+				case mc.ListActionInitializeChat:
 					_ = pkt.Encode(mc.Boolean(player.ChatSession.Signed))
 					if player.ChatSession.Signed {
 						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)
@@ -277,7 +277,7 @@ func buildPlayerInfoUpdatePacket(actions mc.PlayerAction, players []*entities.Pl
 							pArraySignature,
 						)
 					}
-				case mc.ActionUpdateListed:
+				case mc.ListActionUpdateListed:
 					_ = pkt.Encode(player.Information.AllowServerListings)
 				}
 			}

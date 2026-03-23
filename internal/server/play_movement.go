@@ -183,19 +183,19 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 	oldX, oldZ := c.Player.Pos[0], c.Player.Pos[2]
 
 	// todo: move this logic into a helper func
-	if flags&mc.TpRelativeX != 0 {
+	if flags&mc.TeleportationFlagsRelativeX != 0 {
 		x += c.Player.Pos[0]
 	}
-	if flags&mc.TpRelativeY != 0 {
+	if flags&mc.TeleportationFlagsRelativeY != 0 {
 		y += c.Player.Pos[1]
 	}
-	if flags&mc.TpRelativeZ != 0 {
+	if flags&mc.TeleportationFlagsRelativeZ != 0 {
 		z += c.Player.Pos[2]
 	}
-	if flags&mc.TpRelativeYaw != 0 {
+	if flags&mc.TeleportationFlagsRelativeYaw != 0 {
 		yaw += c.Player.Rot[0]
 	}
-	if flags&mc.TpRelativePitch != 0 {
+	if flags&mc.TeleportationFlagsRelativePitch != 0 {
 		pitch += c.Player.Rot[1]
 	}
 
