@@ -8,11 +8,15 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image/png"
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,9 +35,7 @@ import (
 )
 
 const (
-	ChannelSize       = 64
-	KeepAliveInterval = 100
-	KeepAliveTimeout  = 300
+	OutboundChannelSize = 16
 )
 
 type contextKey struct{}
@@ -51,7 +53,7 @@ type Server struct {
 	ctx               context.Context
 	Ticker            *systems.Ticker
 	Router            *Router
-	Properties        *systems.Properties
+	Config            *systems.Config
 	PlayerRegistry    *player_registry.PlayerRegistry
 	RemoteConsole     *systems.RemoteConsole
 	Commander         *commander.Dispatcher
@@ -63,20 +65,15 @@ type Server struct {
 	Addr              string
 	Icon              string
 	Keys              Keys
+	cliArgs           []string
 	wg                sync.WaitGroup
+	KeepAliveTimeout  int64
+	KeepAliveInterval int64
 	EnforceSecureChat bool
 }
 
 func NewServer() *Server {
-	s := &Server{
-		PlayerRegistry: player_registry.NewPlayerRegistry(
-			"whitelist.json",
-			"banned-players.json",
-			"banned-ips.json",
-			"ops.json",
-			"usercache.json",
-		),
-	}
+	s := &Server{}
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), ContextKey, s))
 	s.ctx = ctx
 	s.cancel = cancel
@@ -92,20 +89,41 @@ func NewServer() *Server {
 	return s
 }
 
-func (s *Server) Start() {
-	startTime := time.Now()
-
+func (s *Server) Start(args []string) {
 	logger.Info("Starting Minecraft server version %s", logger.Value(mcdata.GameVersion))
 
-	logger.Info("Loading properties")
-	props, err := systems.LoadProperties("server.properties")
+	logger.Info("Loading config")
+	cfg, err := systems.LoadConfig("config.yml", args)
 	if err != nil {
-		logger.Fatal("Failed to load server.properties: %v", err)
+		logger.Fatal("Failed to load config.yml: %v", err)
 	}
-	s.Properties = props
-	s.Addr = fmt.Sprintf("%s:%d", props.ServerIp, props.ServerPort)
-	s.EnforceSecureChat = props.EnforceSecureProfile && props.OnlineMode
-	logger.Info("Default game type: %s", logger.Value(mc.GameModeString(props.GameMode)))
+	s.Config = cfg
+	s.cliArgs = args
+	if err := logger.Configure(cfg.Logging.Level, cfg.Logging.File); err != nil {
+		logger.Fatal("Failed to configure logger: %v", err)
+	}
+	s.Addr = fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	s.EnforceSecureChat = cfg.Security.SecureProfile && cfg.Security.OnlineMode
+	s.KeepAliveTimeout = int64(cfg.Network.ConnectionTimeout) * mc.TicksPerSecond
+	s.KeepAliveInterval = s.KeepAliveTimeout / 2
+	s.PlayerRegistry = player_registry.NewPlayerRegistry(
+		cfg.DataFiles.Whitelist,
+		cfg.DataFiles.BannedPlayers,
+		cfg.DataFiles.BannedIPs,
+		cfg.DataFiles.Ops,
+		cfg.DataFiles.UserCache,
+	)
+	logger.Info("Default game type: %s", logger.Value(mc.GameModeString(cfg.Server.GameMode)))
+
+	if cfg.Performance.MaxMemory > 0 {
+		limit := int64(cfg.Performance.MaxMemory) * 1024 * 1024
+		debug.SetMemoryLimit(limit)
+		logger.Info("Memory limit set to %s MB", logger.Value(cfg.Performance.MaxMemory))
+	}
+
+	if cfg.Profiling.Pprof.Enabled {
+		s.startPprof()
+	}
 
 	logger.Info("Generating keypair")
 	s.generateKeys()
@@ -118,11 +136,12 @@ func (s *Server) Start() {
 		logger.Fatal("Failed to bind to %s: %v", logger.Network(s.Addr), err)
 	}
 
-	logger.Info("Preparing level \"%s\"", logger.Value(props.LevelName))
+	logger.Info("Preparing level \"%s\"", logger.Value(cfg.Server.LevelName))
+	startTime := time.Now()
 	s.World = world.NewWorld()
 	logger.Info("Done (%s)! For help, type \"help\"", logger.Value(time.Since(startTime).Round(time.Millisecond)))
 
-	if props.EnableRcon {
+	if cfg.Network.Rcon.Enabled {
 		s.startRCON()
 	}
 
@@ -135,6 +154,18 @@ func (s *Server) Start() {
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 		<-stopChan
 		s.Stop()
+	}()
+	go func() {
+		reloadChan := make(chan os.Signal, 1)
+		signal.Notify(reloadChan, syscall.SIGHUP)
+		for {
+			select {
+			case <-reloadChan:
+				s.reloadConfig()
+			case <-s.ctx.Done():
+				return
+			}
+		}
 	}()
 	go s.handleStdin()
 	go s.Ticker.Start()
@@ -153,15 +184,41 @@ func (s *Server) Start() {
 	}
 }
 
+func (s *Server) startPprof() {
+	pprofMux := http.NewServeMux()
+	pprofMux.HandleFunc("/debug/pprof/", pprof.Index)
+	pprofMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	pprofMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	pprofMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	pprofMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	addr := fmt.Sprintf("%s:%d", s.Config.Profiling.Pprof.Addr, s.Config.Profiling.Pprof.Port)
+	pprofServer := &http.Server{
+		Addr:    addr,
+		Handler: pprofMux,
+	}
+
+	go func() {
+		<-s.ctx.Done()
+		_ = pprofServer.Close()
+	}()
+
+	logger.Info("Starting pprof server on %s", logger.Network("http://"+addr+"/debug/pprof/"))
+	go func() {
+		if err := pprofServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("pprof server error: %v", err)
+		}
+	}()
+}
+
 func (s *Server) startRCON() {
-	if s.Properties.RconPassword == "" {
-		logger.Warn("No rcon password set in server.properties, rcon disabled!")
+	if s.Config.Network.Rcon.Password == "" {
+		logger.Warn("No rcon password set in config, rcon disabled!")
 		return
 	}
 
 	s.RemoteConsole = systems.NewRemoteConsole(
-		fmt.Sprintf("0.0.0.0:%d", s.Properties.RconPort),
-		s.Properties.RconPassword,
+		fmt.Sprintf("0.0.0.0:%d", s.Config.Network.Rcon.Port),
+		s.Config.Network.Rcon.Password,
 		func(input string, respond func(string)) {
 			src := &commander.CommandSource{
 				PermissionLevel: 4,
@@ -183,6 +240,21 @@ func (s *Server) startRCON() {
 	if err := s.RemoteConsole.Start(); err != nil {
 		logger.Error("Failed to start RCON server: %v", err)
 	}
+}
+
+func (s *Server) reloadConfig() {
+	logger.Info("Reloading config")
+	cfg, err := systems.ReloadConfig("config.yml", s.cliArgs)
+	if err != nil {
+		logger.Error("Failed to reload config: %v", err)
+		return
+	}
+
+	s.Config = cfg
+	s.EnforceSecureChat = cfg.Security.SecureProfile && cfg.Security.OnlineMode
+	s.KeepAliveTimeout = int64(cfg.Network.ConnectionTimeout) * mc.TicksPerSecond
+	s.KeepAliveInterval = s.KeepAliveTimeout / 2
+	logger.Info("Config reloaded successfully")
 }
 
 func (s *Server) Stop() {
@@ -314,13 +386,13 @@ func processIncomingPackets(s *Server) {
 		}
 
 		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
-			if currentTick-c.LastKeepAlive > KeepAliveTimeout {
+			if currentTick-c.LastKeepAlive > s.KeepAliveTimeout {
 				logger.Info("keep-alive timeout for %s", c.Conn.RemoteAddr())
 				c.close()
 				return true
 			}
 
-			if currentTick%KeepAliveInterval == 0 {
+			if currentTick%s.KeepAliveInterval == 0 {
 				c.SendKeepAlive()
 			}
 		}

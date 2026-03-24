@@ -8,6 +8,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	"github.com/Gagonlaire/mcgoserv/internal/server/commands"
 )
@@ -16,5 +18,5 @@ func main() {
 	serv := server.NewServer()
 
 	commands.RegisterAll(serv)
-	serv.Start()
+	serv.Start(os.Args[1:])
 }

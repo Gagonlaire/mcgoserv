@@ -50,7 +50,7 @@ func registerList(s *server.Server) {
 			cc.SendMessage(tc.Translatable(
 				mcdata.CommandsListPlayers,
 				tc.Text(strconv.Itoa(playerCount)),
-				tc.Text(strconv.Itoa(s.Properties.MaxPlayers)),
+				tc.Text(strconv.Itoa(s.Config.Server.MaxPlayers)),
 				playerList,
 			))
 
@@ -62,7 +62,7 @@ func registerList(s *server.Server) {
 				cc.SendMessage(tc.Translatable(
 					mcdata.CommandsListPlayers,
 					tc.Text(strconv.Itoa(playerCount)),
-					tc.Text(strconv.Itoa(s.Properties.MaxPlayers)),
+					tc.Text(strconv.Itoa(s.Config.Server.MaxPlayers)),
 					playerList,
 				))
 

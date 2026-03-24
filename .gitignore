@@ -6,6 +6,7 @@ logs/
 versions/
 libraries/
 /server*
+config.yml
 *.sarif
 nilaway.json
 

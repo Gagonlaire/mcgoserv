@@ -2,8 +2,9 @@ package logger
 
 import (
 	"fmt"
-	"log"
+	"io"
 	"os"
+	"regexp"
 	"sync"
 	"time"
 
@@ -11,57 +12,148 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 )
 
-type Level string
+type Level int
 
 const (
-	INFO  Level = "INFO"
-	WARN  Level = "WARN"
-	ERROR Level = "ERROR"
+	DEBUG Level = iota
+	INFO
+	WARN
+	ERROR
+	CRITICAL
 )
+
+func (l Level) String() string {
+	switch l {
+	case DEBUG:
+		return "DEBUG"
+	case WARN:
+		return "WARN"
+	case ERROR:
+		return "ERROR"
+	case CRITICAL:
+		return "CRITICAL"
+	default:
+		return "INFO"
+	}
+}
 
 func (l Level) AnsiString() string {
 	switch l {
+	case DEBUG:
+		return internal.ColorCyan + "DEBUG" + internal.AnsiReset
 	case WARN:
 		return internal.ColorYellow + "WARN" + internal.AnsiReset
 	case ERROR:
 		return internal.ColorRed + "ERROR" + internal.AnsiReset
+	case CRITICAL:
+		return internal.ColorRed + internal.AnsiBold + "CRITICAL" + internal.AnsiReset
 	default:
 		return internal.ColorGreen + "INFO" + internal.AnsiReset
 	}
 }
 
-type Logger struct {
-	logger *log.Logger
-	source string
-	mu     sync.Mutex
-}
-
-var (
-	defaultLogger = New("Server")
-)
-
-// New creates a new logger with the given source name
-func New(source string) *Logger {
-	return &Logger{
-		source: source,
-		logger: log.New(os.Stdout, "", 0),
+func ParseLevel(s string) Level {
+	switch s {
+	case "debug":
+		return DEBUG
+	case "warn", "warning":
+		return WARN
+	case "error":
+		return ERROR
+	case "critical":
+		return CRITICAL
+	default:
+		return INFO
 	}
 }
 
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+type fileWriter struct {
+	w io.Writer
+}
+
+func (fw *fileWriter) Write(p []byte) (int, error) {
+	cleaned := ansiRegex.ReplaceAll(p, nil)
+	return fw.w.Write(cleaned)
+}
+
+type Logger struct {
+	source   string
+	mu       sync.Mutex
+	console  io.Writer
+	file     io.Writer
+	minLevel Level
+}
+
+var defaultLogger = &Logger{
+	source:   "Server",
+	console:  os.Stdout,
+	minLevel: INFO,
+}
+
+func New(source string) *Logger {
+	return &Logger{
+		source:   source,
+		console:  defaultLogger.console,
+		file:     defaultLogger.file,
+		minLevel: defaultLogger.minLevel,
+	}
+}
+
+func Configure(level string, filePath string) error {
+	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
+
+	defaultLogger.minLevel = ParseLevel(level)
+
+	if filePath != "" {
+		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		defaultLogger.file = &fileWriter{w: f}
+	}
+
+	return nil
+}
+
 func (l *Logger) output(level Level, msg string) {
+	if level < l.minLevel {
+		return
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	timeStr := time.Now().Format("15:04:05")
-	prefix := fmt.Sprintf("[%s] [%s/%s]: %s", timeStr, l.source, level.AnsiString(), msg)
-	l.logger.Println(prefix)
+	line := fmt.Sprintf("[%s] [%s/%s]: %s\n", timeStr, l.source, level.AnsiString(), msg)
+	_, _ = l.console.Write([]byte(line))
+
+	if l.file != nil {
+		plainLine := fmt.Sprintf("[%s] [%s/%s]: %s\n", timeStr, l.source, level.String(), msg)
+		_, _ = l.file.Write([]byte(plainLine))
+	}
+}
+
+func (l *Logger) Debug(format string, v ...any) {
+	if l.minLevel > DEBUG {
+		return
+	}
+	l.output(DEBUG, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Info(format string, v ...any) {
+	if l.minLevel > INFO {
+		return
+	}
 	l.output(INFO, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Warn(format string, v ...any) {
+	if l.minLevel > WARN {
+		return
+	}
 	l.output(WARN, fmt.Sprintf(format, v...))
 }
 
@@ -70,9 +162,16 @@ func (l *Logger) Error(format string, v ...any) {
 }
 
 func (l *Logger) Component(level Level, c tc.Component) {
+	if level < l.minLevel {
+		return
+	}
 	for _, line := range c.AnsiLines() {
 		l.output(level, line)
 	}
+}
+
+func Debug(format string, v ...any) {
+	defaultLogger.Debug(format, v...)
 }
 
 func Info(format string, v ...any) {
@@ -88,7 +187,7 @@ func Error(format string, v ...any) {
 }
 
 func Fatal(format string, v ...any) {
-	defaultLogger.Error(format, v...)
+	defaultLogger.output(CRITICAL, fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
 

@@ -54,11 +54,11 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: get the correct has death location value
 	_ = out.ResetWith(packet.PlayClientboundLogin, &encoders.Login{
 		EntityID:            mc.Int(c.Player.EntityID),
-		IsHardcore:          mc.Boolean(c.Server.Properties.Hardcore),
+		IsHardcore:          mc.Boolean(c.Server.Config.Server.Hardcore),
 		DimensionNames:      mc.NewPrefixedArray[mc.Identifier, *mc.Identifier]([]mc.Identifier{"overworld", "the_nether", "the_end"}),
-		MaxPlayers:          mc.VarInt(c.Server.Properties.MaxPlayers),
-		ViewDistance:        mc.VarInt(c.Server.Properties.ViewDistance),
-		SimulationDistance:  mc.VarInt(c.Server.Properties.SimulationDistance),
+		MaxPlayers:          mc.VarInt(c.Server.Config.Server.MaxPlayers),
+		ViewDistance:        mc.VarInt(c.Server.Config.Performance.MaxViewDistance),
+		SimulationDistance:  mc.VarInt(c.Server.Config.Performance.SimulationDistance),
 		ReducedDebugInfo:    false,
 		EnableRespawnScreen: true,
 		DoLimitedCrafting:   false,
@@ -225,8 +225,8 @@ func (c *Connection) HandleClientInformation(information *mc.ClientInformation) 
 	switch {
 	case information.ViewDistance < 2:
 		information.ViewDistance = 2
-	case int(information.ViewDistance) > c.Server.Properties.ViewDistance:
-		information.ViewDistance = mc.Byte(c.Server.Properties.ViewDistance)
+	case int(information.ViewDistance) > c.Server.Config.Performance.MaxViewDistance:
+		information.ViewDistance = mc.Byte(c.Server.Config.Performance.MaxViewDistance)
 	}
 
 	if c.State == mc.StatePlay {

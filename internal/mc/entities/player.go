@@ -46,7 +46,7 @@ func NewPlayer(
 	name string,
 	permissionLevel int,
 	profileProperties []mc.ProfileProperty,
-	properties *systems.Properties,
+	cfg *systems.Config,
 ) *Player {
 	player := &Player{
 		LivingEntity: &LivingEntity{
@@ -63,13 +63,13 @@ func NewPlayer(
 		Name:              name,
 		Loaded:            false,
 		PermissionLevel:   permissionLevel,
-		GameMode:          uint8(properties.GameMode), // todo: handle force-gamemode
+		GameMode:          uint8(cfg.Server.GameMode), // todo: handle force-gamemode
 		PreviousGameMode:  -1,
 		ProfileProperties: profileProperties,
 	}
 	player.Movement.LastTickY = player.Pos[1]
 	player.Movement.VisibleChunks = make(map[mc.ChunkPos]struct{})
-	player.Information.ViewDistance = mc.Byte(properties.ViewDistance)
+	player.Information.ViewDistance = mc.Byte(cfg.Performance.MaxViewDistance)
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
 

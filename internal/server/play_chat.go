@@ -73,7 +73,7 @@ func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRe
 }
 
 func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
-	if !c.Server.Properties.OnlineMode {
+	if !c.Server.Config.Security.OnlineMode {
 		c.Player.ChatSession.Signed = false
 		return
 	}

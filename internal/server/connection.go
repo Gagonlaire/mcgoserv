@@ -44,8 +44,8 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		Server:               s,
 		Conn:                 conn,
 		State:                mc.StateHandshake,
-		InboundPackets:       make(chan QueuedPacket, ChannelSize),
-		OutboundPackets:      make(chan *packet.OutboundPacket, ChannelSize),
+		InboundPackets:       make(chan QueuedPacket, s.Config.Security.RateLimit.MaxPacketsPerTick),
+		OutboundPackets:      make(chan *packet.OutboundPacket, OutboundChannelSize),
 		CompressionThreshold: -1,
 		LastKeepAlive:        s.World.Time,
 		ctx:                  ctx,
@@ -94,6 +94,8 @@ func (c *Connection) ReadLoop() {
 				case <-c.ctx.Done():
 					pkt.Free()
 					return
+				default:
+					// max packets per tick exceeded, dropping packets
 				}
 			} else {
 				handler.Process(c, data)
@@ -124,6 +126,8 @@ func (c *Connection) WriteLoop() {
 				}
 				return
 			}
+		default:
+			// connection is too slow, dropping packets
 		}
 	}
 }

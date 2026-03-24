@@ -23,7 +23,7 @@ import (
 
 func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	c.ContextData["loginName"] = string(data.Name)
-	if !c.Server.Properties.OnlineMode {
+	if !c.Server.Config.Security.OnlineMode {
 		offlineUUID := internal.GetOfflineUUID(c.ContextData["loginName"].(string))
 		c.ContextData["loginUUID"] = offlineUUID
 		c.FinishLogin([]api.MojangSessionProperty{})
@@ -52,7 +52,7 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 
 func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse) {
 	// As of 1.21, the vanilla server never uses encryption in offline mode.
-	if !c.Server.Properties.OnlineMode {
+	if !c.Server.Config.Security.OnlineMode {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 		return
 	}
@@ -83,7 +83,7 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 
 	authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.Keys.EncodedPublicKey))
 	url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.ContextData["loginName"].(string), authHash)
-	if c.Server.Properties.PreventProxyConnections {
+	if c.Server.Config.Security.PreventProxyConnection {
 		url += "&ip=" + c.Conn.RemoteAddr().String()
 	}
 
@@ -144,13 +144,13 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		loginName,
 		permissionLevel,
 		pArraySession.Data,
-		c.Server.Properties,
+		c.Server.Config,
 	)
 
-	if c.Server.Properties.NetworkCompressionThreshold >= 0 {
-		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Properties.NetworkCompressionThreshold))
+	if c.Server.Config.Network.Compression.Enabled {
+		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Config.Network.Compression.Threshold))
 		c.SendSync(pkt)
-		c.CompressionThreshold = c.Server.Properties.NetworkCompressionThreshold
+		c.CompressionThreshold = c.Server.Config.Network.Compression.Threshold
 	}
 
 	pkt := c.NewPacket(
@@ -177,7 +177,7 @@ func (c *Connection) CanAccessServer() bool {
 		return false
 	}
 
-	if c.Server.Properties.WhiteList && !c.Server.PlayerRegistry.IsWhitelisted(UUID) {
+	if c.Server.Config.Security.Whitelist.Enabled && !c.Server.PlayerRegistry.IsWhitelisted(UUID) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 		return false
 	}
@@ -185,7 +185,7 @@ func (c *Connection) CanAccessServer() bool {
 	player := c.Server.World.PlayersByUUID[UUID]
 	isRejoining := player != nil
 
-	if c.Server.World.OnlinePlayersCount() >= c.Server.Properties.MaxPlayers && !isRejoining {
+	if c.Server.World.OnlinePlayersCount() >= c.Server.Config.Server.MaxPlayers && !isRejoining {
 		if op, entry := c.Server.PlayerRegistry.IsOp(UUID); !op || !entry.BypassesPlayerLimit {
 			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectServerFull))
 			return false

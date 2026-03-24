@@ -35,7 +35,7 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 
 	data.Version.Name = mcdata.GameVersion
 	data.Version.Protocol = mcdata.ProtocolVersion
-	data.Players.Max = c.Server.Properties.MaxPlayers
+	data.Players.Max = c.Server.Config.Server.MaxPlayers
 	data.Players.Online = c.Server.World.OnlinePlayersCount()
 	data.Players.Sample = make([]PlayerSample, 0, 5)
 	for _, player := range c.Server.World.PlayersByUUID {
@@ -49,7 +49,7 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 			})
 		}
 	}
-	data.Description.Text = c.Server.Properties.Motd
+	data.Description.Text = c.Server.Config.Server.Motd
 	if c.Server.Icon != "" {
 		data.Favicon = c.Server.Icon
 	}
