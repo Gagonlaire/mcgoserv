@@ -36,18 +36,26 @@ const (
 )
 
 type Selector struct {
-	Sort     string
-	Distance Optional[NumberRange[float64]]
-	X        Optional[float64]
-	Y        Optional[float64]
-	Z        Optional[float64]
-	Limit    Optional[int]
-	Variable SelectorVariable
+	Sort       Optional[string]
+	Distance   Optional[FloatRange]
+	X, Y, Z    Optional[float64]
+	Dx, Dy, Dz Optional[float64]
+	XRotation  Optional[FloatRange]
+	YRotation  Optional[FloatRange]
+	Limit      Optional[int]
+	Level      Optional[IntRange]
+	Gamemode   Optional[string]
+	Variable   SelectorVariable
 }
 
-type NumberRange[T int | float64] struct {
-	Min Optional[T]
-	Max Optional[T]
+type IntRange struct {
+	Min Optional[int]
+	Max Optional[int]
+}
+
+type FloatRange struct {
+	Min Optional[float64]
+	Max Optional[float64]
 }
 
 func ValidSelectorVariable(b byte) bool {

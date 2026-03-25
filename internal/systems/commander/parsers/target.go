@@ -3,7 +3,6 @@ package parsers
 import (
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
@@ -284,19 +283,82 @@ func parseSelectorOptions(r *commander.CommandReader, sel *mc.Selector) error {
 }
 
 func parseSelectorOption(r *commander.CommandReader, sel *mc.Selector, key string, keyStart int) error {
+	inapplicable := func(present bool) error {
+		if present {
+			return commander.NewParsingErrorAt(
+				tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text(key)),
+				r.Input(), keyStart,
+			)
+		}
+		return nil
+	}
+
 	switch key {
 	case "x":
+		if err := inapplicable(sel.X.Present); err != nil {
+			return err
+		}
 		return parseSelectorFloat64(r, &sel.X)
 	case "y":
+		if err := inapplicable(sel.Y.Present); err != nil {
+			return err
+		}
 		return parseSelectorFloat64(r, &sel.Y)
 	case "z":
+		if err := inapplicable(sel.Z.Present); err != nil {
+			return err
+		}
 		return parseSelectorFloat64(r, &sel.Z)
+	case "dx":
+		if err := inapplicable(sel.Dx.Present); err != nil {
+			return err
+		}
+		return parseSelectorFloat64(r, &sel.Dx)
+	case "dy":
+		if err := inapplicable(sel.Dy.Present); err != nil {
+			return err
+		}
+		return parseSelectorFloat64(r, &sel.Dy)
+	case "dz":
+		if err := inapplicable(sel.Dz.Present); err != nil {
+			return err
+		}
+		return parseSelectorFloat64(r, &sel.Dz)
 	case "distance":
-		return parseSelectorRange(r, &sel.Distance)
+		if err := inapplicable(sel.Distance.Present); err != nil {
+			return err
+		}
+		return parseSelectorRange(r, &sel.Distance, true)
+	case "x_rotation":
+		if err := inapplicable(sel.XRotation.Present); err != nil {
+			return err
+		}
+		return parseSelectorRange(r, &sel.XRotation, false)
+	case "y_rotation":
+		if err := inapplicable(sel.YRotation.Present); err != nil {
+			return err
+		}
+		return parseSelectorRange(r, &sel.YRotation, false)
+	case "level":
+		if err := inapplicable(sel.Level.Present); err != nil {
+			return err
+		}
+		return parseSelectorIntRange(r, &sel.Level)
 	case "limit":
+		if err := inapplicable(sel.Limit.Present); err != nil {
+			return err
+		}
 		return parseSelectorInt(r, &sel.Limit, key)
 	case "sort":
+		if err := inapplicable(sel.Sort.Present); err != nil {
+			return err
+		}
 		return parseSelectorSort(r, sel)
+	case "gamemode":
+		if err := inapplicable(sel.Gamemode.Present); err != nil {
+			return err
+		}
+		return parseSelectorGamemode(r, sel)
 	default:
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsUnknown, tc.Text(key)),
@@ -346,7 +408,7 @@ func parseSelectorSort(r *commander.CommandReader, sel *mc.Selector) error {
 	raw := readOptionValue(r)
 	switch raw {
 	case "nearest", "furthest", "random", "arbitrary":
-		sel.Sort = raw
+		sel.Sort = mc.Optional[string]{Value: raw, Present: true}
 		return nil
 	default:
 		return commander.NewParsingErrorAt(
@@ -356,11 +418,29 @@ func parseSelectorSort(r *commander.CommandReader, sel *mc.Selector) error {
 	}
 }
 
-func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.NumberRange[float64]]) error {
+func parseSelectorGamemode(r *commander.CommandReader, sel *mc.Selector) error {
+	start := r.Cursor()
+	raw := readOptionValue(r)
+	switch raw {
+	case "survival", "creative", "adventure", "spectator":
+		sel.Gamemode = mc.Optional[string]{Value: raw, Present: true}
+		return nil
+	default:
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsModeInvalid, tc.Text(raw)),
+			r.Input(), start,
+		)
+	}
+}
+
+func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.FloatRange], nonNegative bool) error {
 	start := r.Cursor()
 	raw := readOptionValue(r)
 
-	nr, err := parseNumberRange(raw)
+	lo, hi, err := parseRange(raw, func(s string) (float64, error) {
+		return strconv.ParseFloat(s, 64)
+	})
+	nr := mc.FloatRange{Min: lo, Max: hi}
 	if err != nil {
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
@@ -368,7 +448,7 @@ func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.Numbe
 		)
 	}
 
-	if nr.Min.Present && nr.Min.Value < 0 {
+	if nonNegative && nr.Min.Present && nr.Min.Value < 0 {
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsDistanceNegative),
 			r.Input(), start,
@@ -380,37 +460,29 @@ func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.Numbe
 	return nil
 }
 
-func parseNumberRange(raw string) (mc.NumberRange[float64], error) {
-	nr := mc.NumberRange[float64]{}
+func parseSelectorIntRange(r *commander.CommandReader, target *mc.Optional[mc.IntRange]) error {
+	start := r.Cursor()
+	raw := readOptionValue(r)
 
-	if idx := strings.Index(raw, ".."); idx >= 0 {
-		minPart := raw[:idx]
-		maxPart := raw[idx+2:]
-
-		if len(minPart) > 0 {
-			v, err := strconv.ParseFloat(minPart, 64)
-			if err != nil {
-				return nr, err
-			}
-			nr.Min = mc.Optional[float64]{Value: v, Present: true}
-		}
-		if len(maxPart) > 0 {
-			v, err := strconv.ParseFloat(maxPart, 64)
-			if err != nil {
-				return nr, err
-			}
-			nr.Max = mc.Optional[float64]{Value: v, Present: true}
-		}
-	} else {
-		v, err := strconv.ParseFloat(raw, 64)
-		if err != nil {
-			return nr, err
-		}
-		nr.Min = mc.Optional[float64]{Value: v, Present: true}
-		nr.Max = mc.Optional[float64]{Value: v, Present: true}
+	lo, hi, err := parseRange(raw, strconv.Atoi)
+	nr := mc.IntRange{Min: lo, Max: hi}
+	if err != nil {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)),
+			r.Input(), start,
+		)
 	}
 
-	return nr, nil
+	if nr.Min.Present && nr.Min.Value < 0 {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsLevelNegative),
+			r.Input(), start,
+		)
+	}
+
+	target.Value = nr
+	target.Present = true
+	return nil
 }
 
 func readOptionKey(r *commander.CommandReader) string {

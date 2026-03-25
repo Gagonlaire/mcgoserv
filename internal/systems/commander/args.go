@@ -51,3 +51,11 @@ func (p ParsedArgs) GetEntityTarget(name string) *mc.EntityTarget {
 func (p ParsedArgs) GetUUID(name string) uuid.UUID {
 	return GetArgument[uuid.UUID](p, name)
 }
+
+func (p ParsedArgs) GetIntRange(name string) mc.IntRange {
+	return GetArgument[mc.IntRange](p, name)
+}
+
+func (p ParsedArgs) GetFloatRange(name string) mc.FloatRange {
+	return GetArgument[mc.FloatRange](p, name)
+}
