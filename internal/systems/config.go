@@ -106,16 +106,20 @@ type Config struct {
 }
 
 func LoadConfig(path string, cliArgs []string) (*Config, error) {
-	cfg, err := loadConfig(path, cliArgs)
+	baseCfg, err := loadConfig(path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := writeDefaultConfig(path, cfg); err != nil {
+	if err := writeDefaultConfig(path, baseCfg); err != nil {
 		return nil, fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	return cfg, nil
+	if len(cliArgs) == 0 {
+		return baseCfg, nil
+	}
+
+	return loadConfig(path, cliArgs)
 }
 
 func ReloadConfig(path string, cliArgs []string) (*Config, error) {

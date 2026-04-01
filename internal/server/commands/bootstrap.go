@@ -7,4 +7,7 @@ import (
 func RegisterAll(s *server.Server) {
 	registerCommon(s)
 	registerList(s)
+	registerKick(s)
+	registerBan(s)
+	registerWhitelist(s)
 }

@@ -40,7 +40,7 @@ func (l Level) String() string {
 func (l Level) AnsiString() string {
 	switch l {
 	case DEBUG:
-		return internal.ColorCyan + "DEBUG" + internal.AnsiReset
+		return internal.ColorLightBlue + "DEBUG" + internal.AnsiReset
 	case WARN:
 		return internal.ColorYellow + "WARN" + internal.AnsiReset
 	case ERROR:
@@ -140,7 +140,7 @@ func (l *Logger) Debug(format string, v ...any) {
 	if l.minLevel > DEBUG {
 		return
 	}
-	l.output(DEBUG, fmt.Sprintf(format, v...))
+	l.output(DEBUG, internal.ColorLightBlue+fmt.Sprintf(format, v...)+internal.AnsiReset)
 }
 
 func (l *Logger) Info(format string, v ...any) {
@@ -168,6 +168,10 @@ func (l *Logger) Component(level Level, c tc.Component) {
 	for _, line := range c.AnsiLines() {
 		l.output(level, line)
 	}
+}
+
+func IsDebug() bool {
+	return defaultLogger.minLevel <= DEBUG
 }
 
 func Debug(format string, v ...any) {

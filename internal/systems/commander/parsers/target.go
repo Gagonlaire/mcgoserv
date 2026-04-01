@@ -46,19 +46,39 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 			return nil, err
 		}
 
-		if e.single {
+		if e.playersOnly {
 			v := sel.Variable
-			if (v == mc.SelectorVariableAllEntities || v == mc.SelectorVariableAllPlayers) && !sel.Limit.Present {
+			if v == mc.SelectorVariableAllEntities || v == mc.SelectorVariableNearestEntity {
 				r.SetCursor(start)
 				return nil, commander.NewParsingErrorAt(
-					tc.Translatable(mcdata.ArgumentEntityToomany),
+					tc.Translatable(mcdata.ArgumentPlayerEntities),
+					r.Input(), start,
+				)
+			}
+		}
+
+		if e.single {
+			v := sel.Variable
+			multiTarget := v == mc.SelectorVariableAllEntities || v == mc.SelectorVariableAllPlayers
+			if multiTarget && !sel.Limit.Present {
+				r.SetCursor(start)
+				key := mcdata.ArgumentEntityToomany
+				if e.playersOnly {
+					key = mcdata.ArgumentPlayerToomany
+				}
+				return nil, commander.NewParsingErrorAt(
+					tc.Translatable(key),
 					r.Input(), start,
 				)
 			}
 			if sel.Limit.Present && sel.Limit.Value != 1 {
 				r.SetCursor(start)
+				key := mcdata.ArgumentEntityToomany
+				if e.playersOnly {
+					key = mcdata.ArgumentPlayerToomany
+				}
 				return nil, commander.NewParsingErrorAt(
-					tc.Translatable(mcdata.ArgumentEntityToomany),
+					tc.Translatable(key),
 					r.Input(), start,
 				)
 			}
@@ -68,6 +88,14 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 			Type:     mc.TargetTypeSelector,
 			Selector: sel,
 		}, nil
+	}
+
+	if e.playersOnly && isUUIDCandidate(r) {
+		r.SetCursor(start)
+		return nil, commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentPlayerUnknown),
+			r.Input(), start,
+		)
 	}
 
 	if isUUIDCandidate(r) {

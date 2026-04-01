@@ -71,6 +71,15 @@ func (c *Connection) ReadLoop() {
 			return
 		}
 
+		if logger.IsDebug() && !(c.State == mc.StatePlay && int(pkt.ID) == packet.PlayServerboundClientTickEnd) {
+			source := c.Conn.RemoteAddr().String()
+			if c.Player != nil {
+				source = c.Player.Name
+			}
+			logger.Debug("%s -> Server: %s(0x%x)",
+				source, packet.PacketName(mc.GetStateName(c.State), "Serverbound", int(pkt.ID)), pkt.ID)
+		}
+
 		if handler, ok := c.Server.Router.Get(c.State, int(pkt.ID)); ok {
 			var data any
 
@@ -118,6 +127,14 @@ func (c *Connection) WriteLoop() {
 		case <-c.ctx.Done():
 			return
 		case pkt := <-c.OutboundPackets:
+			if logger.IsDebug() {
+				target := c.Conn.RemoteAddr().String()
+				if c.Player != nil {
+					target = c.Player.Name
+				}
+				logger.Debug("Server -> %s: %s(0x%x)",
+					target, packet.PacketName(mc.GetStateName(c.State), "Clientbound", int(pkt.ID)), pkt.ID)
+			}
 			err := pkt.Send(c.Conn, c.CompressionThreshold)
 			pkt.Free()
 			if err != nil {
