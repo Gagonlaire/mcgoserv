@@ -23,9 +23,11 @@ import (
 
 func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	c.ContextData["loginName"] = string(data.Name)
+	logger.Debug("Login request from %s (%s)", string(data.Name), c.Conn.RemoteAddr())
 	if !c.Server.Config.Security.OnlineMode {
 		offlineUUID := internal.GetOfflineUUID(c.ContextData["loginName"].(string))
 		c.ContextData["loginUUID"] = offlineUUID
+		logger.Debug("Offline mode: assigned UUID %s to %s", offlineUUID, string(data.Name))
 		c.FinishLogin([]api.MojangSessionProperty{})
 		return
 	}
@@ -80,6 +82,7 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 		return
 	}
 	c.Conn = encryptedConn
+	logger.Debug("Encryption enabled for %s", c.Conn.RemoteAddr())
 
 	authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.Keys.EncodedPublicKey))
 	url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.ContextData["loginName"].(string), authHash)
@@ -148,6 +151,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	)
 
 	if c.Server.Config.Network.Compression.Enabled {
+		logger.Debug("Enabling compression (threshold=%d) for %s", c.Server.Config.Network.Compression.Threshold, loginName)
 		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Config.Network.Compression.Threshold))
 		c.SendSync(pkt)
 		c.CompressionThreshold = c.Server.Config.Network.Compression.Threshold
@@ -197,6 +201,7 @@ func (c *Connection) CanAccessServer() bool {
 	}
 
 	if player != nil {
+		logger.Debug("Disconnecting existing session for %s (duplicate login)", player.Name)
 		c.Server.Connections.Range(func(k, v interface{}) bool {
 			conn := k.(*Connection)
 			if conn.Player == player {
@@ -213,6 +218,7 @@ func (c *Connection) CanAccessServer() bool {
 func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 	c.State = mc.StateConfiguration
 	c.LastKeepAlive = c.Server.World.Time
+	logger.Debug("%s entering configuration state", c.Player.Name)
 
 	pkt := c.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
 	c.SendSync(pkt)

@@ -5,9 +5,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
+
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 )
 
 const (
@@ -41,7 +42,7 @@ func (s *RemoteConsole) Start() error {
 		return err
 	}
 	s.listener = l
-	log.Printf("RemoteConsole server listening on %s", s.addr)
+	logger.Info("RCON listening on %s", logger.Network(s.addr))
 
 	go func() {
 		for {
@@ -85,7 +86,7 @@ func (s *RemoteConsole) handleConnection(conn net.Conn) {
 		_, reqID, pType, payload, err := readPacket(conn)
 		if err != nil {
 			if err != io.EOF {
-				log.Printf("RemoteConsole read error from %s: %v", conn.RemoteAddr(), err)
+				logger.Error("RCON read error from %s: %v", logger.Network(conn.RemoteAddr()), err)
 			}
 			return
 		}
@@ -98,12 +99,12 @@ func (s *RemoteConsole) handleConnection(conn net.Conn) {
 					if err := writePacket(conn, reqID, 2, ""); err != nil {
 						return
 					}
-					log.Printf("RemoteConsole login success from %s", conn.RemoteAddr())
+					logger.Info("RCON connection from: /%s", logger.Network(conn.RemoteAddr()))
 				} else {
 					if err := writePacket(conn, -1, 2, ""); err != nil {
 						return
 					}
-					log.Printf("RemoteConsole login failed from %s", conn.RemoteAddr())
+					logger.Warn("RCON failed login from: /%s", logger.Network(conn.RemoteAddr()))
 					return
 				}
 			} else {
@@ -113,6 +114,7 @@ func (s *RemoteConsole) handleConnection(conn net.Conn) {
 			}
 		} else {
 			if pType == PacketTypeCommand {
+				logger.Info("RCON /%s issued server command: /%s", logger.Network(conn.RemoteAddr()), payload)
 				responded := false
 				s.messageHandler(payload, func(response string) {
 					responded = true

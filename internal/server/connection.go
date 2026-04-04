@@ -207,6 +207,9 @@ func (c *Connection) Disconnect(reason tc.Component) {
 func (c *Connection) close() {
 	c.closeOnce.Do(func() {
 		c.cancel()
+		if logger.IsDebug() {
+			logger.Debug("Closing connection %s (state=%s)", c.Conn.RemoteAddr(), mc.GetStateName(c.State))
+		}
 		if c.Player != nil {
 			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
 			c.Server.ConnectionsByEID.Delete(c.Player.EntityID)

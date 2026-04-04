@@ -335,6 +335,7 @@ func (s *Server) loadServerIcon() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 
+	logger.Debug("New connection from %s", conn.RemoteAddr())
 	c := s.NewConnection(conn)
 	go c.ReadLoop()
 	c.WriteLoop()
@@ -387,7 +388,11 @@ func processIncomingPackets(s *Server) {
 
 		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
 			if currentTick-c.LastKeepAlive > s.KeepAliveTimeout {
-				logger.Info("keep-alive timeout for %s", c.Conn.RemoteAddr())
+				source := c.Conn.RemoteAddr().String()
+				if c.Player != nil {
+					source = c.Player.Name
+				}
+				logger.Info("%s lost connection: Timed out", logger.Identity(source))
 				c.close()
 				return true
 			}

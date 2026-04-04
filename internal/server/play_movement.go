@@ -91,6 +91,9 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		deltaZ > maxDelta || deltaZ < minDelta
 
 	if needsTeleport {
+		if logger.IsDebug() {
+			logger.Debug("Delta too large for %s, using teleport sync", c.Player.Name)
+		}
 		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1], 0)
 		return
 	}
@@ -180,6 +183,9 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 }
 
 func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.TeleportationFlags) {
+	if logger.IsDebug() {
+		logger.Debug("Teleporting %s to %.2f, %.2f, %.2f", c.Player.Name, x, y, z)
+	}
 	oldX, oldZ := c.Player.Pos[0], c.Player.Pos[2]
 
 	// todo: move this logic into a helper func
@@ -250,7 +256,9 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 			)
 			target.Send(tpPkt)
 		} else {
-			logger.Info("%s left %s's view (teleport)", c.Player.Name, target.Player.Name)
+			if logger.IsDebug() {
+				logger.Debug("%s left %s's view (teleport)", c.Player.Name, target.Player.Name)
+			}
 			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
 			target.Send(removePkt)
 		}
@@ -265,7 +273,9 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 		}
 		if conn, ok := c.Server.ConnectionsByEID.Load(watcherID); ok {
 			target := conn.(*Connection)
-			logger.Info("%s joined %s's view (teleport)", c.Player.Name, target.Player.Name)
+			if logger.IsDebug() {
+				logger.Debug("%s entered %s's view (teleport)", c.Player.Name, target.Player.Name)
+			}
 			target.SendSpawnEntity(selfEntity)
 		}
 	}

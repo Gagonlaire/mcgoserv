@@ -36,6 +36,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	}
 	c.Server.ConnectionsByEID.Store(c.Player.EntityID, c)
 	c.State = mc.StatePlay
+	logger.Debug("%s entering play state", c.Player.Name)
 	logger.Info("%s[/%s] logged in with entity id %s at (%s)",
 		logger.Identity(c.Player.Name),
 		logger.Network(c.Conn.RemoteAddr()),
@@ -133,6 +134,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 	dimension := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
+	logger.Debug("Sending initial chunks to %s (center=[%d, %d], radius=%d)", c.Player.Name, cx, cz, loadRadius)
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
 		for z := cz - loadRadius; z <= cz+loadRadius; z++ {
 			pos := mc.ChunkPos{X: x, Z: z}
@@ -237,6 +239,7 @@ func (c *Connection) HandleClientInformation(information *mc.ClientInformation) 
 	c.Player.Information = *information
 
 	if shouldUpdateChunks {
+		logger.Debug("%s changed view distance to %d", c.Player.Name, information.ViewDistance)
 		pkt := c.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))
 
 		c.Send(pkt)

@@ -3,6 +3,8 @@ package systems
 import (
 	"context"
 	"time"
+
+	"github.com/Gagonlaire/mcgoserv/internal/logger"
 )
 
 type Ticker struct {
@@ -44,6 +46,7 @@ func (t *Ticker) Start() {
 			now := time.Now()
 
 			if now.Sub(nextTickTime) > 2*time.Second {
+				logger.Warn("Can't keep up! Is the server overloaded? Running %dms behind", now.Sub(nextTickTime).Milliseconds())
 				nextTickTime = now
 			}
 
