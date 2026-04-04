@@ -97,6 +97,29 @@ func GetUserUUID(name string) (uuid.UUID, string, error) {
 	return u, profile.Name, nil
 }
 
+func GetProfileNameByUUID(u uuid.UUID) (string, error) {
+	url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/profile/%s", u.String())
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch profile from Session Server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
+		return "", fmt.Errorf("profile not found")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("session server error: %s", resp.Status)
+	}
+
+	var profile MojangProfile
+	if err := json.NewDecoder(resp.Body).Decode(&profile); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return profile.Name, nil
+}
+
 func GetUserProfile(u uuid.UUID, signed bool) (*MojangSession, error) {
 	url := fmt.Sprintf(MojangSessionURL, u.String())
 	if !signed {

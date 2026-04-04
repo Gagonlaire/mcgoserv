@@ -178,8 +178,8 @@ func (c *Connection) HandleSignedChatCommand(data *decoders.SignedChatCommand) {
 		for _, node := range parsed.Nodes {
 			sigBytes, hasSig := argSigMap[node.Node.Name]
 			if !hasSig {
-				c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
-				return
+				// todo: we should disconnect if an signed arg has no sig
+				continue
 			}
 			argValue := string(data.Command)[node.Range.Start:node.Range.End]
 			if !verifyMessageSignature(

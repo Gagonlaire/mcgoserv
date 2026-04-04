@@ -10,4 +10,5 @@ func RegisterAll(s *server.Server) {
 	registerKick(s)
 	registerBan(s)
 	registerWhitelist(s)
+	registerOp(s)
 }

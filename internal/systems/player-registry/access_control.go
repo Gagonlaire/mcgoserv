@@ -2,6 +2,7 @@ package player_registry
 
 import (
 	"net"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,6 +92,56 @@ func (pl *PlayerRegistry) RemoveWhitelist(name string) {
 	_ = pl.save(pl.whitelistFile, pl.Whitelist)
 }
 
+func (pl *PlayerRegistry) RemoveWhitelistByUUID(uuidStr string) (WhitelistEntry, bool) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	for i, entry := range pl.Whitelist {
+		if entry.UUID == uuidStr {
+			removed := entry
+			pl.Whitelist = append(pl.Whitelist[:i], pl.Whitelist[i+1:]...)
+			_ = pl.save(pl.whitelistFile, pl.Whitelist)
+			return removed, true
+		}
+	}
+	return WhitelistEntry{}, false
+}
+
+func (pl *PlayerRegistry) RemoveWhitelistByName(name string, caseSensitive bool) (WhitelistEntry, bool) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	for i, entry := range pl.Whitelist {
+		var match bool
+		if caseSensitive {
+			match = entry.Name == name
+		} else {
+			match = strings.EqualFold(entry.Name, name)
+		}
+		if match {
+			removed := entry
+			pl.Whitelist = append(pl.Whitelist[:i], pl.Whitelist[i+1:]...)
+			_ = pl.save(pl.whitelistFile, pl.Whitelist)
+			return removed, true
+		}
+	}
+	return WhitelistEntry{}, false
+}
+
+func (pl *PlayerRegistry) ReconcileWhitelistName(UUID uuid.UUID, name string) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	uuidStr := UUID.String()
+	for i, entry := range pl.Whitelist {
+		if entry.UUID == uuidStr && entry.Name == "Unknown" {
+			pl.Whitelist[i].Name = name
+			_ = pl.save(pl.whitelistFile, pl.Whitelist)
+			return
+		}
+	}
+}
+
 func (pl *PlayerRegistry) Ban(UUID uuid.UUID, name, source, reason, expires string) {
 	pl.Mu.Lock()
 	defer pl.Mu.Unlock()
@@ -122,6 +173,20 @@ func (pl *PlayerRegistry) BanIP(ip, source, reason, expires string) {
 
 	pl.BannedIPs = append(pl.BannedIPs, entry)
 	_ = pl.save(pl.bannedIPsFile, pl.BannedIPs)
+}
+
+func (pl *PlayerRegistry) UnbanByUUID(uuidStr string) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	newBannedPlayers := make([]BanEntry, 0)
+	for _, entry := range pl.BannedPlayers {
+		if entry.UUID != uuidStr {
+			newBannedPlayers = append(newBannedPlayers, entry)
+		}
+	}
+	pl.BannedPlayers = newBannedPlayers
+	_ = pl.save(pl.bannedPlayersFile, pl.BannedPlayers)
 }
 
 func (pl *PlayerRegistry) Unban(name string) {

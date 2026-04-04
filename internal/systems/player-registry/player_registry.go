@@ -3,6 +3,7 @@ package player_registry
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -169,6 +170,42 @@ func (pl *PlayerRegistry) RemoveOp(name string) {
 	_ = pl.save(pl.opsFile, pl.Ops)
 }
 
+func (pl *PlayerRegistry) RemoveOpByUUID(uuidStr string) (OpEntry, bool) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	for i, entry := range pl.Ops {
+		if entry.UUID == uuidStr {
+			removed := entry
+			pl.Ops = append(pl.Ops[:i], pl.Ops[i+1:]...)
+			_ = pl.save(pl.opsFile, pl.Ops)
+			return removed, true
+		}
+	}
+	return OpEntry{}, false
+}
+
+func (pl *PlayerRegistry) RemoveOpByName(name string, caseSensitive bool) (OpEntry, bool) {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	for i, entry := range pl.Ops {
+		var match bool
+		if caseSensitive {
+			match = entry.Name == name
+		} else {
+			match = strings.EqualFold(entry.Name, name)
+		}
+		if match {
+			removed := entry
+			pl.Ops = append(pl.Ops[:i], pl.Ops[i+1:]...)
+			_ = pl.save(pl.opsFile, pl.Ops)
+			return removed, true
+		}
+	}
+	return OpEntry{}, false
+}
+
 func (pl *PlayerRegistry) GetUserCacheProfile(name string) *UserCacheEntry {
 	pl.Mu.RLock()
 	defer pl.Mu.RUnlock()
@@ -209,6 +246,14 @@ func (pl *PlayerRegistry) AddUserCacheEntry(UUID uuid.UUID, name string) {
 		ExpiresOn: expiresOn,
 	})
 	_ = pl.save(pl.userCacheFile, pl.UserCache)
+}
+
+func (pl *PlayerRegistry) ReloadWhitelist() {
+	pl.Mu.Lock()
+	defer pl.Mu.Unlock()
+
+	pl.Whitelist = make([]WhitelistEntry, 0)
+	pl.load(pl.whitelistFile, &pl.Whitelist)
 }
 
 func (pl *PlayerRegistry) GetUserUUID(name string) (uuid.UUID, error) {

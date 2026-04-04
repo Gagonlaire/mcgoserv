@@ -79,7 +79,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	_ = out.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	if err := c.Server.sendCommands(c); err != nil {
+	if err := c.Server.SendCommands(c); err != nil {
 		logger.Error("Player disconnected during configuration: %v", err)
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
 		return
@@ -181,7 +181,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	logger.Component(logger.INFO, joinMessage)
 }
 
-func (s *Server) sendCommands(c *Connection) error {
+func (s *Server) SendCommands(c *Connection) error {
 	flattenGraph, idMap, filteredChildren := s.Commander.FlattenGraph(c.Player.PermissionLevel)
 	pkt := c.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
 	if pkt == nil {

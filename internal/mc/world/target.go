@@ -1,8 +1,10 @@
 package world
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
+	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/google/uuid"
@@ -30,6 +32,7 @@ func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sou
 	return nil
 }
 
+// todo: this should return a list of entities, not just players
 func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []*Player {
 	switch sel.Variable {
 	case mc.SelectorVariableSelf:
@@ -66,6 +69,20 @@ func (w *World) nearestPlayer(pos [3]float64) []*Player {
 		return nil
 	}
 	return []*Player{nearest}
+}
+
+func (w *World) ResolveMessage(format string, selectors []*mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) string {
+	names := make([]any, len(selectors))
+	for i, sel := range selectors {
+		players := w.resolveSelector(sel, sourceUUID, sourcePos)
+		resolved := make([]string, len(players))
+		for j, p := range players {
+			// for now, we assume every matched entity are players
+			resolved[j] = p.Name
+		}
+		names[i] = strings.Join(resolved, ", ")
+	}
+	return fmt.Sprintf(format, names...)
 }
 
 func distSq(a, b [3]float64) float64 {

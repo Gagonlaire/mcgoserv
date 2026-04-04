@@ -53,7 +53,7 @@ func buildTimeValue() string {
 
 func registerCommon(s *server.Server) {
 	s.Commander.Register(
-		Literal("stop").Executes(func(cc *CommandContext) (*CommandResult, error) {
+		Literal("stop").Requires(4).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			logger.Component(logger.INFO, tc.Text("Stopping the server"))
 			s.Stop()
 

@@ -259,6 +259,10 @@ func enforceConstraintsOnStruct(v reflect.Value) {
 	}
 }
 
+func SaveConfig(path string, cfg *Config) error {
+	return writeDefaultConfig(path, cfg)
+}
+
 func writeDefaultConfig(path string, cfg *Config) error {
 	data, err := goyaml.Marshal(cfg)
 	if err != nil {

@@ -182,6 +182,10 @@ func (c *Connection) CanAccessServer() bool {
 		return false
 	}
 
+	if !c.Server.Config.Security.OnlineMode {
+		c.Server.PlayerRegistry.ReconcileWhitelistName(UUID, c.ContextData["loginName"].(string))
+	}
+
 	player := c.Server.World.PlayersByUUID[UUID]
 	isRejoining := player != nil
 
