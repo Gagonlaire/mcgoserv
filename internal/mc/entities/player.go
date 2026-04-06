@@ -8,7 +8,7 @@ import (
 )
 
 type Player struct {
-	*LivingEntity
+	LivingEntity
 	Inventory           *mc.PlayerInventory
 	Name                string
 	ProfileProperties   []mc.ProfileProperty
@@ -49,7 +49,7 @@ func NewPlayer(
 	cfg *systems.Config,
 ) *Player {
 	player := &Player{
-		LivingEntity: &LivingEntity{
+		LivingEntity: LivingEntity{
 			BaseEntity: BaseEntity{
 				EntityID: 0,
 				Pos:      [3]float64{0, 80, 0},

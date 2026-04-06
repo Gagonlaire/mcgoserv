@@ -36,15 +36,17 @@ func (a *AddEntity) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func NewAddEntity(entity *entities.BaseEntity) *AddEntity {
-	yaw := mc.DegreesToAngle(entity.Rot[0])
+func NewAddEntity(entity entities.Entity) *AddEntity {
+	rot := entity.GetRot()
+	motion := entity.GetMotion()
+	yaw := mc.DegreesToAngle(rot[0])
 	return &AddEntity{
-		EntityID: mc.VarInt(entity.EntityID),
-		UUID:     mc.UUID(entity.UUID),
-		TypeID:   mc.VarInt(entity.TypeID),
-		Pos:      mc.NewCoordinate(entity.Pos),
-		Motion:   mc.LpVec3{X: entity.Motion[0], Y: entity.Motion[1], Z: entity.Motion[2]},
-		Pitch:    mc.DegreesToAngle(entity.Rot[1]),
+		EntityID: mc.VarInt(entity.GetID()),
+		UUID:     mc.UUID(entity.GetUUID()),
+		TypeID:   mc.VarInt(entity.GetType()),
+		Pos:      mc.NewCoordinate(entity.GetPos()),
+		Motion:   mc.LpVec3{X: motion[0], Y: motion[1], Z: motion[2]},
+		Pitch:    mc.DegreesToAngle(rot[1]),
 		Yaw:      yaw,
 		HeadYaw:  yaw,
 	}

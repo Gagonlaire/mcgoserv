@@ -230,14 +230,14 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 	c.Send(pkt)
 	c.Server.World.UpdateEntityChunk(c.Player.EntityID, oldX, oldZ, x, z)
 
-	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+	dim := world.GetEntityDimension(c.Player)
 	oldCX, oldCZ := world.GetChunkPosition(oldX, oldZ)
 	newCX, newCZ := world.GetChunkPosition(x, z)
 	oldChunk := dim.GetChunk(oldCX, oldCZ)
 	newChunk := dim.GetChunk(newCX, newCZ)
 
 	selfID := c.Player.EntityID
-	selfEntity := &c.Player.LivingEntity.BaseEntity
+	selfEntity := c.Player
 
 	for watcherID := range oldChunk.Watchers {
 		if watcherID == selfID {
@@ -293,7 +293,7 @@ func (c *Connection) updateChunkView(force bool) {
 		return
 	}
 
-	dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+	dim := world.GetEntityDimension(c.Player)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	keepChunks := c.Player.Movement.KeepChunks
 	if keepChunks == nil {
@@ -355,7 +355,7 @@ func (c *Connection) updateChunkView(force bool) {
 
 	oldChunk := dim.GetChunk(c.Player.Movement.LastChunkX, c.Player.Movement.LastChunkZ)
 	newChunk := dim.GetChunk(cx, cz)
-	selfEntity := &c.Player.LivingEntity.BaseEntity
+	selfEntity := c.Player
 	removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
 	if removePkt != nil {
 		for watcherID := range oldChunk.Watchers {

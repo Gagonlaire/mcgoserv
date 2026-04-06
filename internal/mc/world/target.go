@@ -7,22 +7,23 @@ import (
 	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	"github.com/google/uuid"
 )
 
 // ResolveTarget todo: it should take a generic entity as the source
-func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []*Player {
+func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []*entities.Player {
 	switch target.Type {
 	case mc.TargetTypePlayerName:
 		for _, p := range w.PlayersByID {
 			if p.Name == target.Name {
-				return []*Player{p}
+				return []*entities.Player{p}
 			}
 		}
 		return nil
 	case mc.TargetTypeUUID:
 		if p := w.PlayersByUUID[target.UUID]; p != nil {
-			return []*Player{p}
+			return []*entities.Player{p}
 		}
 		return nil
 	case mc.TargetTypeSelector:
@@ -33,11 +34,11 @@ func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sou
 }
 
 // todo: this should return a list of entities, not just players
-func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []*Player {
+func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []*entities.Player {
 	switch sel.Variable {
 	case mc.SelectorVariableSelf:
 		if p := w.PlayersByUUID[sourceUUID]; p != nil {
-			return []*Player{p}
+			return []*entities.Player{p}
 		}
 		return nil
 	case mc.SelectorVariableAllPlayers, mc.SelectorVariableAllEntities:
@@ -49,14 +50,14 @@ func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePo
 		if len(players) == 0 {
 			return nil
 		}
-		return []*Player{players[rand.IntN(len(players))]}
+		return []*entities.Player{players[rand.IntN(len(players))]}
 	}
 
 	return nil
 }
 
-func (w *World) nearestPlayer(pos [3]float64) []*Player {
-	var nearest *Player
+func (w *World) nearestPlayer(pos [3]float64) []*entities.Player {
+	var nearest *entities.Player
 	bestDist := math.MaxFloat64
 	for _, p := range w.PlayersByID {
 		d := distSq(pos, p.Pos)
@@ -68,7 +69,7 @@ func (w *World) nearestPlayer(pos [3]float64) []*Player {
 	if nearest == nil {
 		return nil
 	}
-	return []*Player{nearest}
+	return []*entities.Player{nearest}
 }
 
 func (w *World) ResolveMessage(format string, selectors []*mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) string {

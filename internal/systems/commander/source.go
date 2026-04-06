@@ -2,11 +2,13 @@ package commander
 
 import (
 	"context"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 )
 
 type CommandSource struct {
 	Server          any
-	Entity          any
+	Entity          entities.Entity
 	SendMessage     func(msg any)
 	Position        [3]float64
 	PermissionLevel int

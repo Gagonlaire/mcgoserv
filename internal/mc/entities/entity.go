@@ -6,17 +6,19 @@ import (
 )
 
 type Entity interface {
-	ID() int32
-	UUID() uuid.UUID
-	Type() mcdata.EntityType
-	Position() [3]float64
+	GetID() int32
+	GetUUID() uuid.UUID
+	GetType() mcdata.EntityType
+	GetPos() [3]float64
+	SetPos(pos [3]float64)
+	GetRot() [2]float32
+	SetRot(rot [2]float32)
+	GetMotion() [3]float64
+	IsOnGround() bool
 	Tick()
-
-	EncodeNBT() ([]byte, error)
-	DecodeNBT(data []byte) error
+	Base() *BaseEntity
 }
 
-// BaseEntity todo: we should use encoder functions instead of nbt struct tags
 type BaseEntity struct {
 	Dimension    any
 	CustomName   string
@@ -33,16 +35,14 @@ type BaseEntity struct {
 	NoGravity    bool
 }
 
-func (e *BaseEntity) ID() int32            { return e.EntityID }
-func (e *BaseEntity) Position() [3]float64 { return e.Pos }
-
-type LivingEntity struct {
-	BaseEntity
-	Health     float32
-	Absorption float32
-	HurtTime   int16
-	DeathTime  int16
-	// todo: implement attributes and effects
-}
-
-func (l *LivingEntity) IsAlive() bool { return l.Health > 0 }
+func (e *BaseEntity) GetID() int32               { return e.EntityID }
+func (e *BaseEntity) GetUUID() uuid.UUID         { return e.UUID }
+func (e *BaseEntity) GetType() mcdata.EntityType { return e.TypeID }
+func (e *BaseEntity) GetPos() [3]float64         { return e.Pos }
+func (e *BaseEntity) SetPos(pos [3]float64)      { e.Pos = pos }
+func (e *BaseEntity) GetRot() [2]float32         { return e.Rot }
+func (e *BaseEntity) SetRot(rot [2]float32)      { e.Rot = rot }
+func (e *BaseEntity) GetMotion() [3]float64      { return e.Motion }
+func (e *BaseEntity) IsOnGround() bool           { return e.OnGround }
+func (e *BaseEntity) Tick()                      {}
+func (e *BaseEntity) Base() *BaseEntity          { return e }

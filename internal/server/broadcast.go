@@ -37,7 +37,7 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 	if pkt == nil {
 		return
 	}
-	dim := world.GetEntityDimension(&sender.Player.LivingEntity.BaseEntity)
+	dim := world.GetEntityDimension(sender.Player)
 	cx, cz := world.GetChunkPosition(sender.Player.Pos[0], sender.Player.Pos[2])
 	chunk := dim.GetChunk(cx, cz)
 

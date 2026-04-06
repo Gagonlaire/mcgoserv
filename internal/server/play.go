@@ -19,7 +19,7 @@ func (c *Connection) HandleKeepAlive(id *mc.Long) {
 	c.LastKeepAlive = c.Server.World.Time
 }
 
-func (c *Connection) SendSpawnEntity(entity *world.Entity) {
+func (c *Connection) SendSpawnEntity(entity entities.Entity) {
 	// todo: check for head/body rotation
 	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
 	c.Send(pkt)
@@ -119,7 +119,7 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 	switch data.Status {
 	case mc.VarInt(mc.ActionStartDigging):
 		if c.Player.GameMode == 1 {
-			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+			dim := world.GetEntityDimension(c.Player)
 			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
 
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), 0)
@@ -204,7 +204,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 
 		if ok && item.BlockID != -1 {
 			block, _ := mcdata.GetBlock(item.BlockID)
-			dim := world.GetEntityDimension(&c.Player.LivingEntity.BaseEntity)
+			dim := world.GetEntityDimension(c.Player)
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
 
 			pkt := c.NewPacket(
