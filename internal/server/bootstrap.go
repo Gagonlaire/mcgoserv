@@ -9,6 +9,7 @@ import (
 func (s *Server) registerTickerSteps() {
 	s.Ticker.Register(func() { updateTime(s) })
 	s.Ticker.Register(func() { processIncomingPackets(s) })
+	s.Ticker.Register(func() { flushEntityMetadata(s) })
 }
 
 func (s *Server) registerPacketHandlers() {

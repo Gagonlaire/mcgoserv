@@ -52,29 +52,6 @@ const (
 	ActionSwapHand
 )
 
-type EntityPose VarInt
-
-const (
-	EntityPoseStanding EntityPose = iota
-	EntityPoseFallFlying
-	EntityPoseSleeping
-	EntityPoseSwimming
-	EntityPoseSpinAttack
-	EntityPoseSneaking
-	EntityPoseLongJumping
-	EntityPoseDying
-	EntityPoseCroaking
-	EntityPoseUsingTongue
-	EntityPoseSitting
-	EntityPoseRoaring
-	EntityPoseSniffing
-	EntityPoseEmerging
-	EntityPoseDigging
-	EntityPoseSliding
-	EntityPoseShooting
-	EntityPoseInhaling
-)
-
 // https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
 type PlayerListAction UnsignedByte
 

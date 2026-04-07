@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
@@ -37,7 +38,7 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 	if pkt == nil {
 		return
 	}
-	dim := world.GetEntityDimension(sender.Player)
+	dim := s.World.GetEntityDimension(sender.Player)
 	cx, cz := world.GetChunkPosition(sender.Player.Pos[0], sender.Player.Pos[2])
 	chunk := dim.GetChunk(cx, cz)
 
@@ -48,6 +49,23 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 		}
 		if v, ok := s.ConnectionsByEID.Load(watcherID); ok {
 			sendFiltered(v.(*Connection), pkt, filters)
+		}
+	}
+	pkt.Free()
+}
+
+// BroadcastEntityViewers sends a packet to players watching the entity's chunk. Takes ownership of the packet.
+func (s *Server) BroadcastEntityViewers(entity entities.Entity, pkt *packet.OutboundPacket) {
+	if pkt == nil {
+		return
+	}
+	dim := s.World.GetEntityDimension(entity)
+	cx, cz := world.GetChunkPosition(entity.Base().Pos[0], entity.Base().Pos[2])
+	chunk := dim.GetChunk(cx, cz)
+
+	for watcherID := range chunk.Watchers {
+		if v, ok := s.ConnectionsByEID.Load(watcherID); ok {
+			sendFiltered(v.(*Connection), pkt, nil)
 		}
 	}
 	pkt.Free()

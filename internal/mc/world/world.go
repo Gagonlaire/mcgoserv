@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	"iter"
 	"math"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -18,6 +19,7 @@ type World struct {
 	EntitiesByUUID map[uuid.UUID]entities.Entity
 	PlayersByID    map[EntityID]*entities.Player
 	PlayersByUUID  map[uuid.UUID]*entities.Player
+	DirtyEntities  []entities.Entity
 	Time           int64
 	DayTime        int64
 	Day            int64
@@ -72,8 +74,8 @@ func (w *World) Dimension(dimensionID DimensionID) *Dimension {
 	return w.Dimensions[dimensionID]
 }
 
-func GetEntityDimension(e entities.Entity) *Dimension {
-	return e.Base().Dimension.(*Dimension)
+func (w *World) GetEntityDimension(e entities.Entity) *Dimension {
+	return w.Dimensions[e.Base().DimensionID]
 }
 
 func (w *World) OnlinePlayersCount() int {
@@ -86,6 +88,14 @@ func (w *World) Players() []*entities.Player {
 		players = append(players, player)
 	}
 	return players
+}
+
+func (w *World) EnqueueDirty(e entities.Entity) {
+	base := e.Base()
+	if !base.InSyncQueue {
+		base.InSyncQueue = true
+		w.DirtyEntities = append(w.DirtyEntities, e)
+	}
 }
 
 func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) error {
@@ -105,7 +115,7 @@ func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) erro
 	chunkX, chunkZ := GetChunkPosition(base.Pos[0], base.Pos[2])
 
 	dimension.GetChunk(chunkX, chunkZ).Entities[base.EntityID] = struct{}{}
-	base.Dimension = dimension
+	base.DimensionID = dimensionID
 	w.EntitiesByID[base.EntityID] = player
 	w.EntitiesByUUID[base.UUID] = player
 	w.PlayersByID[base.EntityID] = player
@@ -122,7 +132,7 @@ func (w *World) RemoveEntityByUUID(entityUUID uuid.UUID) {
 
 	base := entity.Base()
 	entityID := base.EntityID
-	dimension := GetEntityDimension(entity)
+	dimension := w.GetEntityDimension(entity)
 	chunkX, chunkZ := GetChunkPosition(base.Pos[0], base.Pos[2])
 	delete(dimension.GetChunk(chunkX, chunkZ).Entities, entityID)
 
@@ -132,7 +142,7 @@ func (w *World) RemoveEntityByUUID(entityUUID uuid.UUID) {
 		delete(w.PlayersByUUID, entityUUID)
 	}
 
-	base.Dimension = nil
+	base.DimensionID = ""
 	delete(w.EntitiesByID, entityID)
 	delete(w.EntitiesByUUID, entityUUID)
 }
@@ -142,7 +152,7 @@ func (w *World) UpdateEntityChunk(entityID EntityID, oldX, oldZ, newX, newZ floa
 	if entity == nil {
 		return
 	}
-	dimension := GetEntityDimension(entity)
+	dimension := w.GetEntityDimension(entity)
 
 	oldChunkX, oldChunkZ := GetChunkPosition(oldX, oldZ)
 	newChunkX, newChunkZ := GetChunkPosition(newX, newZ)
@@ -154,25 +164,26 @@ func (w *World) UpdateEntityChunk(entityID EntityID, oldX, oldZ, newX, newZ floa
 	dimension.GetChunk(newChunkX, newChunkZ).Entities[entityID] = struct{}{}
 }
 
-func (w *World) PlayersInChunkRadius(dimensionID DimensionID, centerChunkX, centerChunkZ, radius int) []*entities.Player {
-	dimension := w.Dimension(dimensionID)
-	players := make([]*entities.Player, 0)
-
-	for x := centerChunkX - radius; x <= centerChunkX+radius; x++ {
-		for z := centerChunkZ - radius; z <= centerChunkZ+radius; z++ {
-			chunk := dimension.GetChunk(x, z)
-			for entityID := range chunk.Entities {
-				if player := w.PlayersByID[entityID]; player != nil {
-					players = append(players, player)
+func (w *World) PlayersInChunkRadius(dimensionID DimensionID, centerChunkX, centerChunkZ, radius int) iter.Seq[*entities.Player] {
+	return func(yield func(*entities.Player) bool) {
+		dimension := w.Dimension(dimensionID)
+		for x := centerChunkX - radius; x <= centerChunkX+radius; x++ {
+			for z := centerChunkZ - radius; z <= centerChunkZ+radius; z++ {
+				chunk := dimension.GetChunk(x, z)
+				for entityID := range chunk.Entities {
+					if player := w.PlayersByID[entityID]; player != nil {
+						if !yield(player) {
+							return
+						}
+					}
 				}
 			}
 		}
 	}
-	return players
 }
 
 func (w *World) removePlayerWatchers(player *entities.Player) {
-	dimension := GetEntityDimension(player)
+	dimension := w.GetEntityDimension(player)
 
 	for pos := range player.Movement.VisibleChunks {
 		delete(dimension.GetChunk(pos.X, pos.Z).Watchers, player.EntityID)

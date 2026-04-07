@@ -132,7 +132,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	_ = out.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	dimension := world.GetEntityDimension(c.Player)
+	dimension := c.Server.World.GetEntityDimension(c.Player)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	logger.Debug("Sending initial chunks to %s (center=[%d, %d], radius=%d)", c.Player.Name, cx, cz, loadRadius)
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
@@ -162,7 +162,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// spawn newly connected player
 	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(c.Player))
 	c.Server.BroadcastViewers(c, pkt)
-	for _, player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
+	for player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
 		if player.UUID == c.Player.UUID {
 			continue
 		}

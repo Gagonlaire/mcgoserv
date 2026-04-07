@@ -2,26 +2,40 @@ package entities
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/layers"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
 
+const (
+	IndexAdditionalHearts       metadata.Index = 17
+	IndexScore                  metadata.Index = 18
+	IndexLeftShoulderEntryData  metadata.Index = 19
+	IndexRightShoulderEntryData metadata.Index = 20
+)
+
 type Player struct {
 	LivingEntity
+	layers.AvatarData
 	Inventory           *mc.PlayerInventory
 	Name                string
 	ProfileProperties   []mc.ProfileProperty
 	Information         mc.ClientInformation
 	Movement            MovementTracker
 	ChatSession         mc.ChatSession
+	AdditionalHearts    float32
+	Score               int32
+	LeftShoulder        mc.PrefixedOptional[mc.VarInt, *mc.VarInt]
+	RightShoulder       mc.PrefixedOptional[mc.VarInt, *mc.VarInt]
 	PermissionLevel     int
 	SelectedItemSlot    int32
 	FoodTickTimer       int32
 	FoodSaturationLevel float32
 	FoodLevel           int32
 	FoodExhaustionLevel float32
-	Score               int32
 	PushingAgainstWall  bool
 	PreviousGameMode    int8
 	GameMode            uint8
@@ -63,7 +77,7 @@ func NewPlayer(
 		Name:              name,
 		Loaded:            false,
 		PermissionLevel:   permissionLevel,
-		GameMode:          uint8(cfg.Server.GameMode), // todo: handle force-gamemode
+		GameMode:          uint8(cfg.Server.GameMode),
 		PreviousGameMode:  -1,
 		ProfileProperties: profileProperties,
 	}
@@ -73,7 +87,55 @@ func NewPlayer(
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
 
+	player.AvatarData.Init(player)
+
 	return player
+}
+
+func (p *Player) SetAdditionalHearts(hearts float32) {
+	if p.AdditionalHearts != hearts {
+		p.AdditionalHearts = hearts
+		p.MarkDirty(IndexAdditionalHearts)
+	}
+}
+
+func (p *Player) SetScore(score int32) {
+	if p.Score != score {
+		p.Score = score
+		p.MarkDirty(IndexScore)
+	}
+}
+
+func (p *Player) SetLeftShoulder(entryData mc.PrefixedOptional[mc.VarInt, *mc.VarInt]) {
+	if p.LeftShoulder != entryData {
+		p.LeftShoulder = entryData
+		p.MarkDirty(IndexLeftShoulderEntryData)
+	}
+}
+
+func (p *Player) SetRightShoulder(entryData mc.PrefixedOptional[mc.VarInt, *mc.VarInt]) {
+	if p.RightShoulder != entryData {
+		p.RightShoulder = entryData
+		p.MarkDirty(IndexRightShoulderEntryData)
+	}
+}
+
+func (p *Player) EncodeMetadata(pkt *packet.OutboundPacket) {
+	p.LivingEntity.EncodeMetadata(pkt)
+	p.AvatarData.EncodeMetadata(pkt)
+
+	if p.DirtyTracker.IsDirty(IndexAdditionalHearts) {
+		_ = pkt.Encode(mc.UnsignedByte(IndexAdditionalHearts), mc.VarInt(metadata.TypeFloat), mc.Float(p.AdditionalHearts))
+	}
+	if p.DirtyTracker.IsDirty(IndexScore) {
+		_ = pkt.Encode(mc.UnsignedByte(IndexScore), mc.VarInt(metadata.TypeVarInt), mc.VarInt(p.Score))
+	}
+	if p.DirtyTracker.IsDirty(IndexLeftShoulderEntryData) {
+		_ = pkt.Encode(mc.UnsignedByte(IndexLeftShoulderEntryData), mc.VarInt(metadata.TypeOptVarInt), p.LeftShoulder)
+	}
+	if p.DirtyTracker.IsDirty(IndexRightShoulderEntryData) {
+		_ = pkt.Encode(mc.UnsignedByte(IndexRightShoulderEntryData), mc.VarInt(metadata.TypeOptVarInt), p.RightShoulder)
+	}
 }
 
 func (p *Player) Tick() {}

@@ -20,7 +20,7 @@ type Saddleable interface {
 	Saddle(sound bool)
 }
 
-type HasProjectileOwner interface {
+type Ownable interface {
 	GetOwner() uuid.UUID
 	SetOwner(uuid.UUID)
 }

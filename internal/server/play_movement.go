@@ -230,7 +230,7 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 	c.Send(pkt)
 	c.Server.World.UpdateEntityChunk(c.Player.EntityID, oldX, oldZ, x, z)
 
-	dim := world.GetEntityDimension(c.Player)
+	dim := c.Server.World.GetEntityDimension(c.Player)
 	oldCX, oldCZ := world.GetChunkPosition(oldX, oldZ)
 	newCX, newCZ := world.GetChunkPosition(x, z)
 	oldChunk := dim.GetChunk(oldCX, oldCZ)
@@ -293,7 +293,7 @@ func (c *Connection) updateChunkView(force bool) {
 		return
 	}
 
-	dim := world.GetEntityDimension(c.Player)
+	dim := c.Server.World.GetEntityDimension(c.Player)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
 	keepChunks := c.Player.Movement.KeepChunks
 	if keepChunks == nil {

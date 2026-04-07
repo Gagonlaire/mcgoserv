@@ -7,7 +7,6 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
@@ -44,33 +43,15 @@ func (c *Connection) SendKeepAlive() {
 func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 	c.Player.Input = byte(*flags)
 
+	// NOTE mainly used for vehicle control
 	if mc.PlayerInput(*flags)&mc.InputSneak != 0 {
-		pkt2 := c.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0x02),
-			mc.UnsignedByte(6),
-			mc.VarInt(20),
-			mc.VarInt(mc.EntityPoseSneaking),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.BroadcastViewers(c, pkt2)
+		c.Player.SetFlag(entities.EntityFlagCrouching, true)
+		c.Player.SetPose(entities.EntityPoseSneaking)
 	} else {
-		pkt2 := c.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0),
-			mc.UnsignedByte(6),
-			mc.VarInt(20),
-			mc.VarInt(mc.EntityPoseStanding),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.BroadcastViewers(c, pkt2)
+		c.Player.SetFlag(entities.EntityFlagCrouching, false)
+		c.Player.SetPose(entities.EntityPoseStanding)
 	}
+	c.Server.World.EnqueueDirty(c.Player)
 }
 
 func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
@@ -78,29 +59,13 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 }
 
 func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
-	// todo: jumping seems to stop sprinting animation particles
 	switch mc.PlayerCommand(data.ActionID) {
 	case mc.CommandStartSprinting:
-		pkt2 := c.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0x08),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.BroadcastViewers(c, pkt2)
+		c.Player.SetFlag(entities.EntityFlagSprinting, true)
 	case mc.CommandStopSprinting:
-		pkt2 := c.NewPacket(
-			packet.PlayClientboundSetEntityData,
-			mc.VarInt(c.Player.EntityID),
-			mc.UnsignedByte(0),
-			mc.VarInt(0),
-			mc.Byte(0),
-			mc.UnsignedByte(0xff),
-		)
-		c.Server.BroadcastViewers(c, pkt2)
+		c.Player.SetFlag(entities.EntityFlagSprinting, false)
 	}
+	c.Server.World.EnqueueDirty(c.Player)
 }
 
 func (c *Connection) HandleSwingArm(hand *mc.VarInt) {
@@ -119,7 +84,7 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 	switch data.Status {
 	case mc.VarInt(mc.ActionStartDigging):
 		if c.Player.GameMode == 1 {
-			dim := world.GetEntityDimension(c.Player)
+			dim := c.Server.World.GetEntityDimension(c.Player)
 			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
 
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), 0)
@@ -204,7 +169,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 
 		if ok && item.BlockID != -1 {
 			block, _ := mcdata.GetBlock(item.BlockID)
-			dim := world.GetEntityDimension(c.Player)
+			dim := c.Server.World.GetEntityDimension(c.Player)
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
 
 			pkt := c.NewPacket(

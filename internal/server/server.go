@@ -406,6 +406,29 @@ func processIncomingPackets(s *Server) {
 	})
 }
 
+func flushEntityMetadata(s *Server) {
+	queue := s.World.DirtyEntities
+	for _, entity := range queue {
+		base := entity.Base()
+		if base.DimensionID == "" || !entity.HasMetaChanges() {
+			entity.ClearMetaChanges()
+			continue
+		}
+
+		pkt, err := packet.NewPacket(packet.PlayClientboundSetEntityData, mc.VarInt(entity.GetID()))
+		if err != nil {
+			entity.ClearMetaChanges()
+			continue
+		}
+		entity.EncodeMetadata(pkt)
+		_ = pkt.Encode(mc.UnsignedByte(0xFF))
+
+		s.BroadcastEntityViewers(entity, pkt)
+		entity.ClearMetaChanges()
+	}
+	s.World.DirtyEntities = queue[:0]
+}
+
 func (s *Server) handleStdin() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
