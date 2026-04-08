@@ -51,7 +51,7 @@ func buildTimeValue() string {
 	return buildinfo.BuildTime
 }
 
-func registerCommon(s *server.Server) {
+func registerStop(s *server.Server) {
 	s.Commander.Register(
 		Literal("stop").Requires(4).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			logger.Component(logger.INFO, tc.Text("Stopping the server"))
@@ -59,7 +59,11 @@ func registerCommon(s *server.Server) {
 
 			return &CommandResult{Success: 1, Result: 0}, nil
 		}),
+	)
+}
 
+func registerVersion(s *server.Server) {
+	s.Commander.Register(
 		Literal("version").Executes(func(cc *CommandContext) (*CommandResult, error) {
 			header := tc.Container(
 				tc.Text("McGoServ").SetColor(tc.ColorGreen).SetBold(true),

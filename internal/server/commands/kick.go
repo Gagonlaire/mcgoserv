@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -34,8 +35,8 @@ func registerKick(s *server.Server) {
 						Executes(func(cc *CommandContext) (*CommandResult, error) {
 							player := cc.Source.Entity.(*entities.Player)
 							targets := cc.Args.GetEntityTarget("targets")
-							message := cc.Args["reason"].(*parsers.ParsedMessage)
-							kickMessage := s.World.ResolveMessage(message.Format, message.Selectors, player.UUID, player.Pos)
+							message := cc.Args["reason"].(*mc.ParsedMessage)
+							kickMessage := s.World.ResolveMessage(message, player.UUID, player.Pos)
 							rTargets := s.World.ResolveTarget(targets, player.UUID, player.Pos)
 
 							cc.SendMessage(tc.Translatable(

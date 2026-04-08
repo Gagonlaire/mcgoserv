@@ -88,7 +88,11 @@ func registerOp(s *server.Server) {
 					return &CommandResult{Success: success, Result: 0}, nil
 				}),
 		),
+	)
+}
 
+func registerDeop(s *server.Server) {
+	s.Commander.Register(
 		Literal("deop").Requires(3).Connect(
 			Argument("targets", parsers.GameProfile).
 				Executes(func(cc *CommandContext) (*CommandResult, error) {

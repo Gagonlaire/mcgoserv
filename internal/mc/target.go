@@ -58,6 +58,16 @@ type FloatRange struct {
 	Max Optional[float64]
 }
 
+type SelectorSpan struct {
+	Start, End int
+	Selector   *Selector
+}
+
+type ParsedMessage struct {
+	Raw       string
+	Selectors []SelectorSpan
+}
+
 func ValidSelectorVariable(b byte) bool {
 	switch SelectorVariable(b) {
 	case SelectorVariableNearestPlayer, SelectorVariableNearestEntity, SelectorVariableRandomPlayer,

@@ -244,11 +244,11 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 		}
 	}
 
-	broadcastChatMessage(c, data.Message, data.Timestamp, data.Salt, data.Signature, signatureBytes, lastSeenSignatures, isChatMessageSigned)
+	broadcastChatMessage(c, data.Message, mc.Optional[tc.Component]{}, data.Timestamp, data.Salt, data.Signature, signatureBytes, lastSeenSignatures, isChatMessageSigned)
 }
 
 // SendSignedMessage todo: change chat type to accept inline def
-func (c *Connection) SendSignedMessage(target *Connection, message string, signature []byte, signed *commander.SignedData, chatType int32) {
+func (c *Connection) SendSignedMessage(target *Connection, message string, unsignedMessage mc.Optional[tc.Component], signature []byte, signed *commander.SignedData, chatType int32) {
 	var sig mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
 	isSigned := len(signature) > 0
 	if isSigned {
@@ -260,6 +260,7 @@ func (c *Connection) SendSignedMessage(target *Connection, message string, signa
 	sendSignedChatPacket(
 		c, target,
 		mc.String256(message),
+		unsignedMessage,
 		mc.Long(signed.Timestamp), mc.Long(signed.Salt),
 		sig, signature, signed.LastSeenSignatures,
 		isSigned, chatType,
@@ -291,6 +292,7 @@ func sendSignedChatPacket(
 	sender *Connection,
 	target *Connection,
 	message mc.String256,
+	unsignedMessage mc.Optional[tc.Component],
 	timestamp, salt mc.Long,
 	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
 	signatureBytes []byte,
@@ -340,14 +342,23 @@ func sendSignedChatPacket(
 	} else {
 		_ = outPkt.Encode(mc.VarInt(0))
 	}
-	// Unsigned Content is sent when you want to have a styled message (only with no secure chat)
-	_ = outPkt.Encode(mc.Boolean(false), mc.VarInt(0), mc.VarInt(chatType), tc.PlayerName(sender.Player.Name), mc.Boolean(false))
+	// Unsigned Content is sent when you want to have a styled message <-- todo: verify that
+	// todo: use Prefixed optional for the target, as this is not used every time
+	// todo: implement better chat type handling, with inline support
+	// todo: chat type should be IDOrX (inline support)
+	if unsignedMessage.Present {
+		_ = outPkt.Encode(mc.Boolean(true), unsignedMessage.Value)
+	} else {
+		_ = outPkt.Encode(mc.Boolean(false))
+	}
+	_ = outPkt.Encode(mc.VarInt(0), mc.VarInt(chatType), tc.PlayerName(sender.Player.Name), mc.Boolean(true), tc.PlayerName(target.Player.Name))
 	target.Send(outPkt)
 }
 
 func broadcastChatMessage(
 	sender *Connection,
 	message mc.String256,
+	unsignedMessage mc.Optional[tc.Component],
 	timestamp, salt mc.Long,
 	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
 	signatureBytes []byte,
@@ -359,7 +370,7 @@ func broadcastChatMessage(
 		if conn.Player == nil {
 			return true
 		}
-		sendSignedChatPacket(sender, conn, message, timestamp, salt, signature, signatureBytes, lastSeenSignatures, isSigned, 1)
+		sendSignedChatPacket(sender, conn, message, unsignedMessage, timestamp, salt, signature, signatureBytes, lastSeenSignatures, isSigned, 1)
 		return true
 	})
 }

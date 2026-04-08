@@ -23,7 +23,7 @@ func banSource(cc *CommandContext) string {
 }
 
 func kickBannedPlayer(s *server.Server, playerUUID uuid.UUID, reason string) {
-	s.Connections.Range(func(k, v interface{}) bool {
+	s.Connections.Range(func(k, v any) bool {
 		conn := k.(*server.Connection)
 		if conn.Player != nil && conn.Player.UUID == playerUUID {
 			if reason != "" {
@@ -38,7 +38,7 @@ func kickBannedPlayer(s *server.Server, playerUUID uuid.UUID, reason string) {
 }
 
 func kickBannedIP(s *server.Server, ip string, reason string) {
-	s.Connections.Range(func(k, v interface{}) bool {
+	s.Connections.Range(func(k, v any) bool {
 		conn := k.(*server.Connection)
 		host, _, err := net.SplitHostPort(conn.Conn.RemoteAddr().String())
 		if err != nil {
@@ -62,7 +62,7 @@ func resolveIPTarget(s *server.Server, target string) (string, bool) {
 	}
 
 	var found string
-	s.Connections.Range(func(k, v interface{}) bool {
+	s.Connections.Range(func(k, v any) bool {
 		conn := k.(*server.Connection)
 		if conn.Player != nil && conn.Player.Name == target {
 			host, _, err := net.SplitHostPort(conn.Conn.RemoteAddr().String())
@@ -89,7 +89,11 @@ func registerBan(s *server.Server) {
 						Executes(banExecutor(s, "reason")),
 				),
 		),
+	)
+}
 
+func registerBanIP(s *server.Server) {
+	s.Commander.Register(
 		Literal("ban-ip").Requires(3).Connect(
 			Argument("target", parsers.String).
 				Executes(banIPExecutor(s, "")).
@@ -98,7 +102,11 @@ func registerBan(s *server.Server) {
 						Executes(banIPExecutor(s, "reason")),
 				),
 		),
+	)
+}
 
+func registerPardon(s *server.Server) {
+	s.Commander.Register(
 		Literal("pardon").Requires(3).Connect(
 			Argument("targets", parsers.GameProfile).
 				Executes(func(cc *CommandContext) (*CommandResult, error) {
@@ -162,7 +170,11 @@ func registerBan(s *server.Server) {
 					return &CommandResult{Success: len(unbans), Result: 0}, nil
 				}),
 		),
+	)
+}
 
+func registerPardonIP(s *server.Server) {
+	s.Commander.Register(
 		Literal("pardon-ip").Requires(3).Connect(
 			Argument("target", parsers.String).
 				Executes(func(cc *CommandContext) (*CommandResult, error) {

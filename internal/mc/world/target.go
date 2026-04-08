@@ -1,7 +1,6 @@
 package world
 
 import (
-	"fmt"
 	"math"
 	"math/rand/v2"
 	"strings"
@@ -72,18 +71,30 @@ func (w *World) nearestPlayer(pos [3]float64) []*entities.Player {
 	return []*entities.Player{nearest}
 }
 
-func (w *World) ResolveMessage(format string, selectors []*mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) string {
-	names := make([]any, len(selectors))
-	for i, sel := range selectors {
-		players := w.resolveSelector(sel, sourceUUID, sourcePos)
-		resolved := make([]string, len(players))
-		for j, p := range players {
-			// for now, we assume every matched entity are players
-			resolved[j] = p.Name
-		}
-		names[i] = strings.Join(resolved, ", ")
+func (w *World) ResolveMessage(msg *mc.ParsedMessage, sourceUUID uuid.UUID, sourcePos [3]float64) string {
+	if len(msg.Selectors) == 0 {
+		return msg.Raw
 	}
-	return fmt.Sprintf(format, names...)
+	var b strings.Builder
+	b.Grow(len(msg.Raw))
+	prev := 0
+	for _, span := range msg.Selectors {
+		b.WriteString(msg.Raw[prev:span.Start])
+		players := w.resolveSelector(span.Selector, sourceUUID, sourcePos)
+		if len(players) == 1 {
+			b.WriteString(players[0].Name)
+		} else {
+			for i, p := range players {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				b.WriteString(p.Name)
+			}
+		}
+		prev = span.End
+	}
+	b.WriteString(msg.Raw[prev:])
+	return b.String()
 }
 
 func distSq(a, b [3]float64) float64 {
