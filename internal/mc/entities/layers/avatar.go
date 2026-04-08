@@ -23,7 +23,7 @@ const (
 	SkinPartHat         SkinPart = 0x40
 )
 
-//meta:encode mode=layer receiver=a
+//meta:encode mode=layer
 type AvatarData struct {
 	BaseLayer
 	MainHand  int32    `meta:"IndexMainHand,HumanoidArm"`

@@ -23,7 +23,7 @@ const (
 	HandStateIsUsingRiptide HandState = 0x04
 )
 
-//meta:encode parents=BaseEntity receiver=l
+//meta:encode parents=BaseEntity
 type LivingEntity struct {
 	BaseEntity
 	HandFlags           HandState                                      `meta:"IndexHandFlags,Byte,flags"`

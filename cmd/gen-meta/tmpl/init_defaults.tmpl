@@ -1,0 +1,13 @@
+{{- define "initDefaults" -}}
+func ({{.Recv}} *{{.Struct}}) InitDefaults() {
+{{- range .Parents }}
+	{{$.Recv}}.{{.}}.InitDefaults()
+{{- end }}
+{{- range .Fields }}
+{{- if .Default }}
+	{{$.Recv}}.{{.FieldName}} = {{.Default}}
+{{- end }}
+{{- end }}
+}
+
+{{ end -}}

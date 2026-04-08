@@ -149,7 +149,7 @@ func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
 	return n, err
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type ClientInformation struct {
 	Locale              String16
 	ViewDistance        Byte

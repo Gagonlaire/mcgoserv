@@ -1,3 +1,4 @@
+{{- define "readfrom" -}}
 func (s *{{.StructName}}) ReadFrom(r io.Reader) (n int64, err error) {
 {{- $first := true }}
 {{- range .Fields }}
@@ -15,3 +16,4 @@ func (s *{{.StructName}}) ReadFrom(r io.Reader) (n int64, err error) {
     return n, nil
 }
 
+{{ end -}}

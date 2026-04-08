@@ -16,7 +16,7 @@ const (
 	IndexRightShoulderEntryData metadata.Index = 20
 )
 
-//meta:encode parents=LivingEntity,AvatarData receiver=p
+//meta:encode parents=LivingEntity,AvatarData
 type Player struct {
 	LivingEntity
 	layers.AvatarData
@@ -88,6 +88,7 @@ func NewPlayer(
 	player.ChatSession.Signed = false
 
 	player.AvatarData.Init(player)
+	player.InitDefaults()
 
 	return player
 }

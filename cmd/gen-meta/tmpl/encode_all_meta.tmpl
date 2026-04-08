@@ -1,0 +1,23 @@
+{{- define "encodeAllMeta" -}}
+func ({{.Recv}} *{{.Struct}}) EncodeAllMetadata(pkt *packet.OutboundPacket) {
+{{- range .Parents }}
+	{{$.Recv}}.{{.}}.EncodeAllMetadata(pkt)
+{{- end }}
+{{- range .Fields }}
+{{- if not .NoEncode }}
+{{- if .Default }}
+	if {{$.Recv}}.{{.FieldName}} != {{.Default}} {
+{{- else }}
+	{
+{{- end }}
+{{- if .Raw }}
+		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), {{$.Recv}}.{{.FieldName}})
+{{- else }}
+		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), mc.{{.Cast}}({{$.Recv}}.{{.FieldName}}))
+{{- end }}
+	}
+{{- end }}
+{{- end }}
+}
+
+{{ end -}}

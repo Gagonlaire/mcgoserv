@@ -1,3 +1,25 @@
+// gen-meta generates metadata helpers for entities
+//
+// Usage: go run ./cmd/gen-meta <directory>
+//
+// Directive (placed above a struct):
+//
+//	//meta:encode [mode=entity|layer] [parents=Parent1,Parent2]
+//
+// Directive parameters:
+//   - mode     — "entity" (default) or "layer". Layers use unexported markDirty/isDirty helpers.
+//   - parents  — comma-separated list of embedded types whose generated methods should be chained.
+//
+// Struct field tag (on each metadata field):
+//
+//	`meta:"<Index>,<MetaType>[,flags][,nosetter][,noencode][,default=<expr>]"`
+//
+// Generated:
+//   - Set<Field>(value)              — setter that marks dirty on change.
+//   - Set<Singular>(flag, on bool)   — flag toggle (only when "flags" is set).
+//   - EncodeMetadata(pkt)            — encodes only dirty fields (for sync packets).
+//   - EncodeAllMetadata(pkt)         — encodes all non-default fields (for spawn packets).
+//   - InitDefaults()                 — assigns default values and chains parent/layer InitDefaults.
 package main
 
 import (
@@ -70,6 +92,7 @@ type MetaField struct {
 	IsFlags   bool
 	NoSetter  bool
 	NoEncode  bool
+	Default   string // optional default value expression
 }
 
 type StructInfo struct {
@@ -156,6 +179,14 @@ func main() {
 	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
 		"singular":   singular,
 		"lowerFirst": lowerFirst,
+		"hasDefault": func(fields []MetaField) bool {
+			for _, f := range fields {
+				if f.Default != "" {
+					return true
+				}
+			}
+			return false
+		},
 	}).ParseFS(tmplFS, "tmpl/*.tmpl"))
 
 	for _, s := range structs {
@@ -180,7 +211,6 @@ func main() {
 			}
 		}
 
-		// Generate EncodeMetadata
 		data := map[string]any{
 			"Recv":    s.Receiver,
 			"Struct":  s.Name,
@@ -188,8 +218,22 @@ func main() {
 			"Fields":  s.Fields,
 			"Mode":    s.Mode,
 		}
+
+		// Generate EncodeMetadata
 		if err := tmpl.ExecuteTemplate(out, "encodeMeta", data); err != nil {
 			fmt.Fprintf(os.Stderr, "template error (EncodeMetadata %s): %v\n", s.Name, err)
+			os.Exit(1)
+		}
+
+		// Generate EncodeAllMetadata
+		if err := tmpl.ExecuteTemplate(out, "encodeAllMeta", data); err != nil {
+			fmt.Fprintf(os.Stderr, "template error (EncodeAllMetadata %s): %v\n", s.Name, err)
+			os.Exit(1)
+		}
+
+		// Generate InitDefaults
+		if err := tmpl.ExecuteTemplate(out, "initDefaults", data); err != nil {
+			fmt.Fprintf(os.Stderr, "template error (InitDefaults %s): %v\n", s.Name, err)
 			os.Exit(1)
 		}
 	}
@@ -281,9 +325,10 @@ func processFile(file *ast.File, structs *[]StructInfo) {
 }
 
 func parseDirective(directive, structName string) StructInfo {
+	recv := []rune(structName)
 	info := StructInfo{
 		Name:     structName,
-		Receiver: string(unicode.ToLower([]rune(structName)[0])),
+		Receiver: string(unicode.ToLower(recv[0])),
 		Mode:     "entity",
 	}
 
@@ -299,8 +344,6 @@ func parseDirective(directive, structName string) StructInfo {
 			info.Mode = v
 		case "parents":
 			info.Parents = strings.Split(v, ",")
-		case "receiver":
-			info.Receiver = v
 		}
 	}
 
@@ -323,13 +366,16 @@ func parseMetaTag(tag, fieldName, fieldType string) MetaField {
 	}
 
 	for i := 2; i < len(parts); i++ {
-		switch strings.TrimSpace(parts[i]) {
-		case "flags":
+		part := strings.TrimSpace(parts[i])
+		switch {
+		case part == "flags":
 			mf.IsFlags = true
-		case "nosetter":
+		case part == "nosetter":
 			mf.NoSetter = true
-		case "noencode":
+		case part == "noencode":
 			mf.NoEncode = true
+		case strings.HasPrefix(part, "default="):
+			mf.Default = strings.TrimPrefix(part, "default=")
 		}
 	}
 

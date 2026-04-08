@@ -1,3 +1,4 @@
+{{- define "writeto" -}}
 func (s *{{.StructName}}) WriteTo(w io.Writer) (n int64, err error) {
 {{- $first := true }}
 {{- range .Fields }}
@@ -15,3 +16,4 @@ func (s *{{.StructName}}) WriteTo(w io.Writer) (n int64, err error) {
     return n, nil
 }
 
+{{ end -}}

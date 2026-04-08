@@ -72,7 +72,7 @@ const (
 	EntityPoseInhaling
 )
 
-//meta:encode receiver=e
+//meta:encode
 type BaseEntity struct {
 	metadata.DirtyTracker
 	DimensionID string // todo: change to a numeric id
@@ -86,7 +86,7 @@ type BaseEntity struct {
 	FallDistance      float32
 	EntityID          int32
 	Fire              int16
-	Air               int16 `meta:"IndexAirTicks,VarInt"`
+	Air               int32 `meta:"IndexAirTicks,VarInt,default=300"`
 	UUID              uuid.UUID
 	Pose              EntityPose `meta:"IndexPose,Pose"`
 	Flags             EntityFlag `meta:"IndexEntityFlags,Byte,flags"`

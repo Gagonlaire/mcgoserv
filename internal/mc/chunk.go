@@ -1,4 +1,4 @@
-//go:generate go run ../../cmd/gen-field
+//go:generate go run ../../cmd/gen-field .
 
 package mc
 
@@ -13,7 +13,7 @@ type ChunkPos struct {
 	Z int
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type Chunk struct {
 	X                   Int
 	Z                   Int
@@ -31,20 +31,20 @@ type Chunk struct {
 	BlockLightArrays    PrefixedArray[PrefixedByteArray, *PrefixedByteArray]
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type HeightMap struct {
 	Type VarInt
 	Data PrefixedArray[Long, *Long]
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type ChunkSection struct {
 	BlockCount  Short
 	BlockStates PalettedContainer
 	Biomes      PalettedContainer
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type BlockEntity struct {
 	PackedXZ UnsignedByte
 	Y        Short

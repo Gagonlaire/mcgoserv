@@ -32,19 +32,19 @@ type PalettedContainer struct {
 	c Container
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type SingleValueContainer struct {
 	Value VarInt
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type IndirectContainer struct {
 	DataArray   *DataArray
 	Palette     PrefixedArray[VarInt, *VarInt]
-	maxCapacity int
+	MaxCapacity int `field:"-"`
 }
 
-//go:generate-field-impl
+//field:encode mode=both
 type DirectContainer struct {
 	DataArray *DataArray
 }
@@ -128,7 +128,7 @@ func (s *SingleValueContainer) BitsPerEntry() UnsignedByte { return 0 }
 
 func newIndirectContainer(bpe int) *IndirectContainer {
 	return &IndirectContainer{
-		maxCapacity: 1 << bpe,
+		MaxCapacity: 1 << bpe,
 		Palette:     NewPrefixedArray[VarInt, *VarInt](make([]VarInt, 0)),
 		DataArray:   NewDataArray(bpe, SectionSize),
 	}
@@ -156,12 +156,12 @@ func (i *IndirectContainer) Set(index int, value int32) (Container, error) {
 		return nil, nil
 	}
 
-	if len(i.Palette.Data) >= i.maxCapacity {
+	if len(i.Palette.Data) >= i.MaxCapacity {
 		newBPE := i.DataArray.BitsPerEntry + 1
 		if newBPE > MaxIndirectBits {
 			return i.upgradeToDirect(index, value)
 		}
-		i.maxCapacity = 1 << newBPE
+		i.MaxCapacity = 1 << newBPE
 		i.resize(newBPE)
 	}
 
