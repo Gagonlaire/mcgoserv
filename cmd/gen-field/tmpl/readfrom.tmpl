@@ -1,0 +1,17 @@
+func (s *{{.StructName}}) ReadFrom(r io.Reader) (n int64, err error) {
+{{- $first := true }}
+{{- range .Fields }}
+    {{- if $first }}
+    nn, err := s.{{ .Name }}.ReadFrom(r)
+    {{- $first = false }}
+    {{- else }}
+    nn, err = s.{{ .Name }}.ReadFrom(r)
+    {{- end }}
+    if err != nil {
+        return n, err
+    }
+    n += nn
+{{- end }}
+    return n, nil
+}
+

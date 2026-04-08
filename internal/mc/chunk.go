@@ -1,3 +1,5 @@
+//go:generate go run ../../cmd/gen-field
+
 package mc
 
 import (

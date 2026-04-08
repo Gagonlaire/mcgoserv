@@ -1,0 +1,23 @@
+{{- define "flagSetter" -}}
+func ({{.Recv}} *{{.Struct}}) Set{{.Field.FieldName}}({{lowerFirst .Field.FieldName}} {{.Field.FieldType}}) {
+	if {{.Recv}}.{{.Field.FieldName}} != {{lowerFirst .Field.FieldName}} {
+		{{.Recv}}.{{.Field.FieldName}} = {{lowerFirst .Field.FieldName}}
+		{{- if eq .Mode "layer" }}
+		{{.Recv}}.markDirty({{.Field.Index}})
+		{{- else }}
+		{{.Recv}}.MarkDirty({{.Field.Index}})
+		{{- end }}
+	}
+}
+
+func ({{.Recv}} *{{.Struct}}) Set{{singular .Field.FieldName}}(flag {{.Field.FieldType}}, on bool) {
+	var newFlags {{.Field.FieldType}}
+	if on {
+		newFlags = {{.Recv}}.{{.Field.FieldName}} | flag
+	} else {
+		newFlags = {{.Recv}}.{{.Field.FieldName}} &^ flag
+	}
+	{{.Recv}}.Set{{.Field.FieldName}}(newFlags)
+}
+
+{{ end -}}

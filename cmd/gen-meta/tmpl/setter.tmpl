@@ -1,0 +1,13 @@
+{{- define "setter" -}}
+func ({{.Recv}} *{{.Struct}}) Set{{.Field.FieldName}}({{lowerFirst .Field.FieldName}} {{.Field.FieldType}}) {
+	if {{.Recv}}.{{.Field.FieldName}} != {{lowerFirst .Field.FieldName}} {
+		{{.Recv}}.{{.Field.FieldName}} = {{lowerFirst .Field.FieldName}}
+		{{- if eq .Mode "layer" }}
+		{{.Recv}}.markDirty({{.Field.Index}})
+		{{- else }}
+		{{.Recv}}.MarkDirty({{.Field.Index}})
+		{{- end }}
+	}
+}
+
+{{ end -}}

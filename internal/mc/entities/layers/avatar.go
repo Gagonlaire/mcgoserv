@@ -1,9 +1,9 @@
 package layers
 
+//go:generate go run ../../../../cmd/gen-meta .
+
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
-	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
 const (
@@ -23,41 +23,9 @@ const (
 	SkinPartHat         SkinPart = 0x40
 )
 
+//meta:encode mode=layer receiver=a
 type AvatarData struct {
 	BaseLayer
-	MainHand  int32
-	SkinParts SkinPart
-}
-
-func (a *AvatarData) SetMainHand(hand int32) {
-	if a.MainHand != hand {
-		a.MainHand = hand
-		a.markDirty(IndexMainHand)
-	}
-}
-
-func (a *AvatarData) SetSkinParts(parts SkinPart) {
-	if a.SkinParts != parts {
-		a.SkinParts = parts
-		a.markDirty(IndexSkinParts)
-	}
-}
-
-func (a *AvatarData) SetSkinPart(part SkinPart, on bool) {
-	var newParts SkinPart
-	if on {
-		newParts = a.SkinParts | part
-	} else {
-		newParts = a.SkinParts &^ part
-	}
-	a.SetSkinParts(newParts)
-}
-
-func (a *AvatarData) EncodeMetadata(pkt *packet.OutboundPacket) {
-	if a.isDirty(IndexMainHand) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexMainHand), mc.VarInt(metadata.TypeHumanoidArm), mc.Byte(a.MainHand))
-	}
-	if a.isDirty(IndexSkinParts) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexSkinParts), mc.VarInt(metadata.TypeByte), mc.Byte(a.SkinParts))
-	}
+	MainHand  int32    `meta:"IndexMainHand,HumanoidArm"`
+	SkinParts SkinPart `meta:"IndexSkinParts,Byte,flags"`
 }

@@ -1,7 +1,8 @@
 package entities
 
+//go:generate go run ../../../cmd/gen-meta .
+
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -71,12 +72,13 @@ const (
 	EntityPoseInhaling
 )
 
+//meta:encode receiver=e
 type BaseEntity struct {
 	metadata.DirtyTracker
 	DimensionID string // todo: change to a numeric id
 	// todo: fix custom, mc.PrefixedOptional[tc.Component, *tc.Component] doesn't work because of interface
 	CustomName        string
-	CustomNameVisible bool
+	CustomNameVisible bool `meta:"IndexCustomNameVisible,Boolean"`
 	Motion            [3]float64
 	Pos               [3]float64
 	TypeID            mcdata.EntityType
@@ -84,15 +86,15 @@ type BaseEntity struct {
 	FallDistance      float32
 	EntityID          int32
 	Fire              int16
-	Air               int16
+	Air               int16 `meta:"IndexAirTicks,VarInt"`
 	UUID              uuid.UUID
-	Pose              EntityPose
-	Flags             EntityFlag
+	Pose              EntityPose `meta:"IndexPose,Pose"`
+	Flags             EntityFlag `meta:"IndexEntityFlags,Byte,flags"`
 	OnGround          bool
-	NoGravity         bool
-	Silent            bool
+	NoGravity         bool `meta:"IndexNoGravity,Boolean"`
+	Silent            bool `meta:"IndexSilent,Boolean"`
 	InSyncQueue       bool
-	TickFrozen        int32
+	TickFrozen        int32 `meta:"IndexTicksFrozen,VarInt"`
 }
 
 func (e *BaseEntity) GetID() int32               { return e.EntityID }
@@ -118,73 +120,4 @@ func (e *BaseEntity) HasMetaChanges() bool {
 func (e *BaseEntity) ClearMetaChanges() {
 	e.DirtyTracker.Clear()
 	e.InSyncQueue = false
-}
-
-func (e *BaseEntity) SetFlags(flags EntityFlag) {
-	if e.Flags != flags {
-		e.Flags = flags
-		e.MarkDirty(IndexEntityFlags)
-	}
-}
-
-func (e *BaseEntity) SetFlag(flag EntityFlag, on bool) {
-	var newFlags EntityFlag
-	if on {
-		newFlags = e.Flags | flag
-	} else {
-		newFlags = e.Flags &^ flag
-	}
-	e.SetFlags(newFlags)
-}
-
-func (e *BaseEntity) SetAir(air int16) {
-	if e.Air != air {
-		e.Air = air
-		e.MarkDirty(IndexAirTicks)
-	}
-}
-
-func (e *BaseEntity) SetSilent(silent bool) {
-	if e.Silent != silent {
-		e.Silent = silent
-		e.MarkDirty(IndexSilent)
-	}
-}
-
-func (e *BaseEntity) SetNoGravity(noGravity bool) {
-	if e.NoGravity != noGravity {
-		e.NoGravity = noGravity
-		e.MarkDirty(IndexNoGravity)
-	}
-}
-
-func (e *BaseEntity) SetPose(pose EntityPose) {
-	if e.Pose != pose {
-		e.Pose = pose
-		e.MarkDirty(IndexPose)
-	}
-}
-
-func (e *BaseEntity) EncodeMetadata(pkt *packet.OutboundPacket) {
-	if e.DirtyTracker.IsDirty(IndexEntityFlags) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexEntityFlags), mc.VarInt(metadata.TypeByte), mc.Byte(e.Flags))
-	}
-	if e.DirtyTracker.IsDirty(IndexAirTicks) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexAirTicks), mc.VarInt(metadata.TypeVarInt), mc.VarInt(e.Air))
-	}
-	if e.DirtyTracker.IsDirty(IndexCustomNameVisible) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexCustomNameVisible), mc.VarInt(metadata.TypeBoolean), mc.Boolean(e.CustomNameVisible))
-	}
-	if e.DirtyTracker.IsDirty(IndexSilent) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexSilent), mc.VarInt(metadata.TypeBoolean), mc.Boolean(e.Silent))
-	}
-	if e.DirtyTracker.IsDirty(IndexNoGravity) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexNoGravity), mc.VarInt(metadata.TypeBoolean), mc.Boolean(e.NoGravity))
-	}
-	if e.DirtyTracker.IsDirty(IndexPose) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexPose), mc.VarInt(metadata.TypePose), mc.VarInt(e.Pose))
-	}
-	if e.DirtyTracker.IsDirty(IndexTicksFrozen) {
-		_ = pkt.Encode(mc.UnsignedByte(IndexTicksFrozen), mc.VarInt(metadata.TypeVarInt), mc.VarInt(e.TickFrozen))
-	}
 }

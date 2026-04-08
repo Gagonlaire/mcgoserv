@@ -1,0 +1,23 @@
+{{- define "encodeMeta" -}}
+func ({{.Recv}} *{{.Struct}}) EncodeMetadata(pkt *packet.OutboundPacket) {
+{{- range .Parents }}
+	{{$.Recv}}.{{.}}.EncodeMetadata(pkt)
+{{- end }}
+{{- range .Fields }}
+{{- if not .NoEncode }}
+{{- if eq $.Mode "layer" }}
+	if {{$.Recv}}.isDirty({{.Index}}) {
+{{- else }}
+	if {{$.Recv}}.DirtyTracker.IsDirty({{.Index}}) {
+{{- end }}
+{{- if .Raw }}
+		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), {{$.Recv}}.{{.FieldName}})
+{{- else }}
+		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), mc.{{.Cast}}({{$.Recv}}.{{.FieldName}}))
+{{- end }}
+	}
+{{- end }}
+{{- end }}
+}
+
+{{ end -}}
