@@ -3,6 +3,7 @@ package entities
 //go:generate go run ../../../cmd/gen-meta .
 
 import (
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -40,6 +41,7 @@ const (
 type EntityFlag byte
 
 const (
+	EntityFlagNone      EntityFlag = 0
 	EntityFlagOnFire    EntityFlag = 0x01
 	EntityFlagCrouching EntityFlag = 0x02
 	EntityFlagSprinting EntityFlag = 0x08
@@ -72,13 +74,12 @@ const (
 	EntityPoseInhaling
 )
 
-//meta:encode
+//meta:encode mode=entity
 type BaseEntity struct {
 	metadata.DirtyTracker
-	DimensionID string // todo: change to a numeric id
-	// todo: fix custom, mc.PrefixedOptional[tc.Component, *tc.Component] doesn't work because of interface
-	CustomName        string
-	CustomNameVisible bool `meta:"IndexCustomNameVisible,Boolean"`
+	DimensionID       string              // todo: change to a numeric id
+	CustomName        mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent"`
+	CustomNameVisible bool                `meta:"IndexCustomNameVisible,Boolean"`
 	Motion            [3]float64
 	Pos               [3]float64
 	TypeID            mcdata.EntityType
@@ -88,7 +89,7 @@ type BaseEntity struct {
 	Fire              int16
 	Air               int32 `meta:"IndexAirTicks,VarInt,default=300"`
 	UUID              uuid.UUID
-	Pose              EntityPose `meta:"IndexPose,Pose"`
+	Pose              EntityPose `meta:"IndexPose,Pose,default=EntityPoseStanding"`
 	Flags             EntityFlag `meta:"IndexEntityFlags,Byte,flags"`
 	OnGround          bool
 	NoGravity         bool `meta:"IndexNoGravity,Boolean"`

@@ -16,7 +16,7 @@ const (
 	IndexRightShoulderEntryData metadata.Index = 20
 )
 
-//meta:encode parents=LivingEntity,AvatarData
+//meta:encode mode=entity parents=LivingEntity,AvatarData
 type Player struct {
 	LivingEntity
 	layers.AvatarData

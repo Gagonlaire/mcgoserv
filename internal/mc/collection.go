@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/Gagonlaire/mcgoserv/internal/errutil"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
 )
 
 type (
@@ -89,6 +90,19 @@ type (
 		BitsPerEntry int
 		Mask         uint64
 		Size         int
+	}
+)
+
+// Component is an interface, it cannot satisfy  FieldPtr, so we need to define a separate types for it
+type (
+	OptTextComponent struct {
+		Value tc.Component
+		Has   bool
+	}
+	IdOrTextComponent struct {
+		Inline   tc.Component
+		ID       int32
+		IsInline bool
 	}
 )
 
@@ -467,4 +481,25 @@ func (d DataArray) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 	return n, nil
+}
+
+func (o OptTextComponent) WriteTo(w io.Writer) (int64, error) {
+	n, err := Boolean(o.Has).WriteTo(w)
+	if err != nil || !o.Has {
+		return n, err
+	}
+	nn, err := o.Value.WriteTo(w)
+	return n + nn, err
+}
+
+func (r IdOrTextComponent) WriteTo(w io.Writer) (int64, error) {
+	if r.IsInline {
+		n, err := VarInt(0).WriteTo(w)
+		if err != nil {
+			return n, err
+		}
+		nn, err := r.Inline.WriteTo(w)
+		return n + nn, err
+	}
+	return VarInt(r.ID + 1).WriteTo(w)
 }

@@ -4,10 +4,10 @@
 //
 // Directive (placed above a struct):
 //
-//	//meta:encode [mode=entity|layer] [parents=Parent1,Parent2]
+//	//meta:encode mode=entity|layer [parents=Parent1,Parent2]
 //
 // Directive parameters:
-//   - mode     — "entity" (default) or "layer". Layers use unexported markDirty/isDirty helpers.
+//   - mode     — required. "entity" or "layer". Layers use unexported markDirty/isDirty helpers.
 //   - parents  — comma-separated list of embedded types whose generated methods should be chained.
 //
 // Struct field tag (on each metadata field):
@@ -187,6 +187,25 @@ func main() {
 			}
 			return false
 		},
+		"isEmptyDefault": func(d string) bool { return d == "empty" },
+		"zeroExpr": func(f MetaField) string {
+			if f.IsFlags {
+				return f.FieldType + "None"
+			}
+			if f.Raw {
+				return "(" + f.FieldType + "{})"
+			}
+			switch f.Cast {
+			case "Boolean":
+				return "false"
+			case "String":
+				return `""`
+			case "Byte", "VarInt", "VarLong", "Float":
+				return "0"
+			default:
+				return "(" + f.FieldType + "{})"
+			}
+		},
 	}).ParseFS(tmplFS, "tmpl/*.tmpl"))
 
 	for _, s := range structs {
@@ -329,7 +348,6 @@ func parseDirective(directive, structName string) StructInfo {
 	info := StructInfo{
 		Name:     structName,
 		Receiver: string(unicode.ToLower(recv[0])),
-		Mode:     "entity",
 	}
 
 	// parse parameters from "//meta:encode key=val key=val"
@@ -345,6 +363,11 @@ func parseDirective(directive, structName string) StructInfo {
 		case "parents":
 			info.Parents = strings.Split(v, ",")
 		}
+	}
+
+	if info.Mode == "" {
+		fmt.Fprintf(os.Stderr, "error: //meta:encode on %s is missing required mode= parameter (entity or layer)\n", structName)
+		os.Exit(1)
 	}
 
 	return info

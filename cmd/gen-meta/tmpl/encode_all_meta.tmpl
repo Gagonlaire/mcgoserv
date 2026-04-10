@@ -5,10 +5,12 @@ func ({{.Recv}} *{{.Struct}}) EncodeAllMetadata(pkt *packet.OutboundPacket) {
 {{- end }}
 {{- range .Fields }}
 {{- if not .NoEncode }}
-{{- if .Default }}
+{{- if isEmptyDefault .Default }}
+	if {{$.Recv}}.{{.FieldName}} != ({{.FieldType}}{}) {
+{{- else if .Default }}
 	if {{$.Recv}}.{{.FieldName}} != {{.Default}} {
 {{- else }}
-	{
+	if {{$.Recv}}.{{.FieldName}} != {{zeroExpr .}} {
 {{- end }}
 {{- if .Raw }}
 		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), {{$.Recv}}.{{.FieldName}})

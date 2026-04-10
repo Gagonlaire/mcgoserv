@@ -11,9 +11,17 @@ const (
 	IndexSkinParts metadata.Index = 16
 )
 
+type EntityHumanoidArm int32
+
+const (
+	EntityHumanoidArmLeft EntityHumanoidArm = iota
+	EntityHumanoidArmRight
+)
+
 type SkinPart byte
 
 const (
+	SkinPartNone        SkinPart = 0
 	SkinPartCape        SkinPart = 0x01
 	SkinPartJacket      SkinPart = 0x02
 	SkinPartLeftSleeve  SkinPart = 0x04
@@ -26,6 +34,6 @@ const (
 //meta:encode mode=layer
 type AvatarData struct {
 	BaseLayer
-	MainHand  int32    `meta:"IndexMainHand,HumanoidArm"`
-	SkinParts SkinPart `meta:"IndexSkinParts,Byte,flags"`
+	MainHand  EntityHumanoidArm `meta:"IndexMainHand,HumanoidArm,default=EntityHumanoidArmRight"`
+	SkinParts SkinPart          `meta:"IndexSkinParts,Byte,flags"`
 }

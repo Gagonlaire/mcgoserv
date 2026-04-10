@@ -18,19 +18,20 @@ const (
 type HandState byte
 
 const (
+	HandStateNone           HandState = 0
 	HandStateIsHandActive   HandState = 0x01
 	HandStateActiveHand     HandState = 0x02
 	HandStateIsUsingRiptide HandState = 0x04
 )
 
-//meta:encode parents=BaseEntity
+//meta:encode mode=entity parents=BaseEntity
 type LivingEntity struct {
 	BaseEntity
 	HandFlags           HandState                                      `meta:"IndexHandFlags,Byte,flags"`
-	Health              float32                                        `meta:"IndexHealth,Float"`
+	Health              float32                                        `meta:"IndexHealth,Float,default=1.0"`
+	PotionEffectColor   int32                                          `meta:"IndexPotionColor,VarInt"` // this is supposed to be a Particles
 	IsPotionAmbient     bool                                           `meta:"IndexPotionAmbience,Boolean"`
 	ArrowsInEntity      int32                                          `meta:"IndexArrowsInEntity,VarInt"`
 	BeeStingersInEntity int32                                          `meta:"IndexBeeStingers,VarInt"`
 	BedLocation         mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition"`
-	// todo: Potion color Particles
 }

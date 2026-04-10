@@ -4,10 +4,10 @@
 //
 // Directive (placed above a struct):
 //
-//	//field:encode [mode=read|write|both]
+//	//field:encode mode=read|write|both
 //
 // Directive parameters:
-//   - mode — "both" (default), "read", or "write". Controls which methods are generated.
+//   - mode — required. "read", "write", or "both". Controls which methods are generated.
 //
 // Struct field tag (to exclude a field):
 //
@@ -162,7 +162,6 @@ func processFile(file *ast.File, structs *[]StructData) {
 func parseDirective(directive, structName string) StructData {
 	info := StructData{
 		StructName: structName,
-		Mode:       "both",
 	}
 
 	parts := strings.Fields(strings.TrimPrefix(directive, "//field:encode"))
@@ -175,6 +174,11 @@ func parseDirective(directive, structName string) StructData {
 		case "mode":
 			info.Mode = v
 		}
+	}
+
+	if info.Mode == "" {
+		fmt.Fprintf(os.Stderr, "error: //field:encode on %s is missing required mode= parameter (read, write, or both)\n", structName)
+		os.Exit(1)
 	}
 
 	return info

@@ -4,7 +4,7 @@ func ({{.Recv}} *{{.Struct}}) InitDefaults() {
 	{{$.Recv}}.{{.}}.InitDefaults()
 {{- end }}
 {{- range .Fields }}
-{{- if .Default }}
+{{- if and .Default (not (isEmptyDefault .Default)) }}
 	{{$.Recv}}.{{.FieldName}} = {{.Default}}
 {{- end }}
 {{- end }}
