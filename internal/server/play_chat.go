@@ -338,7 +338,18 @@ func sendSignedChatPacket(
 				_ = outPkt.Encode(bArray)
 			}
 		}
-		pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
+
+		isDuplicate := false
+		for j := 0; j < pm.Len(); j++ {
+			if bytes.Equal(pm.Get(j).Signature, signatureBytes) {
+				isDuplicate = true
+				break
+			}
+		}
+
+		if !isDuplicate {
+			pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
+		}
 	} else {
 		_ = outPkt.Encode(mc.VarInt(0))
 	}
