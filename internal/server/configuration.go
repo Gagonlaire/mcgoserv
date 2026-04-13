@@ -6,7 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -41,7 +41,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		logger.Identity(c.Player.Name),
 		logger.Network(c.Conn.RemoteAddr()),
 		logger.Value(c.Player.EntityID),
-		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2])),
+		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Position[0], c.Player.Position[1], c.Player.Position[2])),
 	)
 	out := c.NewPacket(0)
 	if out == nil {
@@ -89,17 +89,17 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	_ = out.ResetWith(
 		packet.PlayClientboundPlayerPosition,
 		mc.VarInt(0),
-		mc.NewCoordinate(c.Player.Pos),
+		mc.NewCoordinate(c.Player.Position),
 		mc.NewCoordinate(c.Player.Motion),
-		mc.Float(c.Player.Rot[0]),
-		mc.Float(c.Player.Rot[1]),
+		mc.Float(c.Player.Rotation[0]),
+		mc.Float(c.Player.Rotation[1]),
 		mc.Int(0),
 	)
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
 	// todo: all the following packet must be sent in response of the Confirm Teleportation packet sent by the client after the previous Sync position packet
 
-	c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], true, true)
+	c.syncMovement(c.Player.Position[0], c.Player.Position[1], c.Player.Position[2], true, true)
 
 	me := []*entities.Player{c.Player}
 	allPlayers := c.Server.World.Players()
@@ -128,7 +128,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	)
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 
-	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
+	cx, cz := world.GetChunkPosition(c.Player.Position[0], c.Player.Position[2])
 	_ = out.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
 	_ = out.Send(c.Conn, c.CompressionThreshold)
 

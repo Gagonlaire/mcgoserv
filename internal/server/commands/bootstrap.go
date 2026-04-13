@@ -8,6 +8,7 @@ import (
 func RegisterAll(s *server.Server) {
 	registerBan(s)
 	registerBanIP(s)
+	registerData(s)
 	registerDeop(s)
 	registerKick(s)
 	registerList(s)

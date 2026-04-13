@@ -3,7 +3,7 @@ package parsers
 import (
 	"io"
 
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Tnze/go-mc/nbt"

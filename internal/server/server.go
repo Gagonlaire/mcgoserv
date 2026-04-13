@@ -25,7 +25,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -370,9 +370,9 @@ func processIncomingPackets(s *Server) {
 		// todo: move to a tick start or end handler
 		if c.Player != nil {
 			c.Player.Movement.PacketCount = 0
-			c.Player.Movement.LastTickX = c.Player.Pos[0]
-			c.Player.Movement.LastTickY = c.Player.Pos[1]
-			c.Player.Movement.LastTickZ = c.Player.Pos[2]
+			c.Player.Movement.LastTickX = c.Player.Position[0]
+			c.Player.Movement.LastTickY = c.Player.Position[1]
+			c.Player.Movement.LastTickZ = c.Player.Position[2]
 		}
 
 	drainPackets:

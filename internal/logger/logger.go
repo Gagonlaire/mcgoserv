@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 )
 
 type Level int

@@ -34,6 +34,6 @@ const (
 //meta:encode mode=layer
 type AvatarData struct {
 	BaseLayer
-	MainHand  EntityHumanoidArm `meta:"IndexMainHand,HumanoidArm,default=EntityHumanoidArmRight"`
-	SkinParts SkinPart          `meta:"IndexSkinParts,Byte,flags"`
+	MainHand  EntityHumanoidArm `meta:"IndexMainHand,HumanoidArm,default=EntityHumanoidArmRight" nbt:"-"`
+	SkinParts SkinPart          `meta:"IndexSkinParts,Byte,flags" nbt:"-"`
 }

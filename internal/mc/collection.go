@@ -6,7 +6,7 @@ import (
 	"iter"
 
 	"github.com/Gagonlaire/mcgoserv/internal/errutil"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 )
 
 type (

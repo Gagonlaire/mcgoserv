@@ -5,10 +5,11 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
+	"github.com/google/uuid"
 )
 
 func registerMsg(s *server.Server) {
@@ -19,10 +20,10 @@ func registerMsg(s *server.Server) {
 				player := cc.Source.Entity.(*entities.Player)
 				targets := cc.Args.GetEntityTarget("targets")
 				message := cc.Args["message"].(*mc.ParsedMessage)
-				text := s.World.ResolveMessage(message, player.UUID, player.Pos)
+				text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
 				signature := cc.Signed.GetArgSignature("message")
 
-				resolved := s.World.ResolveTarget(targets, player.UUID, player.Pos)
+				resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 				senderConn, ok := s.ConnectionsByEID.Load(player.EntityID)
 				if !ok {
 					return &CommandResult{Success: 0, Result: 0}, nil
@@ -58,7 +59,7 @@ func registerSay(s *server.Server) {
 		Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			player := cc.Source.Entity.(*entities.Player)
 			message := cc.Args["message"].(*mc.ParsedMessage)
-			text := s.World.ResolveMessage(message, player.UUID, player.Pos)
+			text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
 			signature := cc.Signed.GetArgSignature("message")
 
 			senderConn, ok := s.ConnectionsByEID.Load(player.EntityID)

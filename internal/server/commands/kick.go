@@ -3,11 +3,12 @@ package commands
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
+	"github.com/google/uuid"
 )
 
 func registerKick(s *server.Server) {
@@ -17,7 +18,7 @@ func registerKick(s *server.Server) {
 				Executes(func(cc *CommandContext) (*CommandResult, error) {
 					player := cc.Source.Entity.(*entities.Player)
 					targets := cc.Args.GetEntityTarget("targets")
-					target := s.World.ResolveTarget(targets, player.UUID, player.Pos)
+					target := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 					targetConn, ok := s.ConnectionsByEID.Load(target[0].EntityID)
 
 					if ok {
@@ -36,8 +37,8 @@ func registerKick(s *server.Server) {
 							player := cc.Source.Entity.(*entities.Player)
 							targets := cc.Args.GetEntityTarget("targets")
 							message := cc.Args["reason"].(*mc.ParsedMessage)
-							kickMessage := s.World.ResolveMessage(message, player.UUID, player.Pos)
-							rTargets := s.World.ResolveTarget(targets, player.UUID, player.Pos)
+							kickMessage := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
+							rTargets := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 
 							cc.SendMessage(tc.Translatable(
 								mcdata.CommandsKickSuccess,

@@ -1,0 +1,85 @@
+{{- define "nbtAccessors" -}}
+func ({{.Recv}} *{{.Struct}}) NbtData() (nbt.StringifiedMessage, error) {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return "", err
+	}
+	return nbtpath.MapToSNBT(m)
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtGet(path *nbtpath.Path) (nbt.StringifiedMessage, error) {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return "", err
+	}
+	val, err := nbtpath.Navigate(m, path.Nodes)
+	if err != nil {
+		return "", err
+	}
+	return nbtpath.ValueToSNBT(val)
+}
+
+{{- if eq .Nbt "accessors" "both" }}
+
+func ({{.Recv}} *{{.Struct}}) NbtMerge(compound nbt.StringifiedMessage) error {
+	return nbtpath.MergeOnto({{.Recv}}, compound)
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtAppend(path *nbtpath.Path, value nbt.StringifiedMessage) error {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return err
+	}
+	v, err := nbtpath.SNBTToValue(value)
+	if err != nil {
+		return err
+	}
+	if err := nbtpath.ListAppend(m, path.Nodes, v); err != nil {
+		return err
+	}
+	return nbtpath.WriteBack({{.Recv}}, m)
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtPrepend(path *nbtpath.Path, value nbt.StringifiedMessage) error {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return err
+	}
+	v, err := nbtpath.SNBTToValue(value)
+	if err != nil {
+		return err
+	}
+	if err := nbtpath.ListPrepend(m, path.Nodes, v); err != nil {
+		return err
+	}
+	return nbtpath.WriteBack({{.Recv}}, m)
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtInsert(path *nbtpath.Path, index int, value nbt.StringifiedMessage) error {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return err
+	}
+	v, err := nbtpath.SNBTToValue(value)
+	if err != nil {
+		return err
+	}
+	if err := nbtpath.ListInsert(m, path.Nodes, index, v); err != nil {
+		return err
+	}
+	return nbtpath.WriteBack({{.Recv}}, m)
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtRemove(path *nbtpath.Path) error {
+	m, err := nbtpath.ToMap({{.Recv}})
+	if err != nil {
+		return err
+	}
+	if err := nbtpath.RemoveAtPath(m, path.Nodes); err != nil {
+		return err
+	}
+	return nbtpath.WriteBack({{.Recv}}, m)
+}
+{{- end }}
+
+{{ end -}}

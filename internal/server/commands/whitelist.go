@@ -8,7 +8,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
@@ -23,10 +23,10 @@ func enforceWhitelist(s *server.Server) {
 		if conn.Player == nil {
 			return true
 		}
-		if isOp, _ := s.PlayerRegistry.IsOp(conn.Player.UUID); isOp {
+		if isOp, _ := s.PlayerRegistry.IsOp(uuid.UUID(conn.Player.UUID)); isOp {
 			return true
 		}
-		if !s.PlayerRegistry.IsWhitelisted(conn.Player.UUID) {
+		if !s.PlayerRegistry.IsWhitelisted(uuid.UUID(conn.Player.UUID)) {
 			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 		}
 		return true
@@ -43,7 +43,7 @@ func kickRemovedPlayer(s *server.Server, uuidStr string) {
 	}
 	s.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*server.Connection)
-		if conn.Player != nil && conn.Player.UUID == removedUUID {
+		if conn.Player != nil && conn.Player.UUID == entities.NbtUUID(removedUUID) {
 			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 			return false
 		}
@@ -93,12 +93,12 @@ func registerWhitelist(s *server.Server) {
 							var sourceUUID uuid.UUID
 							var sourcePos [3]float64
 							if player, ok := cc.Source.Entity.(*entities.Player); ok {
-								sourceUUID = player.UUID
-								sourcePos = player.Pos
+								sourceUUID = uuid.UUID(player.UUID)
+								sourcePos = player.Position
 							}
 							resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
 							for _, p := range resolved {
-								targets = append(targets, whitelistTarget{p.UUID, p.Name})
+								targets = append(targets, whitelistTarget{uuid.UUID(p.UUID), p.Name})
 							}
 							if len(resolved) == 0 {
 								return &CommandResult{Success: 0, Result: 0}, nil
@@ -151,12 +151,12 @@ func registerWhitelist(s *server.Server) {
 							var sourceUUID uuid.UUID
 							var sourcePos [3]float64
 							if player, ok := cc.Source.Entity.(*entities.Player); ok {
-								sourceUUID = player.UUID
-								sourcePos = player.Pos
+								sourceUUID = uuid.UUID(player.UUID)
+								sourcePos = player.Position
 							}
 							resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
 							for _, p := range resolved {
-								entry, ok := s.PlayerRegistry.RemoveWhitelistByUUID(p.UUID.String())
+								entry, ok := s.PlayerRegistry.RemoveWhitelistByUUID(uuid.UUID(p.UUID).String())
 								if ok {
 									removals = append(removals, removedInfo{entry.UUID, entry.Name})
 								}

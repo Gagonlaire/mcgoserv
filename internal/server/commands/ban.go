@@ -7,7 +7,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -22,7 +22,7 @@ func banSource(cc *CommandContext) string {
 	return "Server"
 }
 
-func kickBannedPlayer(s *server.Server, playerUUID uuid.UUID, reason string) {
+func kickBannedPlayer(s *server.Server, playerUUID entities.NbtUUID, reason string) {
 	s.Connections.Range(func(k, v any) bool {
 		conn := k.(*server.Connection)
 		if conn.Player != nil && conn.Player.UUID == playerUUID {
@@ -139,17 +139,17 @@ func registerPardon(s *server.Server) {
 							unbans = append(unbans, unbanInfo{"", target.Name})
 						}
 					case mc.TargetTypeSelector:
-						var sourceUUID uuid.UUID
+						var sourceUUID entities.NbtUUID
 						var sourcePos [3]float64
 						if player, ok := cc.Source.Entity.(*entities.Player); ok {
 							sourceUUID = player.UUID
-							sourcePos = player.Pos
+							sourcePos = player.Position
 						}
-						resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+						resolved := s.World.ResolveTarget(target, uuid.UUID(sourceUUID), sourcePos)
 						for _, p := range resolved {
-							if banned, _ := s.PlayerRegistry.IsBanned(p.UUID); banned {
-								s.PlayerRegistry.UnbanByUUID(p.UUID.String())
-								unbans = append(unbans, unbanInfo{p.UUID.String(), p.Name})
+							if banned, _ := s.PlayerRegistry.IsBanned(uuid.UUID(p.UUID)); banned {
+								s.PlayerRegistry.UnbanByUUID(uuid.UUID(p.UUID).String())
+								unbans = append(unbans, unbanInfo{uuid.UUID(p.UUID).String(), p.Name})
 							}
 						}
 					}
@@ -249,15 +249,15 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 				targets = append(targets, banTarget{offlineUUID, target.Name})
 			}
 		case mc.TargetTypeSelector:
-			var sourceUUID uuid.UUID
+			var sourceUUID entities.NbtUUID
 			var sourcePos [3]float64
 			if player, ok := cc.Source.Entity.(*entities.Player); ok {
 				sourceUUID = player.UUID
-				sourcePos = player.Pos
+				sourcePos = player.Position
 			}
-			resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+			resolved := s.World.ResolveTarget(target, uuid.UUID(sourceUUID), sourcePos)
 			for _, p := range resolved {
-				targets = append(targets, banTarget{p.UUID, p.Name})
+				targets = append(targets, banTarget{uuid.UUID(p.UUID), p.Name})
 			}
 			if len(resolved) == 0 {
 				return &CommandResult{Success: 0, Result: 0}, nil
@@ -273,7 +273,7 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 			}
 			s.PlayerRegistry.Ban(t.UUID, t.Name, source, reason, "forever")
 			cc.SendMessage(tc.Translatable(mcdata.CommandsBanSuccess, tc.Text(t.Name), tc.Text(reason)))
-			kickBannedPlayer(s, t.UUID, reason)
+			kickBannedPlayer(s, entities.NbtUUID(t.UUID), reason)
 			success++
 		}
 

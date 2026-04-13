@@ -4,7 +4,8 @@ import (
 	"io"
 	"strconv"
 
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Tnze/go-mc/nbt"
@@ -16,18 +17,18 @@ var NbtCompoundTag = NbtCompoundTagType{}
 
 func (n NbtCompoundTagType) ID() int { return 21 } // minecraft:nbt_compound_tag
 
-func (n NbtCompoundTagType) Parse(r *commander.CommandReader) (nbt.StringifiedMessage, error) {
+func (n NbtCompoundTagType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
 	raw, err := readSNBT(r)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// todo: find a way to avoid the double parsing
 	tagType, err := validateSNBT(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return "", commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), start,
 		)
@@ -35,7 +36,7 @@ func (n NbtCompoundTagType) Parse(r *commander.CommandReader) (nbt.StringifiedMe
 
 	if tagType != nbt.TagCompound {
 		r.SetCursor(start)
-		return "", commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
 			r.Input(), start,
 		)
@@ -52,17 +53,17 @@ var NbtTag = NbtTagType{}
 
 func (n NbtTagType) ID() int { return 22 } // minecraft:nbt_tag
 
-func (n NbtTagType) Parse(r *commander.CommandReader) (nbt.StringifiedMessage, error) {
+func (n NbtTagType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
 	raw, err := readSNBT(r)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	_, err = validateSNBT(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return "", commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), start,
 		)
@@ -77,21 +78,13 @@ var NbtPath = NbtPathType{}
 
 type NbtPathType struct{}
 
-type NbtPathNode struct {
-	Name    string
-	Index   int
-	IsMatch bool
-	Filter  nbt.StringifiedMessage
-}
+type NbtPathNode = nbtpath.Node
 
-type ParsedNbtPath struct {
-	Nodes []NbtPathNode
-	Raw   string
-}
+type ParsedNbtPath = nbtpath.Path
 
 func (n NbtPathType) ID() int { return 23 } // minecraft:nbt_path
 
-func (n NbtPathType) Parse(r *commander.CommandReader) (*ParsedNbtPath, error) {
+func (n NbtPathType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
 	var nodes []NbtPathNode
 

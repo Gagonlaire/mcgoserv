@@ -3,10 +3,11 @@ package commands
 import (
 	"strconv"
 
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/google/uuid"
 )
 
 func getPlayerList(srv *server.Server, withUUID bool) (tc.Component, int) {
@@ -22,7 +23,7 @@ func getPlayerList(srv *server.Server, withUUID bool) (tc.Component, int) {
 				entry = tc.Translatable(
 					mcdata.CommandsListNameAndId,
 					tc.Text(player.Name),
-					tc.Text(player.UUID.String()),
+					tc.Text(uuid.UUID(player.UUID).String()),
 				)
 			} else {
 				entry = tc.PlayerName(player.Name)

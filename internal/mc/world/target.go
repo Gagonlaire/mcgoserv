@@ -59,7 +59,7 @@ func (w *World) nearestPlayer(pos [3]float64) []*entities.Player {
 	var nearest *entities.Player
 	bestDist := math.MaxFloat64
 	for _, p := range w.PlayersByID {
-		d := distSq(pos, p.Pos)
+		d := distSq(pos, p.Position)
 		if d < bestDist {
 			bestDist = d
 			nearest = p

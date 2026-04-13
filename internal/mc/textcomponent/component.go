@@ -1,4 +1,4 @@
-package text_component
+package textcomponent
 
 import (
 	"encoding/json"

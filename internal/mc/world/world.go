@@ -107,19 +107,19 @@ func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) erro
 	if _, ok := w.EntitiesByID[base.EntityID]; ok {
 		return fmt.Errorf("entity id already used: %d", base.EntityID)
 	}
-	if _, ok := w.EntitiesByUUID[base.UUID]; ok {
+	if _, ok := w.EntitiesByUUID[uuid.UUID(base.UUID)]; ok {
 		return fmt.Errorf("entity uuid already used: %s", base.UUID)
 	}
 
 	dimension := w.Dimension(dimensionID)
-	chunkX, chunkZ := GetChunkPosition(base.Pos[0], base.Pos[2])
+	chunkX, chunkZ := GetChunkPosition(base.Position[0], base.Position[2])
 
 	dimension.GetChunk(chunkX, chunkZ).Entities[base.EntityID] = struct{}{}
 	base.DimensionID = dimensionID
 	w.EntitiesByID[base.EntityID] = player
-	w.EntitiesByUUID[base.UUID] = player
+	w.EntitiesByUUID[uuid.UUID(base.UUID)] = player
 	w.PlayersByID[base.EntityID] = player
-	w.PlayersByUUID[base.UUID] = player
+	w.PlayersByUUID[uuid.UUID(base.UUID)] = player
 
 	return nil
 }
@@ -133,7 +133,7 @@ func (w *World) RemoveEntityByUUID(entityUUID uuid.UUID) {
 	base := entity.Base()
 	entityID := base.EntityID
 	dimension := w.GetEntityDimension(entity)
-	chunkX, chunkZ := GetChunkPosition(base.Pos[0], base.Pos[2])
+	chunkX, chunkZ := GetChunkPosition(base.Position[0], base.Position[2])
 	delete(dimension.GetChunk(chunkX, chunkZ).Entities, entityID)
 
 	if player := w.PlayersByID[entityID]; player != nil {

@@ -1,4 +1,4 @@
-package text_component
+package textcomponent
 
 type Interactivity struct {
 	ClickEvent any    `nbt:"click_event,omitempty" json:"click_event,omitempty"`

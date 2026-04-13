@@ -39,7 +39,7 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 		return
 	}
 	dim := s.World.GetEntityDimension(sender.Player)
-	cx, cz := world.GetChunkPosition(sender.Player.Pos[0], sender.Player.Pos[2])
+	cx, cz := world.GetChunkPosition(sender.Player.Position[0], sender.Player.Position[2])
 	chunk := dim.GetChunk(cx, cz)
 
 	senderEID := sender.Player.EntityID
@@ -60,7 +60,7 @@ func (s *Server) BroadcastEntityViewers(entity entities.Entity, pkt *packet.Outb
 		return
 	}
 	dim := s.World.GetEntityDimension(entity)
-	cx, cz := world.GetChunkPosition(entity.Base().Pos[0], entity.Base().Pos[2])
+	cx, cz := world.GetChunkPosition(entity.Base().Position[0], entity.Base().Position[2])
 	chunk := dim.GetChunk(cx, cz)
 
 	for watcherID := range chunk.Watchers {

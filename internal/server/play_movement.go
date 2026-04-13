@@ -6,7 +6,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -27,14 +27,14 @@ func (c *Connection) HandleConfirmTeleportation(teleportID *mc.VarInt) {
 }
 
 func (c *Connection) HandleSetPlayerPosition(data *decoders.SetPlayerPosition) {
-	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
+	oldX, oldY, oldZ := c.Player.Position[0], c.Player.Position[1], c.Player.Position[2]
 	if c.handlePositionUpdate(float64(data.X), float64(data.Y), float64(data.Z), int8(data.Flags)) {
 		c.syncMovement(oldX, oldY, oldZ, true, false)
 	}
 }
 
 func (c *Connection) HandleSetPlayerPositionAndRotation(data *decoders.SetPlayerPositionAndRotation) {
-	oldX, oldY, oldZ := c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2]
+	oldX, oldY, oldZ := c.Player.Position[0], c.Player.Position[1], c.Player.Position[2]
 	posValid := c.handlePositionUpdate(float64(data.X), float64(data.Y), float64(data.Z), int8(data.Flags))
 	rotValid := c.handleRotationUpdate(float32(data.Yaw), float32(data.Pitch), int8(data.Flags))
 
@@ -45,7 +45,7 @@ func (c *Connection) HandleSetPlayerPositionAndRotation(data *decoders.SetPlayer
 
 func (c *Connection) HandleSetPlayerRotation(data *decoders.SetPlayerRotation) {
 	if c.handleRotationUpdate(float32(data.Yaw), float32(data.Pitch), int8(data.Flags)) {
-		c.syncMovement(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], false, true)
+		c.syncMovement(c.Player.Position[0], c.Player.Position[1], c.Player.Position[2], false, true)
 	}
 }
 
@@ -55,9 +55,9 @@ func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
 	}
 	c.Player.OnGround = (*flags)&0x01 != 0
 	c.syncMovement(
-		c.Player.Pos[0],
-		c.Player.Pos[1],
-		c.Player.Pos[2],
+		c.Player.Position[0],
+		c.Player.Position[1],
+		c.Player.Position[2],
 		false,
 		true,
 	)
@@ -74,8 +74,8 @@ func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
 		return false
 	}
 
-	c.Player.Rot[0] = yaw
-	c.Player.Rot[1] = pitch
+	c.Player.Rotation[0] = yaw
+	c.Player.Rotation[1] = pitch
 	c.Player.OnGround = flags&0x01 != 0
 	c.Player.PushingAgainstWall = flags&0x02 != 0
 
@@ -83,9 +83,9 @@ func (c *Connection) handleRotationUpdate(yaw, pitch float32, flags int8) bool {
 }
 
 func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChanged bool) {
-	deltaX := int64(c.Player.Pos[0]*fixedPointMultiplier - oldX*fixedPointMultiplier)
-	deltaY := int64(c.Player.Pos[1]*fixedPointMultiplier - oldY*fixedPointMultiplier)
-	deltaZ := int64(c.Player.Pos[2]*fixedPointMultiplier - oldZ*fixedPointMultiplier)
+	deltaX := int64(c.Player.Position[0]*fixedPointMultiplier - oldX*fixedPointMultiplier)
+	deltaY := int64(c.Player.Position[1]*fixedPointMultiplier - oldY*fixedPointMultiplier)
+	deltaZ := int64(c.Player.Position[2]*fixedPointMultiplier - oldZ*fixedPointMultiplier)
 	needsTeleport := deltaX > maxDelta || deltaX < minDelta ||
 		deltaY > maxDelta || deltaY < minDelta ||
 		deltaZ > maxDelta || deltaZ < minDelta
@@ -94,12 +94,12 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		if logger.IsDebug() {
 			logger.Debug("Delta too large for %s, using teleport sync", c.Player.Name)
 		}
-		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1], 0)
+		c.Teleport(c.Player.Position[0], c.Player.Position[1], c.Player.Position[2], c.Player.Rotation[0], c.Player.Rotation[1], 0)
 		return
 	}
 
-	yaw := mc.DegreesToAngle(c.Player.Rot[0])
-	pitch := mc.DegreesToAngle(c.Player.Rot[1])
+	yaw := mc.DegreesToAngle(c.Player.Rotation[0])
+	pitch := mc.DegreesToAngle(c.Player.Rotation[1])
 	var pkt *packet.OutboundPacket
 
 	switch {
@@ -167,13 +167,13 @@ func (c *Connection) handlePositionUpdate(x, y, z float64, flags int8) bool {
 	maxDistSq := 100.0 * float64(multiplier)
 	if distSq-velocitySq > maxDistSq {
 		logger.Warn("%s moved too quickly! %.2f, %.2f, %.2f", c.Player.Name, dx, dy, dz)
-		c.Teleport(c.Player.Pos[0], c.Player.Pos[1], c.Player.Pos[2], c.Player.Rot[0], c.Player.Rot[1], 0)
+		c.Teleport(c.Player.Position[0], c.Player.Position[1], c.Player.Position[2], c.Player.Rotation[0], c.Player.Rotation[1], 0)
 		return false
 	}
 
-	c.Player.Pos[0] = x
-	c.Player.Pos[1] = y
-	c.Player.Pos[2] = z
+	c.Player.Position[0] = x
+	c.Player.Position[1] = y
+	c.Player.Position[2] = z
 	c.Player.OnGround = flags&0x01 != 0
 	c.Player.PushingAgainstWall = flags&0x02 != 0
 	c.Server.World.UpdateEntityChunk(c.Player.EntityID, c.Player.Movement.LastTickX, c.Player.Movement.LastTickZ, x, z)
@@ -186,30 +186,30 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 	if logger.IsDebug() {
 		logger.Debug("Teleporting %s to %.2f, %.2f, %.2f", c.Player.Name, x, y, z)
 	}
-	oldX, oldZ := c.Player.Pos[0], c.Player.Pos[2]
+	oldX, oldZ := c.Player.Position[0], c.Player.Position[2]
 
 	// todo: move this logic into a helper func
 	if flags&mc.TeleportationFlagsRelativeX != 0 {
-		x += c.Player.Pos[0]
+		x += c.Player.Position[0]
 	}
 	if flags&mc.TeleportationFlagsRelativeY != 0 {
-		y += c.Player.Pos[1]
+		y += c.Player.Position[1]
 	}
 	if flags&mc.TeleportationFlagsRelativeZ != 0 {
-		z += c.Player.Pos[2]
+		z += c.Player.Position[2]
 	}
 	if flags&mc.TeleportationFlagsRelativeYaw != 0 {
-		yaw += c.Player.Rot[0]
+		yaw += c.Player.Rotation[0]
 	}
 	if flags&mc.TeleportationFlagsRelativePitch != 0 {
-		pitch += c.Player.Rot[1]
+		pitch += c.Player.Rotation[1]
 	}
 
-	c.Player.Pos[0] = x
-	c.Player.Pos[1] = y
-	c.Player.Pos[2] = z
-	c.Player.Rot[0] = yaw
-	c.Player.Rot[1] = pitch
+	c.Player.Position[0] = x
+	c.Player.Position[1] = y
+	c.Player.Position[2] = z
+	c.Player.Rotation[0] = yaw
+	c.Player.Rotation[1] = pitch
 	c.Player.Movement.LastTickX = x
 	c.Player.Movement.LastTickY = y
 	c.Player.Movement.LastTickZ = z
@@ -252,7 +252,7 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 		if _, seesAfter := newChunk.Watchers[watcherID]; seesAfter {
 			tpPkt := c.NewPacket(
 				packet.PlayClientboundEntityPositionSync,
-				encoders.NewTeleportEntity(selfID, c.Player.Pos, c.Player.Rot, c.Player.OnGround),
+				encoders.NewTeleportEntity(selfID, c.Player.Position, c.Player.Rotation, c.Player.OnGround),
 			)
 			target.Send(tpPkt)
 		} else {
@@ -287,7 +287,7 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 // todo: doing too much, remove entity tracking and update
 func (c *Connection) updateChunkView(force bool) {
 	// todo: check chunk batch start/stop
-	cx, cz := world.GetChunkPosition(c.Player.Pos[0], c.Player.Pos[2])
+	cx, cz := world.GetChunkPosition(c.Player.Position[0], c.Player.Position[2])
 
 	if cx == c.Player.Movement.LastChunkX && cz == c.Player.Movement.LastChunkZ && !force {
 		return

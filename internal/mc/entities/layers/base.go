@@ -6,7 +6,7 @@ type Tracker interface {
 }
 
 type BaseLayer struct {
-	tracker Tracker
+	tracker Tracker `nbt:"-"`
 }
 
 func (b *BaseLayer) Init(t Tracker) {

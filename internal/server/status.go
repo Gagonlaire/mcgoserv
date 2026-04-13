@@ -6,6 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/google/uuid"
 )
 
 type PlayerSample struct {
@@ -45,7 +46,7 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 		if player.Information.AllowServerListings {
 			data.Players.Sample = append(data.Players.Sample, PlayerSample{
 				Name: player.Name,
-				ID:   player.UUID.String(),
+				ID:   uuid.UUID(player.UUID).String(),
 			})
 		}
 	}

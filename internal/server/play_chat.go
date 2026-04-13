@@ -16,7 +16,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
-	tc "github.com/Gagonlaire/mcgoserv/internal/mc/text-component"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
@@ -88,7 +88,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 
 	if err := verifyChatSessionKey(
 		c.Server.Keys.CertificateKeys,
-		c.Player.UUID,
+		uuid.UUID(c.Player.UUID),
 		int64(data.ExpiresAt),
 		publicKeyBytes,
 		signatureBytes,
@@ -184,7 +184,7 @@ func (c *Connection) HandleSignedChatCommand(data *decoders.SignedChatCommand) {
 			argValue := string(data.Command)[node.Range.Start:node.Range.End]
 			if !verifyMessageSignature(
 				chatSession,
-				c.Player.UUID,
+				uuid.UUID(c.Player.UUID),
 				argValue,
 				int64(data.Timestamp),
 				int64(data.Salt),
@@ -238,7 +238,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 			c.Disconnect(tc.Translatable(err))
 			return
 		}
-		if !verifyMessageSignature(chatSession, c.Player.UUID, string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes) {
+		if !verifyMessageSignature(chatSession, uuid.UUID(c.Player.UUID), string(data.Message), int64(data.Timestamp), int64(data.Salt), chatSession.Index, lastSeenSignatures, signatureBytes) {
 			c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectChatValidationFailed))
 			return
 		}
@@ -462,8 +462,8 @@ func (c *Connection) playerSource() *commander.CommandSource {
 		PermissionLevel: c.Player.PermissionLevel,
 		Server:          c.Server,
 		Entity:          c.Player,
-		Position:        c.Player.Pos,
-		Rotation:        c.Player.Rot,
+		Position:        c.Player.Position,
+		Rotation:        c.Player.Rotation,
 		SendMessage: func(msg any) {
 			if comp, ok := msg.(tc.Component); ok {
 				pkt := c.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))

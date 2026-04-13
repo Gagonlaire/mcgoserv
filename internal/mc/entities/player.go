@@ -16,7 +16,7 @@ const (
 	IndexRightShoulderEntryData metadata.Index = 20
 )
 
-//meta:encode mode=entity parents=LivingEntity,AvatarData
+//meta:encode mode=entity parents=LivingEntity,AvatarData nbt=getters
 type Player struct {
 	LivingEntity
 	layers.AvatarData
@@ -66,8 +66,8 @@ func NewPlayer(
 		LivingEntity: LivingEntity{
 			BaseEntity: BaseEntity{
 				EntityID: 0,
-				Pos:      [3]float64{0, 80, 0},
-				UUID:     UUID,
+				Position: [3]float64{0, 80, 0},
+				UUID:     NbtUUID(UUID),
 				OnGround: true,
 				TypeID:   mcdata.EntityPlayer,
 			},
@@ -81,7 +81,7 @@ func NewPlayer(
 		PreviousGameMode:  -1,
 		ProfileProperties: profileProperties,
 	}
-	player.Movement.LastTickY = player.Pos[1]
+	player.Movement.LastTickY = player.Position[1]
 	player.Movement.VisibleChunks = make(map[mc.ChunkPos]struct{})
 	player.Information.ViewDistance = mc.Byte(cfg.Performance.MaxViewDistance)
 	player.Information.AllowServerListings = true

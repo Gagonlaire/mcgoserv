@@ -7,7 +7,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/google/uuid"
 )
 
 type Entity interface {
@@ -15,7 +14,7 @@ type Entity interface {
 	HasMetaChanges() bool
 	ClearMetaChanges()
 	GetID() int32
-	GetUUID() uuid.UUID
+	GetUUID() NbtUUID
 	GetType() mcdata.EntityType
 	GetPos() [3]float64
 	SetPos(pos [3]float64)
@@ -74,37 +73,43 @@ const (
 	EntityPoseInhaling
 )
 
-//meta:encode mode=entity
+// BaseEntity todo: we should wrap during load/save entities in a struct that hold the type id, exposed for nbt parser
+//
+//meta:encode mode=entity nbt=accessors
 type BaseEntity struct {
-	metadata.DirtyTracker
-	DimensionID       string              // todo: change to a numeric id
-	CustomName        mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent"`
-	CustomNameVisible bool                `meta:"IndexCustomNameVisible,Boolean"`
-	Motion            [3]float64
-	Pos               [3]float64
-	TypeID            mcdata.EntityType
-	Rot               [2]float32
-	FallDistance      float32
-	EntityID          int32
-	Fire              int16
-	Air               int32 `meta:"IndexAirTicks,VarInt,default=300"`
-	UUID              uuid.UUID
-	Pose              EntityPose `meta:"IndexPose,Pose,default=EntityPoseStanding"`
-	Flags             EntityFlag `meta:"IndexEntityFlags,Byte,flags"`
-	OnGround          bool
-	NoGravity         bool `meta:"IndexNoGravity,Boolean"`
-	Silent            bool `meta:"IndexSilent,Boolean"`
-	InSyncQueue       bool
-	TickFrozen        int32 `meta:"IndexTicksFrozen,VarInt"`
+	metadata.DirtyTracker `nbt:"-"`
+	DimensionID           string              `nbt:"-"`                                         // todo: change to a numeric id
+	CustomName            mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent" nbt:"-"` // todo: add text component ntb encoding
+	CustomNameVisible     bool                `meta:"IndexCustomNameVisible,Boolean" nbt:"omitempty"`
+	Motion                [3]float64
+	Position              [3]float64        `nbt:"Pos"`
+	TypeID                mcdata.EntityType `nbt:"-"`
+	Rotation              [2]float32
+	EntityID              int32 `nbt:"-"`
+	Air                   int16 `meta:"IndexAirTicks,VarInt,default=300"`
+	Fire                  int16
+	UUID                  NbtUUID
+	Pose                  EntityPose `meta:"IndexPose,Pose,default=EntityPoseStanding" nbt:"-"`
+	Flags                 EntityFlag `meta:"IndexEntityFlags,Byte,flags" nbt:"-"`
+	OnGround              bool
+	NoGravity             bool    `meta:"IndexNoGravity,Boolean" nbt:"omitempty"`
+	Silent                bool    `meta:"IndexSilent,Boolean" nbt:"omitempty"`
+	InSyncQueue           bool    `nbt:"-"` // used for metadata sync
+	TicksFrozen           int32   `meta:"IndexTicksFrozen,VarInt" nbt:"omitempty"`
+	FallDistance          float64 `nbt:"fall_distance"`
+	Glowing               bool    `nbt:"omitempty"` // this is an alias for EntityFlagGlowing entity flag
+	Invulnerable          bool    `nbt:"omitempty"`
+	PortalCooldown        int32
+	// todo: implement Passengers, Tags and data
 }
 
 func (e *BaseEntity) GetID() int32               { return e.EntityID }
-func (e *BaseEntity) GetUUID() uuid.UUID         { return e.UUID }
+func (e *BaseEntity) GetUUID() NbtUUID           { return e.UUID }
 func (e *BaseEntity) GetType() mcdata.EntityType { return e.TypeID }
-func (e *BaseEntity) GetPos() [3]float64         { return e.Pos }
-func (e *BaseEntity) SetPos(pos [3]float64)      { e.Pos = pos }
-func (e *BaseEntity) GetRot() [2]float32         { return e.Rot }
-func (e *BaseEntity) SetRot(rot [2]float32)      { e.Rot = rot }
+func (e *BaseEntity) GetPos() [3]float64         { return e.Position }
+func (e *BaseEntity) SetPos(pos [3]float64)      { e.Position = pos }
+func (e *BaseEntity) GetRot() [2]float32         { return e.Rotation }
+func (e *BaseEntity) SetRot(rot [2]float32)      { e.Rotation = rot }
 func (e *BaseEntity) GetMotion() [3]float64      { return e.Motion }
 func (e *BaseEntity) IsOnGround() bool           { return e.OnGround }
 func (e *BaseEntity) Tick()                      {}
