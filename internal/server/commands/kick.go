@@ -18,7 +18,7 @@ func registerKick(s *server.Server) {
 				Executes(func(cc *CommandContext) (*CommandResult, error) {
 					player := cc.Source.Entity.(*entities.Player)
 					targets := cc.Args.GetEntityTarget("targets")
-					target := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
+					target := s.World.ResolvePlayers(targets, uuid.UUID(player.UUID), player.Position)
 					targetConn, ok := s.ConnectionsByEID.Load(target[0].EntityID)
 
 					if ok {
@@ -38,7 +38,7 @@ func registerKick(s *server.Server) {
 							targets := cc.Args.GetEntityTarget("targets")
 							message := cc.Args["reason"].(*mc.ParsedMessage)
 							kickMessage := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
-							rTargets := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
+							rTargets := s.World.ResolvePlayers(targets, uuid.UUID(player.UUID), player.Position)
 
 							cc.SendMessage(tc.Translatable(
 								mcdata.CommandsKickSuccess,

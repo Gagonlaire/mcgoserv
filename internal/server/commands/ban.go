@@ -145,7 +145,7 @@ func registerPardon(s *server.Server) {
 							sourceUUID = player.UUID
 							sourcePos = player.Position
 						}
-						resolved := s.World.ResolveTarget(target, uuid.UUID(sourceUUID), sourcePos)
+						resolved := s.World.ResolvePlayers(target, uuid.UUID(sourceUUID), sourcePos)
 						for _, p := range resolved {
 							if banned, _ := s.PlayerRegistry.IsBanned(uuid.UUID(p.UUID)); banned {
 								s.PlayerRegistry.UnbanByUUID(uuid.UUID(p.UUID).String())
@@ -255,7 +255,7 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 				sourceUUID = player.UUID
 				sourcePos = player.Position
 			}
-			resolved := s.World.ResolveTarget(target, uuid.UUID(sourceUUID), sourcePos)
+			resolved := s.World.ResolvePlayers(target, uuid.UUID(sourceUUID), sourcePos)
 			for _, p := range resolved {
 				targets = append(targets, banTarget{uuid.UUID(p.UUID), p.Name})
 			}

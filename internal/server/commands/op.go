@@ -57,7 +57,7 @@ func registerOp(s *server.Server) {
 							sourceUUID = uuid.UUID(player.UUID)
 							sourcePos = player.Position
 						}
-						resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+						resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
 						for _, p := range resolved {
 							targets = append(targets, opTarget{uuid.UUID(p.UUID), p.Name})
 						}
@@ -123,7 +123,7 @@ func registerDeop(s *server.Server) {
 							sourceUUID = uuid.UUID(player.UUID)
 							sourcePos = player.Position
 						}
-						resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+						resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
 						for _, p := range resolved {
 							entry, ok := s.PlayerRegistry.RemoveOpByUUID(uuid.UUID(p.UUID).String())
 							if ok {

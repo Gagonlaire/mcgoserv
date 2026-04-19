@@ -2,7 +2,9 @@ package commands
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
@@ -15,34 +17,40 @@ func registerData(s *server.Server) {
 	s.Commander.Register(
 		Literal("data").Connect(
 			Literal("get").Connect(
-				Argument("target", parsers.Entity.PlayersOnly(true).Single(true)).
+				Argument("target", parsers.Entity.Single(true)).
 					Executes(func(cc *CommandContext) (*CommandResult, error) {
 						player := cc.Source.Entity.(*entities.Player)
 						targets := cc.Args.GetEntityTarget("target")
 						resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 						if len(resolved) == 0 {
-							cc.SendMessage(tc.Text("No entity found"))
+							cc.SendMessage(tc.Translatable(mcdata.ArgumentEntityNotfoundEntity).SetColor(tc.ColorRed))
 							return &CommandResult{Success: 0}, nil
 						}
 						target := resolved[0]
 
-						// todo: support direct entities
-						data, err := target.Base().NbtData()
+						reader, ok := target.(nbtpath.NbtReader)
+						if !ok {
+							cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
+							return &CommandResult{Success: 0}, nil
+						}
+						data, err := reader.NbtData()
 						if err != nil {
-							cc.SendMessage(tc.Text("Error: " + err.Error()))
+							cc.SendMessage(tc.Translatable(mcdata.CommandsDataGetUnknown, tc.Text(err.Error())).SetColor(tc.ColorRed))
+							return &CommandResult{Success: 0}, nil
+						}
+						dataComp, err := nbtpath.SNBTToComponent(data)
+						if err != nil {
+							cc.SendMessage(tc.Translatable(mcdata.CommandsDataGetInvalid, tc.Text(err.Error())).SetColor(tc.ColorRed))
 							return &CommandResult{Success: 0}, nil
 						}
 
-						cc.SendMessage(tc.Container(
-							tc.Text(target.Name+" has the following entity data: ").SetColor(tc.ColorGreen),
-							tc.Text(string(data)).SetColor(tc.ColorWhite),
-						))
+						cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityQuery, entityDisplayName(target), dataComp))
 						return &CommandResult{Success: 1}, nil
 					}),
 			),
 
 			Literal("merge").Connect(
-				Argument("target", parsers.Entity.PlayersOnly(true).Single(true)).Connect(
+				Argument("target", parsers.Entity.Single(true)).Connect(
 					Argument("nbt", parsers.NbtCompoundTag).
 						Executes(func(cc *CommandContext) (*CommandResult, error) {
 							player := cc.Source.Entity.(*entities.Player)
@@ -50,21 +58,22 @@ func registerData(s *server.Server) {
 							compound := GetArgument[nbt.StringifiedMessage](cc.Args, "nbt")
 							resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 							if len(resolved) == 0 {
-								cc.SendMessage(tc.Text("No entity found"))
+								cc.SendMessage(tc.Translatable(mcdata.ArgumentEntityNotfoundEntity).SetColor(tc.ColorRed))
 								return &CommandResult{Success: 0}, nil
 							}
 							target := resolved[0]
 
-							// todo: support direct entities
-							if err := target.Base().NbtMerge(compound); err != nil {
-								cc.SendMessage(tc.Text("Error: " + err.Error()))
+							merger, ok := target.(nbtMergeable)
+							if !ok {
+								cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
+								return &CommandResult{Success: 0}, nil
+							}
+							if err := merger.NbtMerge(compound); err != nil {
+								cc.SendMessage(tc.Translatable(mcdata.CommandsDataMergeFailed).SetColor(tc.ColorRed))
 								return &CommandResult{Success: 0}, nil
 							}
 
-							cc.SendMessage(tc.Container(
-								tc.Text("Merged NBT data into ").SetColor(tc.ColorGreen),
-								tc.Text(target.Name).SetColor(tc.ColorWhite),
-							))
+							cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityModified, entityDisplayName(target)))
 							return &CommandResult{Success: 1}, nil
 						}),
 				),

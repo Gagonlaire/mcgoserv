@@ -98,7 +98,7 @@ type BaseEntity struct {
 	TicksFrozen           int32   `meta:"IndexTicksFrozen,VarInt" nbt:"omitempty"`
 	FallDistance          float64 `nbt:"fall_distance"`
 	Glowing               bool    `nbt:"omitempty"` // this is an alias for EntityFlagGlowing entity flag
-	Invulnerable          bool    `nbt:"omitempty"`
+	Invulnerable          bool
 	PortalCooldown        int32
 	// todo: implement Passengers, Tags and data
 }

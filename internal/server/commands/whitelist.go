@@ -96,7 +96,7 @@ func registerWhitelist(s *server.Server) {
 								sourceUUID = uuid.UUID(player.UUID)
 								sourcePos = player.Position
 							}
-							resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+							resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
 							for _, p := range resolved {
 								targets = append(targets, whitelistTarget{uuid.UUID(p.UUID), p.Name})
 							}
@@ -154,7 +154,7 @@ func registerWhitelist(s *server.Server) {
 								sourceUUID = uuid.UUID(player.UUID)
 								sourcePos = player.Position
 							}
-							resolved := s.World.ResolveTarget(target, sourceUUID, sourcePos)
+							resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
 							for _, p := range resolved {
 								entry, ok := s.PlayerRegistry.RemoveWhitelistByUUID(uuid.UUID(p.UUID).String())
 								if ok {

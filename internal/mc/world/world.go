@@ -98,8 +98,8 @@ func (w *World) EnqueueDirty(e entities.Entity) {
 	}
 }
 
-func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) error {
-	base := player.Base()
+func (w *World) AddEntity(entity entities.Entity) error {
+	base := entity.Base()
 	if base.EntityID == 0 {
 		base.EntityID = w.GetNextEntityID()
 	}
@@ -111,40 +111,44 @@ func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) erro
 		return fmt.Errorf("entity uuid already used: %s", base.UUID)
 	}
 
-	dimension := w.Dimension(dimensionID)
+	dimension := w.Dimension(base.DimensionID)
+	if dimension == nil {
+		return fmt.Errorf("unknown dimension: %s", base.DimensionID)
+	}
 	chunkX, chunkZ := GetChunkPosition(base.Position[0], base.Position[2])
-
 	dimension.GetChunk(chunkX, chunkZ).Entities[base.EntityID] = struct{}{}
-	base.DimensionID = dimensionID
-	w.EntitiesByID[base.EntityID] = player
-	w.EntitiesByUUID[uuid.UUID(base.UUID)] = player
-	w.PlayersByID[base.EntityID] = player
-	w.PlayersByUUID[uuid.UUID(base.UUID)] = player
-
+	w.EntitiesByID[base.EntityID] = entity
+	w.EntitiesByUUID[uuid.UUID(base.UUID)] = entity
 	return nil
 }
 
-func (w *World) RemoveEntityByUUID(entityUUID uuid.UUID) {
-	entity := w.EntitiesByUUID[entityUUID]
-	if entity == nil {
-		return
-	}
-
+func (w *World) RemoveEntity(entity entities.Entity) {
 	base := entity.Base()
-	entityID := base.EntityID
 	dimension := w.GetEntityDimension(entity)
-	chunkX, chunkZ := GetChunkPosition(base.Position[0], base.Position[2])
-	delete(dimension.GetChunk(chunkX, chunkZ).Entities, entityID)
-
-	if player := w.PlayersByID[entityID]; player != nil {
-		w.removePlayerWatchers(player)
-		delete(w.PlayersByID, entityID)
-		delete(w.PlayersByUUID, entityUUID)
+	if dimension != nil {
+		chunkX, chunkZ := GetChunkPosition(base.Position[0], base.Position[2])
+		delete(dimension.GetChunk(chunkX, chunkZ).Entities, base.EntityID)
 	}
-
+	delete(w.EntitiesByID, base.EntityID)
+	delete(w.EntitiesByUUID, uuid.UUID(base.UUID))
 	base.DimensionID = ""
-	delete(w.EntitiesByID, entityID)
-	delete(w.EntitiesByUUID, entityUUID)
+}
+
+func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) error {
+	player.Base().DimensionID = dimensionID
+	if err := w.AddEntity(player); err != nil {
+		return err
+	}
+	w.PlayersByID[player.EntityID] = player
+	w.PlayersByUUID[uuid.UUID(player.UUID)] = player
+	return nil
+}
+
+func (w *World) RemovePlayer(player *entities.Player) {
+	w.removePlayerWatchers(player)
+	delete(w.PlayersByID, player.EntityID)
+	delete(w.PlayersByUUID, uuid.UUID(player.UUID))
+	w.RemoveEntity(player)
 }
 
 func (w *World) UpdateEntityChunk(entityID EntityID, oldX, oldZ, newX, newZ float64) {

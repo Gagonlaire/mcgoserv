@@ -16,14 +16,13 @@ func registerMsg(s *server.Server) {
 	s.Commander.Register(Literal("msg").Connect(
 		Argument("targets", parsers.Entity.PlayersOnly(true)).Connect(
 			Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-				// todo: it break at the third message
 				player := cc.Source.Entity.(*entities.Player)
 				targets := cc.Args.GetEntityTarget("targets")
 				message := cc.Args["message"].(*mc.ParsedMessage)
 				text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
 				signature := cc.Signed.GetArgSignature("message")
 
-				resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
+				resolved := s.World.ResolvePlayers(targets, uuid.UUID(player.UUID), player.Position)
 				senderConn, ok := s.ConnectionsByEID.Load(player.EntityID)
 				if !ok {
 					return &CommandResult{Success: 0, Result: 0}, nil

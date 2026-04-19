@@ -1,0 +1,26 @@
+{{- define "factory" -}}
+{{- range . }}
+func New{{.Name}}(dimension string, pos [3]float64, rot [2]float32) *{{.Name}} {
+	e := &{{.Name}}{}
+	e.DimensionID = dimension
+	e.Position = pos
+	e.Rotation = rot
+	e.UUID = NbtUUID(uuid.New())
+	e.TypeID = mcdata.{{.Type}}
+	e.InitDefaults()
+	return e
+}
+
+{{ end -}}
+func NewFromType(t mcdata.EntityType, dimension string, pos [3]float64, rot [2]float32) Entity {
+	switch t {
+{{- range . }}
+	case mcdata.{{.Type}}:
+		return New{{.Name}}(dimension, pos, rot)
+{{- end }}
+	default:
+		return nil
+	}
+}
+
+{{ end -}}

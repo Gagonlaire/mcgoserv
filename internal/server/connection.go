@@ -14,7 +14,6 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/google/uuid"
 )
 
 type QueuedPacket struct {
@@ -215,7 +214,6 @@ func (c *Connection) close() {
 			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
 			c.Server.ConnectionsByEID.Delete(c.Player.EntityID)
 			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
-			entityRemove := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(c.Player.EntityID))
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
 				tc.PlayerName(c.Player.Name),
@@ -223,10 +221,9 @@ func (c *Connection) close() {
 			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
 
 			c.Server.BroadcastOthers(c, infoRemove)
-			c.Server.BroadcastOthers(c, entityRemove)
 			c.Server.BroadcastOthers(c, systemChat)
 			logger.Component(logger.INFO, leftMessage)
-			c.Server.World.RemoveEntityByUUID(uuid.UUID(c.Player.UUID))
+			c.Server.DespawnPlayer(c.Player)
 		}
 		c.Server.Connections.Delete(c)
 		_ = c.Conn.Close()

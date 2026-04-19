@@ -24,6 +24,19 @@ func (c *Connection) SendSpawnEntity(entity entities.Entity) {
 	c.Send(pkt)
 }
 
+// SendChunkEntities spawns every entity already present in the chunk for this connection, skipping self.
+func (c *Connection) SendChunkEntities(chunk *mc.Chunk) {
+	selfID := c.Player.EntityID
+	for entityID := range chunk.Entities {
+		if entityID == selfID {
+			continue
+		}
+		if entity := c.Server.World.EntitiesByID[entityID]; entity != nil {
+			c.SendSpawnEntity(entity)
+		}
+	}
+}
+
 func (c *Connection) SendKeepAlive() {
 	var packetId int
 

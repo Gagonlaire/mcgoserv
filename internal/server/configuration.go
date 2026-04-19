@@ -29,7 +29,7 @@ func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc
 func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacket) {
 	// order: https://minecraft.wiki/w/Java_Edition_protocol/FAQ#What's_the_normal_login_sequence_for_a_client?
 	// todo: move this to login -> avoid slot stealing and potential conflict
-	if err := c.Server.World.AddPlayer(c.Player, "minecraft:overworld"); err != nil {
+	if err := c.Server.SpawnPlayer(c.Player, "minecraft:overworld"); err != nil {
 		logger.Error("Failed to spawn player %s: %v", logger.Identity(c.Player.Name), err)
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
 		return
@@ -145,6 +145,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 			chunk.Watchers[c.Player.EntityID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}
+			c.SendChunkEntities(chunk)
 		}
 	}
 	c.Player.Movement.LastChunkX = cx
@@ -159,26 +160,11 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: following packets must be sent in response of the Player loaded packet
 	// todo: send player inventory, rework inventory system
 
-	// spawn newly connected player
-	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(c.Player))
-	c.Server.BroadcastViewers(c, pkt)
-	for player := range c.Server.World.PlayersInChunkRadius("minecraft:overworld", cx, cz, loadRadius) {
-		if player.UUID == c.Player.UUID {
-			continue
-		}
-
-		spawnPkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(player))
-		if spawnPkt != nil {
-			_ = spawnPkt.Send(c.Conn, c.CompressionThreshold)
-			spawnPkt.Free()
-		}
-	}
-
 	joinMessage := tc.Translatable(
 		mcdata.MultiplayerPlayerJoined,
 		tc.PlayerName(c.Player.Name),
 	).SetColor(tc.ColorYellow)
-	pkt = c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
+	pkt := c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
 	c.Server.BroadcastOthers(c, pkt)
 	logger.Component(logger.INFO, joinMessage)
 }

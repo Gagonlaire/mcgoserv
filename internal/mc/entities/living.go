@@ -26,29 +26,30 @@ const (
 
 //meta:encode mode=entity parents=BaseEntity
 type LivingEntity struct {
+	SleepingPos []int `nbt:"sleeping_pos,omitempty"`
+	HomePos     []int `nbt:"home_pos,omitempty"`
 	BaseEntity
-	HandFlags                  HandState `meta:"IndexHandFlags,Byte,flags"`
-	AbsorptionAmount           float32
-	HurtByTimestamp            int32
-	DeathTime                  int16
-	HurtTime                   int16
+	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
 	Health                     float32                                        `meta:"IndexHealth,Float,default=1.0"`
-	PotionEffectColor          int32                                          `meta:"IndexPotionColor,VarInt"` // todo: this is supposed to be a Particles
-	IsPotionAmbient            bool                                           `meta:"IndexPotionAmbience,Boolean"`
-	ArrowsInEntity             int32                                          `meta:"IndexArrowsInEntity,VarInt"`
-	BeeStingersInEntity        int32                                          `meta:"IndexBeeStingers,VarInt"`
-	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition"`
-	FallFlying                 bool
+	HomeRadius                 float32                                        `nbt:"home_radius,omitempty"`
+	TicksSinceLastHurtByMob    int32                                          `nbt:"ticks_since_last_hurt_by_mob,omitempty"`
+	PotionEffectColor          int32                                          `meta:"IndexPotionColor,VarInt" nbt:"-"`
+	LastHurtByPlayerMemoryTime int32                                          `nbt:"last_hurt_by_player_memory_time,omitempty"`
+	ArrowsInEntity             int32                                          `meta:"IndexArrowsInEntity,VarInt" nbt:"-"`
+	BeeStingersInEntity        int32                                          `meta:"IndexBeeStingers,VarInt" nbt:"-"`
+	HurtByTimestamp            int32
+	AbsorptionAmount           float32
+	HurtTime                   int16
+	DeathTime                  int16
+	LastHurtByMob              NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
+	LastHurtByPlayer           NbtUUID `nbt:"last_hurt_by_player,omitempty"`
 	LeftHanded                 bool
 	NoAI                       bool `nbt:"omitempty"`
 	PersistenceRequired        bool
-	HomePos                    []int   `nbt:"home_pos,omitempty"` // todo: should maybe be optional, present for creakings or when a mob gets leashed
-	HomeRadius                 float32 `nbt:"home_radius,omitempty"`
-	SleepingPos                []int   `nbt:"sleeping_pos,omitempty"` // todo: should be optional
+	FallFlying                 bool
+	HandFlags                  HandState `meta:"IndexHandFlags,Byte,flags" nbt:"-"`
 	CanPickUpLoot              bool
-	LastHurtByMob              NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
-	LastHurtByPlayer           NbtUUID `nbt:"last_hurt_by_player,omitempty"`
-	LastHurtByPlayerMemoryTime int32   `nbt:"last_hurt_by_player_memory_time,omitempty"` // exist when last_hurt_by_player exists and is valid
-	TicksSinceLastHurtByMob    int32   `nbt:"ticks_since_last_hurt_by_mob,omitempty"`    // exist when last_hurt_by_mob exists and is valid
-	// todo: implement active_effects, attributes, equipment, brain, drop_chances, leash, locator_bar_icon, Team
+	IsPotionAmbient            bool `meta:"IndexPotionAmbience,Boolean" nbt:"-"`
+	// todo: implement active_effects, attributes, brain, drop_chances, equipment, leash, locator_bar_icon, team
+	// todo: Tags common to all mobs with drops from loot tables
 }

@@ -18,29 +18,50 @@ const (
 
 //meta:encode mode=entity parents=LivingEntity,AvatarData nbt=getters
 type Player struct {
-	LivingEntity
+	Leash               struct{}            `nbt:"-"`
+	DropChances         struct{}            `nbt:"-"`
+	CustomName          struct{}            `nbt:"-"`
+	CustomNameVisible   struct{}            `nbt:"-"`
+	Glowing             struct{}            `nbt:"-"`
+	CanPickUpLoot       struct{}            `nbt:"-"`
+	LeftHanded          struct{}            `nbt:"-"`
+	PersistenceRequired struct{}            `nbt:"-"`
+	Inventory           *mc.PlayerInventory `nbt:"-"` // todo: implement inventories (containers)
 	layers.AvatarData
-	Inventory           *mc.PlayerInventory
-	Name                string
-	ProfileProperties   []mc.ProfileProperty
-	Information         mc.ClientInformation
-	Movement            MovementTracker
-	ChatSession         mc.ChatSession
-	AdditionalHearts    float32                                    `meta:"IndexAdditionalHearts,Float"`
-	Score               int32                                      `meta:"IndexScore,VarInt"`
-	LeftShoulder        mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"`
-	RightShoulder       mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
-	PermissionLevel     int
-	SelectedItemSlot    int32
-	FoodTickTimer       int32
-	FoodSaturationLevel float32
-	FoodLevel           int32
-	FoodExhaustionLevel float32
-	PushingAgainstWall  bool
-	PreviousGameMode    int8
-	GameMode            uint8
-	Loaded              bool
-	Input               byte
+	Name              string               `nbt:"-"`
+	Dimension         string               // todo: should be a identifier (ex: minecraft:overworld)
+	ProfileProperties []mc.ProfileProperty `nbt:"-"`
+	EnderItems        []any                // todo: implement inventories (containers)
+	Information       mc.ClientInformation `nbt:"-"`
+	Movement          MovementTracker      `nbt:"-"`
+	LivingEntity
+	ChatSession                          mc.ChatSession                             `nbt:"-"`
+	CurrentExplosionImpactPos            [3]float64                                 `nbt:"current_explosion_impact_pos"`
+	EnteredNetherPos                     [3]float64                                 `nbt:"entered_nether_pos"`
+	PermissionLevel                      int                                        `nbt:"-"`
+	LeftShoulder                         mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"` // todo: create a nbt encode function
+	RightShoulder                        mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
+	FoodExhaustionLevel                  float32                                    `nbt:"foodExhaustionLevel"`
+	XpP                                  float32
+	FoodLevel                            int32 `nbt:"foodLevel"`
+	FoodTickTimer                        int32 `nbt:"foodTickTimer"`
+	SelectedItemSlot                     int32
+	DataVersion                          int32
+	XpLevel                              int32
+	XpSeed                               int32
+	XpTotal                              int32
+	IgnoreFallDamageFromCurrentExplosion bool    `nbt:"ignore_fall_damage_from_current_explosion"`
+	FoodSaturationLevel                  float32 `nbt:"foodSaturationLevel"`
+	Score                                int32   `meta:"IndexScore,VarInt"`
+	AdditionalHearts                     float32 `meta:"IndexAdditionalHearts,Float" nbt:"-"`
+	PushingAgainstWall                   bool    `nbt:"-"`
+	PreviousGameMode                     int32   `nbt:"previousPlayerGameType"`
+	GameMode                             int32   `nbt:"playerGameType"`
+	Loaded                               bool    `nbt:"-"`
+	Input                                byte    `nbt:"-"`
+	SleepTimer                           int16
+	SeenCredits                          bool `nbt:"seenCredits"`
+	// todo: implement LastDeathLocation, abilities, respawn, warden_spawn_tracker, recipeBook, RootVehicle, ShoulderEntityLeft, ShoulderEntityRight
 }
 
 type MovementTracker struct {
@@ -77,7 +98,7 @@ func NewPlayer(
 		Name:              name,
 		Loaded:            false,
 		PermissionLevel:   permissionLevel,
-		GameMode:          uint8(cfg.Server.GameMode),
+		GameMode:          int32(cfg.Server.GameMode),
 		PreviousGameMode:  -1,
 		ProfileProperties: profileProperties,
 	}

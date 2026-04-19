@@ -340,14 +340,7 @@ func (c *Connection) updateChunkView(force bool) {
 			chunk := dim.GetChunk(x, z)
 			chunkPkt := c.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
 			c.Send(chunkPkt)
-			for entityID := range chunk.Entities {
-				if entityID == selfID {
-					continue
-				}
-				if entity := c.Server.World.EntitiesByID[entityID]; entity != nil {
-					c.SendSpawnEntity(entity)
-				}
-			}
+			c.SendChunkEntities(chunk)
 			chunk.Watchers[selfID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}
 		}

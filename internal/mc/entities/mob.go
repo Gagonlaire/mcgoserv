@@ -1,70 +1,29 @@
 package entities
 
-import "github.com/google/uuid"
+import "github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 
 type Mob struct {
 	LivingEntity
-	NoAI       bool
-	Persistent bool
-	LeftHanded bool
-	CanPickUp  bool
 }
 
-type PathfinderMob struct {
+type Creature struct {
 	Mob
 }
-
-type AgeableMob struct {
-	PathfinderMob
-	Age       int32
-	ForcedAge int32
-	AgeLocked bool
-}
-
-type Animal struct {
-	AgeableMob
-	InLove    int32
-	LoveCause uuid.UUID
-}
-
-type TameableAnimal struct {
-	Animal
-	Owner uuid.UUID
-	Tame  bool
-}
-
 type Monster struct {
-	PathfinderMob
+	Creature
 }
 
-type FlyingMob struct {
-	Mob
-}
+const (
+	IndexIsBaby            metadata.Index = 16
+	IndexIsBecomingDrowned metadata.Index = 18
+)
 
-type WaterAnimal struct {
-	PathfinderMob
-}
-
-type AmbientCreature struct {
-	Mob
-}
-
-type Raider struct {
-	Monster
-	PatrolLeader bool
-	Patrolling   bool
-}
-
-type AbstractVillager struct {
-	AgeableMob
-}
-
-type AbstractHorse struct {
-	Animal
-	Tame bool
-}
-
-type Slime struct {
-	Mob
-	Size int32
+//meta:encode mode=entity type=EntityZombie parents=Creature nbt=accessors
+type Zombie struct {
+	Creature
+	DrownedConversionTime int32
+	InWaterTime           int32
+	IsBaby                bool `meta:"IndexIsBaby,Boolean" nbt:"IsBaby"`
+	IsBecomingDrowned     bool `meta:"IndexIsBecomingDrowned,Boolean" nbt:"-"`
+	CanBreakDoors         bool
 }
