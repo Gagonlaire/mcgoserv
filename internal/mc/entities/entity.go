@@ -80,7 +80,7 @@ type BaseEntity struct {
 	metadata.DirtyTracker `nbt:"-"`
 	DimensionID           string              `nbt:"-"`                                         // todo: change to a numeric id
 	CustomName            mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent" nbt:"-"` // todo: add text component ntb encoding
-	CustomNameVisible     bool                `meta:"IndexCustomNameVisible,Boolean" nbt:"omitempty"`
+	CustomNameVisible     bool                `meta:"IndexCustomNameVisible,Boolean" nbt:"CustomNameVisible,omitempty"`
 	Motion                [3]float64
 	Position              [3]float64        `nbt:"Pos"`
 	TypeID                mcdata.EntityType `nbt:"-"`
@@ -92,12 +92,12 @@ type BaseEntity struct {
 	Pose                  EntityPose `meta:"IndexPose,Pose,default=EntityPoseStanding" nbt:"-"`
 	Flags                 EntityFlag `meta:"IndexEntityFlags,Byte,flags" nbt:"-"`
 	OnGround              bool
-	NoGravity             bool    `meta:"IndexNoGravity,Boolean" nbt:"omitempty"`
-	Silent                bool    `meta:"IndexSilent,Boolean" nbt:"omitempty"`
+	NoGravity             bool    `meta:"IndexNoGravity,Boolean" nbt:"NoGravity,omitempty"`
+	Silent                bool    `meta:"IndexSilent,Boolean" nbt:"Silent,omitempty"`
 	InSyncQueue           bool    `nbt:"-"` // used for metadata sync
-	TicksFrozen           int32   `meta:"IndexTicksFrozen,VarInt" nbt:"omitempty"`
+	TicksFrozen           int32   `meta:"IndexTicksFrozen,VarInt" nbt:"TicksFrozen,omitempty"`
 	FallDistance          float64 `nbt:"fall_distance"`
-	Glowing               bool    `nbt:"omitempty"` // this is an alias for EntityFlagGlowing entity flag
+	Glowing               bool    `nbt:"Glowing,omitempty"` // this is an alias for EntityFlagGlowing entity flag
 	Invulnerable          bool
 	PortalCooldown        int32
 	// todo: implement Passengers, Tags and data

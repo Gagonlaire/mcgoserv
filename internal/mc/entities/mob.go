@@ -21,7 +21,7 @@ const (
 //meta:encode mode=entity type=EntityZombie parents=Creature nbt=accessors
 type Zombie struct {
 	Creature
-	DrownedConversionTime int32
+	DrownedConversionTime int32 // todo: should default to -1
 	InWaterTime           int32
 	IsBaby                bool `meta:"IndexIsBaby,Boolean" nbt:"IsBaby"`
 	IsBecomingDrowned     bool `meta:"IndexIsBecomingDrowned,Boolean" nbt:"-"`

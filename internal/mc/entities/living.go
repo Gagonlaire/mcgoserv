@@ -30,7 +30,7 @@ type LivingEntity struct {
 	HomePos     []int `nbt:"home_pos,omitempty"`
 	BaseEntity
 	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
-	Health                     float32                                        `meta:"IndexHealth,Float,default=1.0"`
+	Health                     float32                                        `meta:"IndexHealth,Float,default=20.0"`
 	HomeRadius                 float32                                        `nbt:"home_radius,omitempty"`
 	TicksSinceLastHurtByMob    int32                                          `nbt:"ticks_since_last_hurt_by_mob,omitempty"`
 	PotionEffectColor          int32                                          `meta:"IndexPotionColor,VarInt" nbt:"-"`
@@ -41,10 +41,10 @@ type LivingEntity struct {
 	AbsorptionAmount           float32
 	HurtTime                   int16
 	DeathTime                  int16
-	LastHurtByMob              NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
-	LastHurtByPlayer           NbtUUID `nbt:"last_hurt_by_player,omitempty"`
+	LastHurtByMob              *NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
+	LastHurtByPlayer           *NbtUUID `nbt:"last_hurt_by_player,omitempty"`
 	LeftHanded                 bool
-	NoAI                       bool `nbt:"omitempty"`
+	NoAI                       bool `nbt:"NoAI,omitempty"`
 	PersistenceRequired        bool
 	FallFlying                 bool
 	HandFlags                  HandState `meta:"IndexHandFlags,Byte,flags" nbt:"-"`
