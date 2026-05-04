@@ -2,6 +2,7 @@ package entities
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/layers"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -108,8 +109,9 @@ func NewPlayer(
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
 
+	player.InitMetaDefaults()
+	player.Attributes = attribute.NewSet()
 	player.AvatarData.Init(player)
-	player.InitDefaults()
 
 	return player
 }

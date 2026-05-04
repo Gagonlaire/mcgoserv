@@ -1,32 +1,68 @@
 package attribute
 
-type Set struct {
-	instances []*Instance // todo: using values might be better
+import "math/rand/v2"
+
+type Default struct {
+	ID   ID
+	Base float64
 }
 
-func NewSet(initialAttributes ...ID) *Set {
-	s := &Set{
-		instances: make([]*Instance, 0, len(initialAttributes)),
-	}
-	for _, id := range initialAttributes {
-		s.instances = append(s.instances, NewInstance(id))
-	}
+type Roll struct {
+	ID       ID
+	Min, Max float64
+}
 
-	return s
+type Set struct {
+	instances []Instance
+}
+
+func NewSet() *Set {
+	return &Set{
+		instances: make([]Instance, 0, 4),
+	}
+}
+
+func NewSetWithDefaults(defaults []Default) *Set {
+	set := &Set{
+		instances: make([]Instance, len(defaults)),
+	}
+	for i, d := range defaults {
+		set.instances[i] = Instance{
+			Id:        d.ID,
+			BaseValue: d.Base,
+			modifiers: make([]Modifier, 0, 4),
+			dirty:     true,
+		}
+	}
+	return set
+}
+
+func (s *Set) Add(instance Instance) {
+	s.instances = append(s.instances, instance)
 }
 
 func (s *Set) Get(id ID) *Instance {
-	for _, instance := range s.instances {
-		if instance.id == id {
-			return instance
+	for i := range s.instances {
+		if s.instances[i].Id == id {
+			return &s.instances[i]
 		}
 	}
-	newInstance := NewInstance(id)
-	s.instances = append(s.instances, newInstance)
-
-	return newInstance
+	return nil
 }
 
 func (s *Set) Value(id ID) float64 {
-	return s.Get(id).Value()
+	if inst := s.Get(id); inst != nil {
+		return inst.Value()
+	}
+	return id.Default()
+}
+
+func (s *Set) RollBases(rolls []Roll) {
+	for _, r := range rolls {
+		inst := s.Get(r.ID)
+		if inst == nil {
+			continue
+		}
+		inst.SetBase(r.Min + rand.Float64()*(r.Max-r.Min)) // todo: use seed based random
+	}
 }

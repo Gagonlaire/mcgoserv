@@ -1,43 +1,45 @@
 package attribute
 
+import "slices"
+
 type Instance struct {
-	id          ID
-	baseValue   float64
+	Id          ID
+	BaseValue   float64
 	modifiers   []Modifier
 	cachedValue float64
 	dirty       bool
 }
 
-func NewInstance(id ID) *Instance {
+func NewInstance(id ID, baseValue float64) *Instance {
 	return &Instance{
-		id:        id,
-		baseValue: id.Default(),
+		Id:        id,
+		BaseValue: baseValue,
 		modifiers: make([]Modifier, 0, 4),
 		dirty:     true,
 	}
 }
 
 func (i *Instance) Base() float64 {
-	return i.baseValue
+	return i.BaseValue
 }
 
 func (i *Instance) SetBase(val float64) {
-	if i.baseValue != val {
-		i.baseValue = val
+	if i.BaseValue != val {
+		i.BaseValue = val
 		i.dirty = true
 	}
 }
 
 func (i *Instance) AddModifier(m Modifier) {
-	for idx, existing := range i.modifiers {
-		if existing.ID == m.ID {
-			i.modifiers[idx] = m
-			i.dirty = true
-			return
-		}
-	}
+	idx := slices.IndexFunc(i.modifiers, func(existing Modifier) bool {
+		return existing.ID == m.ID
+	})
 
-	i.modifiers = append(i.modifiers, m)
+	if idx >= 0 {
+		i.modifiers[idx] = m
+	} else {
+		i.modifiers = append(i.modifiers, m)
+	}
 	i.dirty = true
 }
 
@@ -64,7 +66,7 @@ func (i *Instance) Value() float64 {
 		return i.cachedValue
 	}
 
-	value := i.baseValue
+	value := i.BaseValue
 	for _, m := range i.modifiers {
 		if m.Operation == AddValue {
 			value += m.Amount
@@ -85,8 +87,8 @@ func (i *Instance) Value() float64 {
 		}
 	}
 
-	attMin := i.id.Min()
-	attMax := i.id.Max()
+	attMin := i.Id.Min()
+	attMax := i.Id.Max()
 	if value < attMin {
 		value = attMin
 	} else if value > attMax {

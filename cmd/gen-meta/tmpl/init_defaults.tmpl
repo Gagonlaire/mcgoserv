@@ -1,7 +1,7 @@
 {{- define "initDefaults" -}}
-func ({{.Recv}} *{{.Struct}}) InitDefaults() {
+func ({{.Recv}} *{{.Struct}}) InitMetaDefaults() {
 {{- range .Parents }}
-	{{$.Recv}}.{{.}}.InitDefaults()
+	{{$.Recv}}.{{.}}.InitMetaDefaults()
 {{- end }}
 {{- range .Fields }}
 {{- if and .Default (not (isEmptyDefault .Default)) }}
