@@ -2,6 +2,7 @@ package entities
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
 )
 
@@ -30,7 +31,7 @@ type LivingEntity struct {
 	HomePos     []int `nbt:"home_pos,omitempty"`
 	BaseEntity
 	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
-	Health                     float32                                        `meta:"IndexHealth,Float,default=1.0"`
+	Health                     float32                                        `meta:"IndexHealth,Float,default=1"`
 	HomeRadius                 float32                                        `nbt:"home_radius,omitempty"`
 	TicksSinceLastHurtByMob    int32                                          `nbt:"ticks_since_last_hurt_by_mob,omitempty"`
 	PotionEffectColor          int32                                          `meta:"IndexPotionColor,VarInt" nbt:"-"`
@@ -41,15 +42,16 @@ type LivingEntity struct {
 	AbsorptionAmount           float32
 	HurtTime                   int16
 	DeathTime                  int16
-	LastHurtByMob              NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
-	LastHurtByPlayer           NbtUUID `nbt:"last_hurt_by_player,omitempty"`
+	LastHurtByMob              *NbtUUID `nbt:"last_hurt_by_mob,omitempty"`
+	LastHurtByPlayer           *NbtUUID `nbt:"last_hurt_by_player,omitempty"`
 	LeftHanded                 bool
-	NoAI                       bool `nbt:"omitempty"`
+	NoAI                       bool `nbt:"NoAI,omitempty"`
 	PersistenceRequired        bool
 	FallFlying                 bool
 	HandFlags                  HandState `meta:"IndexHandFlags,Byte,flags" nbt:"-"`
 	CanPickUpLoot              bool
-	IsPotionAmbient            bool `meta:"IndexPotionAmbience,Boolean" nbt:"-"`
-	// todo: implement active_effects, attributes, brain, drop_chances, equipment, leash, locator_bar_icon, team
+	IsPotionAmbient            bool           `meta:"IndexPotionAmbience,Boolean" nbt:"-"`
+	Attributes                 *attribute.Set `nbt:"-"` // todo: implement nbt encoding/decoding
+	// todo: implement active_effects, brain, drop_chances, equipment, leash, locator_bar_icon, team
 	// todo: Tags common to all mobs with drops from loot tables
 }

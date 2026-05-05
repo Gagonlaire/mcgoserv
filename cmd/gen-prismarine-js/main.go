@@ -41,6 +41,7 @@ var generators = []Generator{
 	{"blocks", generateBlocks},
 	{"items", generateItems},
 	{"materials", generateMaterials},
+	{"attributes", generateAttributes},
 }
 
 func main() {
