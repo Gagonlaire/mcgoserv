@@ -154,7 +154,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		logger.Debug("Enabling compression (threshold=%d) for %s", c.Server.Config.Network.Compression.Threshold, loginName)
 		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Config.Network.Compression.Threshold))
 		c.SendSync(pkt)
-		c.CompressionThreshold = c.Server.Config.Network.Compression.Threshold
+		c.SetCompressionThreshold(c.Server.Config.Network.Compression.Threshold)
 	}
 
 	pkt := c.NewPacket(

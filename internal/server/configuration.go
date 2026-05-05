@@ -43,17 +43,10 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		logger.Value(c.Player.EntityID),
 		logger.Value(fmt.Sprintf("%f, %f, %f", c.Player.Position[0], c.Player.Position[1], c.Player.Position[2])),
 	)
-	out := c.NewPacket(0)
-	if out == nil {
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
-		return
-	}
-	defer out.Free()
-
 	// todo: get the correct dimension type and name from player
 	// todo: hash world seed
 	// todo: get the correct has death location value
-	_ = out.ResetWith(packet.PlayClientboundLogin, &encoders.Login{
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundLogin, &encoders.Login{
 		EntityID:            mc.Int(c.Player.EntityID),
 		IsHardcore:          mc.Boolean(c.Server.Config.Server.Hardcore),
 		DimensionNames:      mc.NewPrefixedArray[mc.Identifier, *mc.Identifier]([]mc.Identifier{"overworld", "the_nether", "the_end"}),
@@ -74,11 +67,9 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		PortalCooldown:      100,
 		SeaLevel:            64,
 		EnforceSecureChat:   mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
-	})
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	}))
 
-	_ = out.ResetWith(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot))
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot)))
 
 	if err := c.Server.SendCommands(c); err != nil {
 		logger.Error("Player disconnected during configuration: %v", err)
@@ -86,7 +77,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		return
 	}
 
-	_ = out.ResetWith(
+	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundPlayerPosition,
 		mc.VarInt(0),
 		mc.NewCoordinate(c.Player.Position),
@@ -94,8 +85,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		mc.Float(c.Player.Rotation[0]),
 		mc.Float(c.Player.Rotation[1]),
 		mc.Int(0),
-	)
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	))
 
 	// todo: all the following packet must be sent in response of the Confirm Teleportation packet sent by the client after the previous Sync position packet
 
@@ -109,28 +99,23 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
 	c.Server.BroadcastOthers(c, pkt1)
 	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ListActionInitializeChat, allPlayers)
-	if pkt1 != nil {
-		_ = pkt1.Send(c.Conn, c.CompressionThreshold)
-	}
+	_ = c.SendSync(pkt1)
 
-	_ = out.ResetWith(
+	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundSetTime,
 		mc.Long(c.Server.World.Time),
 		mc.Long(c.Server.World.DayTime),
 		mc.Boolean(true),
-	)
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	))
 
-	_ = out.ResetWith(
+	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundGameEvent,
 		mc.UnsignedByte(13),
 		mc.Float(0.0),
-	)
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	))
 
 	cx, cz := world.GetChunkPosition(c.Player.Position[0], c.Player.Position[2])
-	_ = out.ResetWith(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
-	_ = out.Send(c.Conn, c.CompressionThreshold)
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz)))
 
 	dimension := c.Server.World.GetEntityDimension(c.Player)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
@@ -140,8 +125,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 			pos := mc.ChunkPos{X: x, Z: z}
 			chunk := dimension.GetChunk(x, z)
 
-			_ = out.ResetWith(packet.PlayClientboundLevelChunkWithLight, chunk)
-			_ = out.Send(c.Conn, c.CompressionThreshold)
+			_ = c.SendSync(c.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk))
 
 			chunk.Watchers[c.Player.EntityID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}
@@ -150,12 +134,6 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	}
 	c.Player.Movement.LastChunkX = cx
 	c.Player.Movement.LastChunkZ = cz
-
-	if err := out.Err(); err != nil {
-		logger.Error("Player disconnected during configuration: %v", err)
-		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
-		return
-	}
 
 	// todo: following packets must be sent in response of the Player loaded packet
 	// todo: send player inventory, rework inventory system
@@ -175,7 +153,6 @@ func (s *Server) SendCommands(c *Connection) error {
 	if pkt == nil {
 		return fmt.Errorf("failed to create commands packet")
 	}
-	defer pkt.Free()
 
 	for _, node := range flattenGraph {
 		flags := node.GetFlags()
@@ -202,8 +179,9 @@ func (s *Server) SendCommands(c *Connection) error {
 		}
 	}
 	_ = pkt.Encode(mc.VarInt(0))
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
-	return pkt.Err()
+	err := pkt.Err()
+	_ = c.SendSync(pkt)
+	return err
 }
 
 func (c *Connection) HandleClientInformation(information *mc.ClientInformation) {

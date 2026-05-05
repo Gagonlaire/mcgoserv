@@ -36,6 +36,13 @@ type Connection struct {
 	LastKeepAliveID      int64
 	LastKeepAlive        int64
 	closeOnce            sync.Once
+	writeMu              sync.Mutex
+}
+
+func (c *Connection) SetCompressionThreshold(threshold int) {
+	c.writeMu.Lock()
+	c.CompressionThreshold = threshold
+	c.writeMu.Unlock()
 }
 
 func (s *Server) NewConnection(conn net.Conn) *Connection {
@@ -135,8 +142,7 @@ func (c *Connection) WriteLoop() {
 				logger.Debug("Server -> %s: %s(0x%x)",
 					target, packet.PacketName(mc.GetStateName(c.State), "Clientbound", int(pkt.ID)), pkt.ID)
 			}
-			err := pkt.Send(c.Conn, c.CompressionThreshold)
-			pkt.Free()
+			err := c.SendSync(pkt)
 			if err != nil {
 				if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 					logger.Error("error sending packet to %s: %v", c.Conn.RemoteAddr(), err)
@@ -163,12 +169,15 @@ func (c *Connection) Send(pkt *packet.OutboundPacket) {
 }
 
 // SendSync sends a packet synchronously, blocking until it's sent. Takes ownership of the packet.
-func (c *Connection) SendSync(pkt *packet.OutboundPacket) {
+func (c *Connection) SendSync(pkt *packet.OutboundPacket) error {
 	if pkt == nil {
-		return
+		return nil
 	}
-	_ = pkt.Send(c.Conn, c.CompressionThreshold)
+	c.writeMu.Lock()
+	err := pkt.Send(c.Conn, c.CompressionThreshold)
+	c.writeMu.Unlock()
 	pkt.Free()
+	return err
 }
 
 // NewPacket creates a new outbound packet, logging and returning nil on encoding error.
@@ -197,10 +206,7 @@ func (c *Connection) Disconnect(reason tc.Component) {
 		return
 	}
 
-	if pkt != nil {
-		_ = pkt.Send(c.Conn, c.CompressionThreshold)
-		pkt.Free()
-	}
+	_ = c.SendSync(pkt)
 	c.close()
 }
 
