@@ -13,7 +13,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -142,7 +142,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	loginName := c.ContextData["loginName"].(string)
 	logger.Info("UUID of player %s is %s", logger.Identity(loginName), logger.Identity(loginUUID))
 
-	c.Player = entities.NewPlayer(
+	c.Player = entity.NewPlayer(
 		loginUUID,
 		loginName,
 		permissionLevel,

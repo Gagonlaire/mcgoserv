@@ -1,11 +1,10 @@
-package entities
+package entity
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/layers"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/layers"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
@@ -91,7 +90,7 @@ func NewPlayer(
 				Position: [3]float64{0, 80, 0},
 				UUID:     NbtUUID(UUID),
 				OnGround: true,
-				TypeID:   mcdata.EntityPlayer,
+				ID:       PlayerID,
 			},
 			Health: 20.0,
 		},

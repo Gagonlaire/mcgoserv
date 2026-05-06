@@ -5,7 +5,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -91,7 +91,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 	c.syncMovement(c.Player.Position[0], c.Player.Position[1], c.Player.Position[2], true, true)
 
-	me := []*entities.Player{c.Player}
+	me := []*entity.Player{c.Player}
 	allPlayers := c.Server.World.Players()
 
 	// todo: should also send gamemode

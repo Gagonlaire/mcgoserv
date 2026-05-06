@@ -96,7 +96,7 @@ func generateItems(rawItemDefinitions io.ReadCloser, data map[string]any) error 
 			item.MaxDurability = -1
 		}
 		processedItems = append(processedItems, GenItem{
-			PascalName: toPascalCase(item.Name),
+			PascalName: toPascalCase(item.Name) + "ID",
 			BlockID:    bID,
 
 			ID:                item.ID,

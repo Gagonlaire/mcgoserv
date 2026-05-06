@@ -10,7 +10,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -26,7 +26,7 @@ type Connection struct {
 	Conn                 net.Conn
 	ctx                  context.Context
 	ContextData          map[string]interface{}
-	Player               *entities.Player
+	Player               *entity.Player
 	Server               *Server
 	InboundPackets       chan QueuedPacket
 	OutboundPackets      chan *packet.OutboundPacket

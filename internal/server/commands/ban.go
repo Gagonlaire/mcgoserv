@@ -6,7 +6,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -16,13 +16,13 @@ import (
 )
 
 func banSource(cc *CommandContext) string {
-	if player, ok := cc.Source.Entity.(*entities.Player); ok {
+	if player, ok := cc.Source.Entity.(*entity.Player); ok {
 		return player.Name
 	}
 	return "Server"
 }
 
-func kickBannedPlayer(s *server.Server, playerUUID entities.NbtUUID, reason string) {
+func kickBannedPlayer(s *server.Server, playerUUID entity.NbtUUID, reason string) {
 	s.Connections.Range(func(k, v any) bool {
 		conn := k.(*server.Connection)
 		if conn.Player != nil && conn.Player.UUID == playerUUID {
@@ -139,9 +139,9 @@ func registerPardon(s *server.Server) {
 							unbans = append(unbans, unbanInfo{"", target.Name})
 						}
 					case mc.TargetTypeSelector:
-						var sourceUUID entities.NbtUUID
+						var sourceUUID entity.NbtUUID
 						var sourcePos [3]float64
-						if player, ok := cc.Source.Entity.(*entities.Player); ok {
+						if player, ok := cc.Source.Entity.(*entity.Player); ok {
 							sourceUUID = player.UUID
 							sourcePos = player.Position
 						}
@@ -249,9 +249,9 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 				targets = append(targets, banTarget{offlineUUID, target.Name})
 			}
 		case mc.TargetTypeSelector:
-			var sourceUUID entities.NbtUUID
+			var sourceUUID entity.NbtUUID
 			var sourcePos [3]float64
-			if player, ok := cc.Source.Entity.(*entities.Player); ok {
+			if player, ok := cc.Source.Entity.(*entity.Player); ok {
 				sourceUUID = player.UUID
 				sourcePos = player.Position
 			}
@@ -273,7 +273,7 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 			}
 			s.PlayerRegistry.Ban(t.UUID, t.Name, source, reason, "forever")
 			cc.SendMessage(tc.Translatable(mcdata.CommandsBanSuccess, tc.Text(t.Name), tc.Text(reason)))
-			kickBannedPlayer(s, entities.NbtUUID(t.UUID), reason)
+			kickBannedPlayer(s, entity.NbtUUID(t.UUID), reason)
 			success++
 		}
 

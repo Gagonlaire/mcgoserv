@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
@@ -55,7 +55,7 @@ func (s *Server) BroadcastViewers(sender *Connection, pkt *packet.OutboundPacket
 }
 
 // BroadcastEntityViewers sends a packet to players watching the entity's chunk. Takes ownership of the packet.
-func (s *Server) BroadcastEntityViewers(entity entities.Entity, pkt *packet.OutboundPacket) {
+func (s *Server) BroadcastEntityViewers(entity entity.Entity, pkt *packet.OutboundPacket) {
 	if pkt == nil {
 		return
 	}

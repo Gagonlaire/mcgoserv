@@ -1,9 +1,9 @@
-package entities
+package entity
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 )
 
 const (

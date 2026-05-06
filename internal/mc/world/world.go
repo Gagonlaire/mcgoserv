@@ -6,7 +6,7 @@ import (
 	"math"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/google/uuid"
 )
 
@@ -15,11 +15,11 @@ type DimensionID = string
 
 type World struct {
 	Dimensions     map[DimensionID]*Dimension
-	EntitiesByID   map[EntityID]entities.Entity
-	EntitiesByUUID map[uuid.UUID]entities.Entity
-	PlayersByID    map[EntityID]*entities.Player
-	PlayersByUUID  map[uuid.UUID]*entities.Player
-	DirtyEntities  []entities.Entity
+	EntitiesByID   map[EntityID]entity.Entity
+	EntitiesByUUID map[uuid.UUID]entity.Entity
+	PlayersByID    map[EntityID]*entity.Player
+	PlayersByUUID  map[uuid.UUID]*entity.Player
+	DirtyEntities  []entity.Entity
 	Time           int64
 	DayTime        int64
 	Day            int64
@@ -52,10 +52,10 @@ func NewWorld() *World {
 				Chunks: make(map[uint64]*mc.Chunk),
 			},
 		},
-		EntitiesByID:   make(map[EntityID]entities.Entity),
-		EntitiesByUUID: make(map[uuid.UUID]entities.Entity),
-		PlayersByID:    make(map[EntityID]*entities.Player),
-		PlayersByUUID:  make(map[uuid.UUID]*entities.Player),
+		EntitiesByID:   make(map[EntityID]entity.Entity),
+		EntitiesByUUID: make(map[uuid.UUID]entity.Entity),
+		PlayersByID:    make(map[EntityID]*entity.Player),
+		PlayersByUUID:  make(map[uuid.UUID]*entity.Player),
 	}
 
 	for _, dimension := range world.Dimensions {
@@ -74,7 +74,7 @@ func (w *World) Dimension(dimensionID DimensionID) *Dimension {
 	return w.Dimensions[dimensionID]
 }
 
-func (w *World) GetEntityDimension(e entities.Entity) *Dimension {
+func (w *World) GetEntityDimension(e entity.Entity) *Dimension {
 	return w.Dimensions[e.Base().DimensionID]
 }
 
@@ -82,15 +82,15 @@ func (w *World) OnlinePlayersCount() int {
 	return len(w.PlayersByID)
 }
 
-func (w *World) Players() []*entities.Player {
-	players := make([]*entities.Player, 0, len(w.PlayersByID))
+func (w *World) Players() []*entity.Player {
+	players := make([]*entity.Player, 0, len(w.PlayersByID))
 	for _, player := range w.PlayersByID {
 		players = append(players, player)
 	}
 	return players
 }
 
-func (w *World) EnqueueDirty(e entities.Entity) {
+func (w *World) EnqueueDirty(e entity.Entity) {
 	base := e.Base()
 	if !base.InSyncQueue {
 		base.InSyncQueue = true
@@ -98,7 +98,7 @@ func (w *World) EnqueueDirty(e entities.Entity) {
 	}
 }
 
-func (w *World) AddEntity(entity entities.Entity) error {
+func (w *World) AddEntity(entity entity.Entity) error {
 	base := entity.Base()
 	if base.EntityID == 0 {
 		base.EntityID = w.GetNextEntityID()
@@ -122,7 +122,7 @@ func (w *World) AddEntity(entity entities.Entity) error {
 	return nil
 }
 
-func (w *World) RemoveEntity(entity entities.Entity) {
+func (w *World) RemoveEntity(entity entity.Entity) {
 	base := entity.Base()
 	dimension := w.GetEntityDimension(entity)
 	if dimension != nil {
@@ -134,7 +134,7 @@ func (w *World) RemoveEntity(entity entities.Entity) {
 	base.DimensionID = ""
 }
 
-func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) error {
+func (w *World) AddPlayer(player *entity.Player, dimensionID DimensionID) error {
 	player.Base().DimensionID = dimensionID
 	if err := w.AddEntity(player); err != nil {
 		return err
@@ -144,7 +144,7 @@ func (w *World) AddPlayer(player *entities.Player, dimensionID DimensionID) erro
 	return nil
 }
 
-func (w *World) RemovePlayer(player *entities.Player) {
+func (w *World) RemovePlayer(player *entity.Player) {
 	w.removePlayerWatchers(player)
 	delete(w.PlayersByID, player.EntityID)
 	delete(w.PlayersByUUID, uuid.UUID(player.UUID))
@@ -168,8 +168,8 @@ func (w *World) UpdateEntityChunk(entityID EntityID, oldX, oldZ, newX, newZ floa
 	dimension.GetChunk(newChunkX, newChunkZ).Entities[entityID] = struct{}{}
 }
 
-func (w *World) PlayersInChunkRadius(dimensionID DimensionID, centerChunkX, centerChunkZ, radius int) iter.Seq[*entities.Player] {
-	return func(yield func(*entities.Player) bool) {
+func (w *World) PlayersInChunkRadius(dimensionID DimensionID, centerChunkX, centerChunkZ, radius int) iter.Seq[*entity.Player] {
+	return func(yield func(*entity.Player) bool) {
 		dimension := w.Dimension(dimensionID)
 		for x := centerChunkX - radius; x <= centerChunkX+radius; x++ {
 			for z := centerChunkZ - radius; z <= centerChunkZ+radius; z++ {
@@ -186,7 +186,7 @@ func (w *World) PlayersInChunkRadius(dimensionID DimensionID, centerChunkX, cent
 	}
 }
 
-func (w *World) removePlayerWatchers(player *entities.Player) {
+func (w *World) removePlayerWatchers(player *entity.Player) {
 	dimension := w.GetEntityDimension(player)
 
 	for pos := range player.Movement.VisibleChunks {

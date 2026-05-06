@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -19,7 +19,7 @@ func registerData(s *server.Server) {
 			Literal("get").Connect(
 				Argument("target", parsers.Entity.Single(true)).
 					Executes(func(cc *CommandContext) (*CommandResult, error) {
-						player := cc.Source.Entity.(*entities.Player)
+						player := cc.Source.Entity.(*entity.Player)
 						targets := cc.Args.GetEntityTarget("target")
 						resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)
 						if len(resolved) == 0 {
@@ -53,7 +53,7 @@ func registerData(s *server.Server) {
 				Argument("target", parsers.Entity.Single(true)).Connect(
 					Argument("nbt", parsers.NbtCompoundTag).
 						Executes(func(cc *CommandContext) (*CommandResult, error) {
-							player := cc.Source.Entity.(*entities.Player)
+							player := cc.Source.Entity.(*entity.Player)
 							targets := cc.Args.GetEntityTarget("target")
 							compound := GetArgument[nbt.StringifiedMessage](cc.Args, "nbt")
 							resolved := s.World.ResolveTarget(targets, uuid.UUID(player.UUID), player.Position)

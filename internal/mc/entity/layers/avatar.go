@@ -3,7 +3,7 @@ package layers
 //go:generate go run ../../../../cmd/gen-meta .
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 )
 
 const (

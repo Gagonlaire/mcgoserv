@@ -7,7 +7,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/block"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
@@ -19,7 +19,7 @@ func (c *Connection) HandleKeepAlive(id *mc.Long) {
 	c.LastKeepAlive = c.Server.World.Time
 }
 
-func (c *Connection) SendSpawnEntity(entity entities.Entity) {
+func (c *Connection) SendSpawnEntity(entity entity.Entity) {
 	// todo: check for head/body rotation
 	pkt := c.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
 	c.Send(pkt)
@@ -59,11 +59,11 @@ func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
 
 	// NOTE mainly used for vehicle control
 	if mc.PlayerInput(*flags)&mc.InputSneak != 0 {
-		c.Player.SetFlag(entities.EntityFlagCrouching, true)
-		c.Player.SetPose(entities.EntityPoseSneaking)
+		c.Player.SetFlag(entity.FlagCrouching, true)
+		c.Player.SetPose(entity.PoseSneaking)
 	} else {
-		c.Player.SetFlag(entities.EntityFlagCrouching, false)
-		c.Player.SetPose(entities.EntityPoseStanding)
+		c.Player.SetFlag(entity.FlagCrouching, false)
+		c.Player.SetPose(entity.PoseStanding)
 	}
 	c.Server.World.EnqueueDirty(c.Player)
 }
@@ -75,9 +75,9 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	switch mc.PlayerCommand(data.ActionID) {
 	case mc.CommandStartSprinting:
-		c.Player.SetFlag(entities.EntityFlagSprinting, true)
+		c.Player.SetFlag(entity.FlagSprinting, true)
 	case mc.CommandStopSprinting:
-		c.Player.SetFlag(entities.EntityFlagSprinting, false)
+		c.Player.SetFlag(entity.FlagSprinting, false)
 	}
 	c.Server.World.EnqueueDirty(c.Player)
 }
@@ -219,7 +219,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 	c.Send(pkt)
 }
 
-func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entities.Player) (*packet.OutboundPacket, error) {
+func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entity.Player) (*packet.OutboundPacket, error) {
 	pkt, err := packet.NewPacket(packet.PlayClientboundPlayerInfoUpdate)
 	if err != nil {
 		return nil, err

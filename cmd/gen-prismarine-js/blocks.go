@@ -121,7 +121,7 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 		}
 
 		processedBlocks = append(processedBlocks, GenBlock{
-			PascalName:     pName,
+			PascalName:     pName + "ID",
 			ID:             b.ID,
 			Name:           b.Name,
 			DisplayName:    b.DisplayName,

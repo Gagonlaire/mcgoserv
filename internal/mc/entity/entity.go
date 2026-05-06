@@ -1,11 +1,10 @@
-package entities
+package entity
 
 //go:generate go run ../../../cmd/gen-meta .
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 )
 
@@ -15,7 +14,7 @@ type Entity interface {
 	ClearMetaChanges()
 	GetID() int32
 	GetUUID() NbtUUID
-	GetType() mcdata.EntityType
+	GetType() ID
 	GetPos() [3]float64
 	SetPos(pos [3]float64)
 	GetRot() [2]float32
@@ -37,40 +36,40 @@ const (
 	IndexTicksFrozen       metadata.Index = 7
 )
 
-type EntityFlag byte
+type Flag byte
 
 const (
-	EntityFlagNone      EntityFlag = 0
-	EntityFlagOnFire    EntityFlag = 0x01
-	EntityFlagCrouching EntityFlag = 0x02
-	EntityFlagSprinting EntityFlag = 0x08
-	EntityFlagSwimming  EntityFlag = 0x10
-	EntityFlagInvisible EntityFlag = 0x20
-	EntityFlagGlowing   EntityFlag = 0x40
-	EntityFlagElytra    EntityFlag = 0x80
+	FlagNone      Flag = 0
+	FlagOnFire    Flag = 0x01
+	FlagCrouching Flag = 0x02
+	FlagSprinting Flag = 0x08
+	FlagSwimming  Flag = 0x10
+	FlagInvisible Flag = 0x20
+	FlagGlowing   Flag = 0x40
+	FlagElytra    Flag = 0x80
 )
 
-type EntityPose int32
+type Pose int32
 
 const (
-	EntityPoseStanding EntityPose = iota
-	EntityPoseFallFlying
-	EntityPoseSleeping
-	EntityPoseSwimming
-	EntityPoseSpinAttack
-	EntityPoseSneaking
-	EntityPoseLongJumping
-	EntityPoseDying
-	EntityPoseCroaking
-	EntityPoseUsingTongue
-	EntityPoseSitting
-	EntityPoseRoaring
-	EntityPoseSniffing
-	EntityPoseEmerging
-	EntityPoseDigging
-	EntityPoseSliding
-	EntityPoseShooting
-	EntityPoseInhaling
+	PoseStanding Pose = iota
+	PoseFallFlying
+	PoseSleeping
+	PoseSwimming
+	PoseSpinAttack
+	PoseSneaking
+	PoseLongJumping
+	PoseDying
+	PoseCroaking
+	PoseUsingTongue
+	PoseSitting
+	PoseRoaring
+	PoseSniffing
+	PoseEmerging
+	PoseDigging
+	PoseSliding
+	PoseShooting
+	PoseInhaling
 )
 
 // BaseEntity todo: we should wrap during load/save entities in a struct that hold the type id, exposed for nbt parser
@@ -82,38 +81,38 @@ type BaseEntity struct {
 	CustomName            mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent" nbt:"-"` // todo: add text component ntb encoding
 	CustomNameVisible     bool                `meta:"IndexCustomNameVisible,Boolean" nbt:"CustomNameVisible,omitempty"`
 	Motion                [3]float64
-	Position              [3]float64        `nbt:"Pos"`
-	TypeID                mcdata.EntityType `nbt:"-"`
+	Position              [3]float64 `nbt:"Pos"`
+	ID                    ID         `nbt:"-"`
 	Rotation              [2]float32
 	EntityID              int32 `nbt:"-"`
 	Air                   int16 `meta:"IndexAirTicks,VarInt,default=300"`
 	Fire                  int16
 	UUID                  NbtUUID
-	Pose                  EntityPose `meta:"IndexPose,Pose,default=EntityPoseStanding" nbt:"-"`
-	Flags                 EntityFlag `meta:"IndexEntityFlags,Byte,flags" nbt:"-"`
+	Pose                  Pose `meta:"IndexPose,Pose,default=PoseStanding" nbt:"-"`
+	Flags                 Flag `meta:"IndexEntityFlags,Byte,flags" nbt:"-"`
 	OnGround              bool
 	NoGravity             bool    `meta:"IndexNoGravity,Boolean" nbt:"NoGravity,omitempty"`
 	Silent                bool    `meta:"IndexSilent,Boolean" nbt:"Silent,omitempty"`
 	InSyncQueue           bool    `nbt:"-"` // used for metadata sync
 	TicksFrozen           int32   `meta:"IndexTicksFrozen,VarInt" nbt:"TicksFrozen,omitempty"`
 	FallDistance          float64 `nbt:"fall_distance"`
-	Glowing               bool    `nbt:"Glowing,omitempty"` // this is an alias for EntityFlagGlowing entity flag
+	Glowing               bool    `nbt:"Glowing,omitempty"` // this is an alias for FlagGlowing entity flag
 	Invulnerable          bool
 	PortalCooldown        int32
 	// todo: implement Passengers, Tags and data
 }
 
-func (e *BaseEntity) GetID() int32               { return e.EntityID }
-func (e *BaseEntity) GetUUID() NbtUUID           { return e.UUID }
-func (e *BaseEntity) GetType() mcdata.EntityType { return e.TypeID }
-func (e *BaseEntity) GetPos() [3]float64         { return e.Position }
-func (e *BaseEntity) SetPos(pos [3]float64)      { e.Position = pos }
-func (e *BaseEntity) GetRot() [2]float32         { return e.Rotation }
-func (e *BaseEntity) SetRot(rot [2]float32)      { e.Rotation = rot }
-func (e *BaseEntity) GetMotion() [3]float64      { return e.Motion }
-func (e *BaseEntity) IsOnGround() bool           { return e.OnGround }
-func (e *BaseEntity) Tick()                      {}
-func (e *BaseEntity) Base() *BaseEntity          { return e }
+func (e *BaseEntity) GetID() int32          { return e.EntityID }
+func (e *BaseEntity) GetUUID() NbtUUID      { return e.UUID }
+func (e *BaseEntity) GetType() ID           { return e.ID }
+func (e *BaseEntity) GetPos() [3]float64    { return e.Position }
+func (e *BaseEntity) SetPos(pos [3]float64) { e.Position = pos }
+func (e *BaseEntity) GetRot() [2]float32    { return e.Rotation }
+func (e *BaseEntity) SetRot(rot [2]float32) { e.Rotation = rot }
+func (e *BaseEntity) GetMotion() [3]float64 { return e.Motion }
+func (e *BaseEntity) IsOnGround() bool      { return e.OnGround }
+func (e *BaseEntity) Tick()                 {}
+func (e *BaseEntity) Base() *BaseEntity     { return e }
 
 func (e *BaseEntity) MarkDirty(index byte) {
 	e.DirtyTracker.Mark(index)

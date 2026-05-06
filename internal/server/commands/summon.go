@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -18,17 +18,17 @@ func registerSummon(s *server.Server) {
 	s.Commander.Register(
 		Literal("summon").Connect(
 			Argument("entity", parsers.String).Executes(func(cc *CommandContext) (*CommandResult, error) {
-				sender := cc.Source.Entity.(*entities.Player)
+				sender := cc.Source.Entity.(*entity.Player)
 				return doSummon(s, cc, sender.Position, "")
 			}).Connect(
 				Argument("pos", parsers.Vec3).Executes(func(cc *CommandContext) (*CommandResult, error) {
-					sender := cc.Source.Entity.(*entities.Player)
+					sender := cc.Source.Entity.(*entity.Player)
 					pos := cc.Args["pos"].(parsers.ParsedVec3).Resolve(sender.Position, sender.Rotation)
 					return doSummon(s, cc, pos, "")
 				}).Connect(
 					Argument("nbt", parsers.NbtCompoundTag).
 						Executes(func(cc *CommandContext) (*CommandResult, error) {
-							sender := cc.Source.Entity.(*entities.Player)
+							sender := cc.Source.Entity.(*entity.Player)
 							pos := cc.Args["pos"].(parsers.ParsedVec3).Resolve(sender.Position, sender.Rotation)
 							compound := cc.Args["nbt"].(nbt.StringifiedMessage)
 							return doSummon(s, cc, pos, compound)
@@ -41,21 +41,21 @@ func registerSummon(s *server.Server) {
 
 func doSummon(s *server.Server, cc *CommandContext, pos [3]float64, compound nbt.StringifiedMessage) (*CommandResult, error) {
 	name := GetArgument[string](cc.Args, "entity")
-	data := mcdata.GetEntityByName(name)
-	if data == nil {
+	entityID, ok := entity.FromString(name)
+	if !ok {
 		cc.SendMessage(tc.Translatable(mcdata.CommandsSummonFailed).SetColor(tc.ColorRed))
 		return &CommandResult{Success: 0}, nil
 	}
 
-	sender := cc.Source.Entity.(*entities.Player)
-	entity := entities.NewFromType(mcdata.EntityType(data.ID), sender.DimensionID, pos, sender.Rotation)
-	if entity == nil {
+	sender := cc.Source.Entity.(*entity.Player)
+	e := entity.NewFromType(entityID, sender.DimensionID, pos, sender.Rotation)
+	if e == nil {
 		cc.SendMessage(tc.Translatable(mcdata.CommandsSummonFailed).SetColor(tc.ColorRed))
 		return &CommandResult{Success: 0}, nil
 	}
 
 	if compound != "" {
-		merger, ok := entity.(nbtMergeable)
+		merger, ok := e.(nbtMergeable)
 		if !ok {
 			cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
 			return &CommandResult{Success: 0}, nil
@@ -66,10 +66,10 @@ func doSummon(s *server.Server, cc *CommandContext, pos [3]float64, compound nbt
 		}
 	}
 
-	if err := s.SpawnEntity(entity); err != nil {
+	if err := s.SpawnEntity(e); err != nil {
 		cc.SendMessage(tc.Translatable(mcdata.CommandsSummonFailed).SetColor(tc.ColorRed))
 		return &CommandResult{Success: 0}, nil
 	}
-	cc.SendMessage(tc.Translatable(mcdata.CommandsSummonSuccess, tc.Text(data.DisplayName)))
+	cc.SendMessage(tc.Translatable(mcdata.CommandsSummonSuccess, tc.Text(entityID.DisplayName())))
 	return &CommandResult{Success: 1}, nil
 }

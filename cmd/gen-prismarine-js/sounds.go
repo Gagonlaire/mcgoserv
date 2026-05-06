@@ -42,7 +42,7 @@ func generateSounds(rawSounds io.ReadCloser, data map[string]any) error {
 			maxID = s.ID
 		}
 		processed[i] = GenSound{
-			PascalName: toPascalCase(s.Name),
+			PascalName: toPascalCase(s.Name) + "ID",
 			ID:         s.ID,
 			Name:       s.Name,
 		}

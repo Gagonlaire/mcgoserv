@@ -15,7 +15,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -116,7 +116,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 	c.Player.ChatSession.Index = -1
 	c.Player.ChatSession.Signed = true
 
-	player := []*entities.Player{c.Player}
+	player := []*entity.Player{c.Player}
 	pkt, _ := buildPlayerInfoUpdatePacket(mc.ListActionInitializeChat, player)
 	c.Server.BroadcastAll(pkt)
 }

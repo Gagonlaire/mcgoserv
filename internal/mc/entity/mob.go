@@ -1,9 +1,8 @@
-package entities
+package entity
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities/metadata"
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +22,7 @@ const (
 	IndexIsBecomingDrowned metadata.Index = 18
 )
 
-//meta:encode mode=entity type=EntityZombie parents=Creature nbt=accessors
+//meta:encode mode=entity type=ZombieID parents=Creature nbt=accessors
 type Zombie struct {
 	Creature
 	DrownedConversionTime int32 // todo: should default to -1
@@ -39,13 +38,13 @@ func NewZombie(dimension string, pos [3]float64, rot [2]float32) *Zombie {
 	zombie.Position = pos
 	zombie.Rotation = rot
 	zombie.UUID = NbtUUID(uuid.New())
-	zombie.TypeID = mcdata.EntityZombie
+	zombie.ID = ZombieID
 
 	zombie.InitMetaDefaults()
-	zombie.Attributes = attribute.NewSetWithDefaults(attributeDefaults[mcdata.EntityZombie])
-	zombie.Attributes.RollBases(rollableAttributes[mcdata.EntityZombie])
+	zombie.Attributes = attribute.NewSetWithDefaults(attributeDefaults[ZombieID])
+	zombie.Attributes.RollBases(rollableAttributes[ZombieID])
 	zombie.DrownedConversionTime = -1
-	zombie.Health = float32(zombie.Attributes.Value(attribute.MaxHealth))
+	zombie.Health = float32(zombie.Attributes.Value(attribute.MaxHealthID))
 
 	return zombie
 }
