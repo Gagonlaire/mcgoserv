@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/md5"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -11,6 +12,18 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// OfflineUUID derives the deterministic UUID assigned by vanilla servers in offline mode.
+func OfflineUUID(name string) uuid.UUID {
+	h := md5.New()
+	h.Write([]byte("OfflinePlayer:" + name))
+	digest := h.Sum(nil)
+	digest[6] = (digest[6] & 0x0f) | 0x30
+	digest[8] = (digest[8] & 0x3f) | 0x80
+	var u uuid.UUID
+	copy(u[:], digest)
+	return u
+}
 
 const (
 	MojangAPIProfileURL = "https://api.mojang.com/users/profiles/minecraft/%s"

@@ -3,7 +3,6 @@ package commands
 import (
 	"net"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
@@ -245,7 +244,7 @@ func banExecutor(s *server.Server, reasonArg string) Command {
 				}
 				targets = append(targets, banTarget{u, realName})
 			} else {
-				offlineUUID := internal.GetOfflineUUID(target.Name)
+				offlineUUID := api.OfflineUUID(target.Name)
 				targets = append(targets, banTarget{offlineUUID, target.Name})
 			}
 		case mc.TargetTypeSelector:

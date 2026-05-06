@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
@@ -47,7 +46,7 @@ func registerOp(s *server.Server) {
 							}
 							targets = append(targets, opTarget{u, realName})
 						} else {
-							offlineUUID := internal.GetOfflineUUID(target.Name)
+							offlineUUID := api.OfflineUUID(target.Name)
 							targets = append(targets, opTarget{offlineUUID, target.Name})
 						}
 					case mc.TargetTypeSelector:

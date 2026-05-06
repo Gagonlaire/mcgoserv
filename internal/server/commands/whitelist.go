@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
@@ -86,7 +85,7 @@ func registerWhitelist(s *server.Server) {
 								}
 								targets = append(targets, whitelistTarget{u, realName})
 							} else {
-								offlineUUID := internal.GetOfflineUUID(target.Name)
+								offlineUUID := api.OfflineUUID(target.Name)
 								targets = append(targets, whitelistTarget{offlineUUID, target.Name})
 							}
 						case mc.TargetTypeSelector:

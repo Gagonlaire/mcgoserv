@@ -2,14 +2,26 @@ package mc
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal/errutil"
 	"github.com/google/uuid"
 )
+
+// WrapIOErr wraps an I/O error with additional context, leaving io.EOF untouched.
+func WrapIOErr(err error, format string, args ...any) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, io.EOF) {
+		return io.EOF
+	}
+	msg := fmt.Sprintf(format, args...)
+	return fmt.Errorf("%s: %w", msg, err)
+}
 
 type Field interface {
 	io.ReaderFrom
@@ -204,7 +216,7 @@ func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 		val = buf[0]
 	}
 	if err != nil {
-		return n, errutil.WrapIOErr(err, "error reading Boolean")
+		return n, WrapIOErr(err, "error reading Boolean")
 	}
 	*b = val != 0
 	return 1, nil
@@ -217,14 +229,14 @@ func (b Boolean) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(val); err != nil {
-			return 0, errutil.WrapIOErr(err, "error writing Boolean")
+			return 0, WrapIOErr(err, "error writing Boolean")
 		}
 		return 1, nil
 	}
 	var buf [1]byte
 	buf[0] = val
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error writing Boolean")
+		return 0, WrapIOErr(err, "error writing Boolean")
 	}
 	return 1, nil
 }
@@ -233,14 +245,14 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 	if br, ok := r.(io.ByteReader); ok {
 		val, err := br.ReadByte()
 		if err != nil {
-			return 0, errutil.WrapIOErr(err, "error reading Byte")
+			return 0, WrapIOErr(err, "error reading Byte")
 		}
 		*b = Byte(val)
 		return 1, nil
 	}
 	var buf [1]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Byte")
+		return 0, WrapIOErr(err, "error reading Byte")
 	}
 	*b = Byte(buf[0])
 	return 1, nil
@@ -249,14 +261,14 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 func (b Byte) WriteTo(w io.Writer) (n int64, err error) {
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(byte(b)); err != nil {
-			return 0, errutil.WrapIOErr(err, "error writing Byte")
+			return 0, WrapIOErr(err, "error writing Byte")
 		}
 		return 1, nil
 	}
 	var buf [1]byte
 	buf[0] = byte(b)
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error writing Byte")
+		return 0, WrapIOErr(err, "error writing Byte")
 	}
 	return 1, nil
 }
@@ -265,14 +277,14 @@ func (u *UnsignedByte) ReadFrom(r io.Reader) (n int64, err error) {
 	if br, ok := r.(io.ByteReader); ok {
 		val, err := br.ReadByte()
 		if err != nil {
-			return 0, errutil.WrapIOErr(err, "error reading UnsignedByte")
+			return 0, WrapIOErr(err, "error reading UnsignedByte")
 		}
 		*u = UnsignedByte(val)
 		return 1, nil
 	}
 	var buf [1]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading UnsignedByte")
+		return 0, WrapIOErr(err, "error reading UnsignedByte")
 	}
 	*u = UnsignedByte(buf[0])
 	return 1, nil
@@ -281,14 +293,14 @@ func (u *UnsignedByte) ReadFrom(r io.Reader) (n int64, err error) {
 func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 	if bw, ok := w.(io.ByteWriter); ok {
 		if err := bw.WriteByte(byte(u)); err != nil {
-			return 0, errutil.WrapIOErr(err, "error writing UnsignedByte")
+			return 0, WrapIOErr(err, "error writing UnsignedByte")
 		}
 		return 1, nil
 	}
 	var buf [1]byte
 	buf[0] = byte(u)
 	if _, err = w.Write(buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error writing UnsignedByte")
+		return 0, WrapIOErr(err, "error writing UnsignedByte")
 	}
 	return 1, nil
 }
@@ -296,7 +308,7 @@ func (u UnsignedByte) WriteTo(w io.Writer) (n int64, err error) {
 func (s *Short) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [2]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Short")
+		return 0, WrapIOErr(err, "error reading Short")
 	}
 	*s = Short(binary.BigEndian.Uint16(buf[:]))
 	return 2, nil
@@ -307,7 +319,7 @@ func (s Short) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(s))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing Short")
+		return int64(nn), WrapIOErr(err, "error writing Short")
 	}
 	return int64(nn), nil
 }
@@ -315,7 +327,7 @@ func (s Short) WriteTo(w io.Writer) (n int64, err error) {
 func (u *UnsignedShort) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [2]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading UnsignedShort")
+		return 0, WrapIOErr(err, "error reading UnsignedShort")
 	}
 	*u = UnsignedShort(binary.BigEndian.Uint16(buf[:]))
 	return 2, nil
@@ -326,7 +338,7 @@ func (u UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint16(buf[:0], uint16(u))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing UnsignedShort")
+		return int64(nn), WrapIOErr(err, "error writing UnsignedShort")
 	}
 	return int64(nn), nil
 }
@@ -334,7 +346,7 @@ func (u UnsignedShort) WriteTo(w io.Writer) (n int64, err error) {
 func (i *Int) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [4]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Int")
+		return 0, WrapIOErr(err, "error reading Int")
 	}
 	*i = Int(binary.BigEndian.Uint32(buf[:]))
 	return 4, nil
@@ -345,7 +357,7 @@ func (i Int) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint32(buf[:0], uint32(i))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing Int")
+		return int64(nn), WrapIOErr(err, "error writing Int")
 	}
 	return int64(nn), nil
 }
@@ -353,7 +365,7 @@ func (i Int) WriteTo(w io.Writer) (n int64, err error) {
 func (l *Long) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [8]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Long")
+		return 0, WrapIOErr(err, "error reading Long")
 	}
 	*l = Long(binary.BigEndian.Uint64(buf[:]))
 	return 8, nil
@@ -364,7 +376,7 @@ func (l Long) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint64(buf[:0], uint64(l))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing Long")
+		return int64(nn), WrapIOErr(err, "error writing Long")
 	}
 	return int64(nn), nil
 }
@@ -372,7 +384,7 @@ func (l Long) WriteTo(w io.Writer) (n int64, err error) {
 func (f *Float) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [4]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Float")
+		return 0, WrapIOErr(err, "error reading Float")
 	}
 	*f = Float(math.Float32frombits(binary.BigEndian.Uint32(buf[:])))
 	return 4, nil
@@ -383,7 +395,7 @@ func (f Float) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint32(buf[:0], math.Float32bits(float32(f)))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing Float")
+		return int64(nn), WrapIOErr(err, "error writing Float")
 	}
 	return int64(nn), nil
 }
@@ -391,7 +403,7 @@ func (f Float) WriteTo(w io.Writer) (n int64, err error) {
 func (d *Double) ReadFrom(r io.Reader) (n int64, err error) {
 	var buf [8]byte
 	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return 0, errutil.WrapIOErr(err, "error reading Double")
+		return 0, WrapIOErr(err, "error reading Double")
 	}
 	*d = Double(math.Float64frombits(binary.BigEndian.Uint64(buf[:])))
 	return 8, nil
@@ -402,7 +414,7 @@ func (d Double) WriteTo(w io.Writer) (n int64, err error) {
 	b := binary.BigEndian.AppendUint64(buf[:0], math.Float64bits(float64(d)))
 	nn, err := w.Write(b)
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing Double")
+		return int64(nn), WrapIOErr(err, "error writing Double")
 	}
 	return int64(nn), nil
 }
@@ -415,7 +427,7 @@ func encodeString(w io.Writer, s string) (n int64, err error) {
 	}
 	nStr, err := io.WriteString(w, s)
 	if err != nil {
-		return n + int64(nStr), errutil.WrapIOErr(err, "error writing String")
+		return n + int64(nStr), WrapIOErr(err, "error writing String")
 	}
 	return n + int64(nStr), nil
 }
@@ -434,7 +446,7 @@ func decodeString(r io.Reader, target *string, maxN int32) (n int64, err error) 
 	buf := make([]byte, byteLength)
 	readBytes, err := io.ReadFull(r, buf)
 	if err != nil {
-		return n + int64(readBytes), errutil.WrapIOErr(err, "error reading String bytes")
+		return n + int64(readBytes), WrapIOErr(err, "error reading String bytes")
 	}
 	n += int64(readBytes)
 	str := string(buf)
@@ -496,7 +508,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 		for i := 0; i < 5; i++ {
 			b, err := br.ReadByte()
 			if err != nil {
-				return n, errutil.WrapIOErr(err, "error reading VarInt")
+				return n, WrapIOErr(err, "error reading VarInt")
 			}
 			n++
 			*v |= VarInt(b&0x7F) << position
@@ -510,7 +522,7 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 	for i := 0; i < 5; i++ {
 		var b [1]byte
 		if _, err = io.ReadFull(r, b[:]); err != nil {
-			return n, errutil.WrapIOErr(err, "error reading VarInt")
+			return n, WrapIOErr(err, "error reading VarInt")
 		}
 		n++
 		*v |= VarInt(b[0]&0x7F) << position
@@ -539,7 +551,7 @@ func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	nn, err := w.Write(buf[:i])
 	if err != nil {
-		return int64(nn), errutil.WrapIOErr(err, "error writing VarInt")
+		return int64(nn), WrapIOErr(err, "error writing VarInt")
 	}
 	return int64(nn), nil
 }
@@ -547,7 +559,7 @@ func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
 func (u *UUID) ReadFrom(r io.Reader) (n int64, err error) {
 	nBytes, err := io.ReadFull(r, (*u)[:])
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error reading UUID")
+		return int64(nBytes), WrapIOErr(err, "error reading UUID")
 	}
 	return int64(nBytes), nil
 }
@@ -555,7 +567,7 @@ func (u *UUID) ReadFrom(r io.Reader) (n int64, err error) {
 func (u UUID) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(u[:])
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error writing UUID")
+		return int64(nBytes), WrapIOErr(err, "error writing UUID")
 	}
 	return int64(nBytes), nil
 }

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Gagonlaire/mcgoserv/internal/errutil"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/klauspost/compress/zlib"
 )
@@ -84,7 +83,7 @@ func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
 func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 	var frameLength mc.VarInt
 	if _, err := frameLength.ReadFrom(conn); err != nil {
-		return nil, errutil.WrapIOErr(err, "error reading frame length")
+		return nil, mc.WrapIOErr(err, "error reading frame length")
 	}
 
 	if int(frameLength) > MaxFrameSize || frameLength < 0 {
@@ -98,14 +97,14 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 		}
 	}()
 	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
-		return nil, errutil.WrapIOErr(err, "error reading frame body")
+		return nil, mc.WrapIOErr(err, "error reading frame body")
 	}
 	var bodyBuf = rawBuf
 
 	if threshold >= 0 {
 		var dataLength mc.VarInt
 		if _, err := dataLength.ReadFrom(rawBuf); err != nil {
-			return nil, errutil.WrapIOErr(err, "error reading data length")
+			return nil, mc.WrapIOErr(err, "error reading data length")
 		}
 
 		if dataLength != 0 {
@@ -131,7 +130,7 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 			}()
 
 			if _, err := io.Copy(decompBuf, zlibReader); err != nil {
-				return nil, errutil.WrapIOErr(err, "error reading compressed data")
+				return nil, mc.WrapIOErr(err, "error reading compressed data")
 			}
 			bodyBuf = decompBuf
 		}
@@ -139,7 +138,7 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 
 	var packetID mc.VarInt
 	if _, err := packetID.ReadFrom(bodyBuf); err != nil {
-		return nil, errutil.WrapIOErr(err, "error reading packet ID")
+		return nil, mc.WrapIOErr(err, "error reading packet ID")
 	}
 
 	p := &InboundPacket{

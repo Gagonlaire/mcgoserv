@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -401,7 +400,7 @@ func getLastSeenSignatures(session *mc.ChatSession, acknowledged *mc.FixedBitSet
 func computeLastSeenChecksum(signatures [][]byte) mc.Byte {
 	var result int32 = 1
 	for _, sig := range signatures {
-		sigChecksum := internal.ArrayHash(sig)
+		sigChecksum := arrayHash(sig)
 		result = 31*result + sigChecksum
 	}
 	checksum := mc.Byte(byte(result))
@@ -409,6 +408,15 @@ func computeLastSeenChecksum(signatures [][]byte) mc.Byte {
 		return 1
 	}
 	return checksum
+}
+
+// arrayHash mirrors Java's Arrays.hashCode(byte[]).
+func arrayHash(data []byte) int32 {
+	var result int32 = 1
+	for _, b := range data {
+		result = 31*result + int32(int8(b))
+	}
+	return result
 }
 
 func verifyMessageSignature(

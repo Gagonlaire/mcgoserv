@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 
-	"github.com/Gagonlaire/mcgoserv/internal/buildinfo"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -13,6 +12,24 @@ import (
 
 const repoURL = "https://github.com/Gagonlaire/mcgoserv"
 
+// Build metadata injected via -ldflags at build time. See Makefile.
+var (
+	BuildTime string
+	Stable    string
+	Branch    string
+)
+
+func isStable() bool {
+	return Stable == "true"
+}
+
+func branchValue() string {
+	if Branch == "" {
+		return "unknown"
+	}
+	return Branch
+}
+
 func versionLine(label, value string) tc.Component {
 	return tc.Container(
 		tc.Text(label).SetColor(tc.ColorGold),
@@ -21,7 +38,7 @@ func versionLine(label, value string) tc.Component {
 }
 
 func seriesComponent() tc.Component {
-	branch := buildinfo.BranchValue()
+	branch := branchValue()
 	branchComp := tc.Text(branch).SetColor(tc.ColorWhite)
 
 	if branch != "unknown" {
@@ -38,17 +55,17 @@ func seriesComponent() tc.Component {
 }
 
 func stableComponent() tc.Component {
-	if buildinfo.IsStable() {
+	if isStable() {
 		return tc.Text("yes").SetColor(tc.ColorGreen)
 	}
 	return tc.Text("no").SetColor(tc.ColorRed)
 }
 
 func buildTimeValue() string {
-	if buildinfo.BuildTime == "" {
+	if BuildTime == "" {
 		return "unknown"
 	}
-	return buildinfo.BuildTime
+	return BuildTime
 }
 
 func registerStop(s *server.Server) {

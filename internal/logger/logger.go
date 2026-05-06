@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
+	"github.com/Gagonlaire/mcgoserv/internal/ansi"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 )
 
@@ -40,15 +40,15 @@ func (l Level) String() string {
 func (l Level) AnsiString() string {
 	switch l {
 	case DEBUG:
-		return internal.ColorLightBlue + "DEBUG" + internal.AnsiReset
+		return ansi.LightBlue + "DEBUG" + ansi.Reset
 	case WARN:
-		return internal.ColorYellow + "WARN" + internal.AnsiReset
+		return ansi.Yellow + "WARN" + ansi.Reset
 	case ERROR:
-		return internal.ColorRed + "ERROR" + internal.AnsiReset
+		return ansi.Red + "ERROR" + ansi.Reset
 	case CRITICAL:
-		return internal.ColorRed + internal.AnsiBold + "CRITICAL" + internal.AnsiReset
+		return ansi.Red + ansi.Bold + "CRITICAL" + ansi.Reset
 	default:
-		return internal.ColorGreen + "INFO" + internal.AnsiReset
+		return ansi.Green + "INFO" + ansi.Reset
 	}
 }
 
@@ -140,7 +140,7 @@ func (l *Logger) Debug(format string, v ...any) {
 	if l.minLevel > DEBUG {
 		return
 	}
-	l.output(DEBUG, internal.ColorLightBlue+fmt.Sprintf(format, v...)+internal.AnsiReset)
+	l.output(DEBUG, ansi.LightBlue+fmt.Sprintf(format, v...)+ansi.Reset)
 }
 
 func (l *Logger) Info(format string, v ...any) {

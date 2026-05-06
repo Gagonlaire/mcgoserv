@@ -1,21 +1,23 @@
 package logger
 
-import "fmt"
+import (
+	"fmt"
 
-import "github.com/Gagonlaire/mcgoserv/internal"
+	"github.com/Gagonlaire/mcgoserv/internal/ansi"
+)
 
 func Identity(v any) string {
-	return internal.ColorCyan + fmt.Sprint(v) + internal.AnsiReset
+	return ansi.Cyan + fmt.Sprint(v) + ansi.Reset
 }
 
 func Network(v any) string {
-	return internal.ColorPurple + fmt.Sprint(v) + internal.AnsiReset
+	return ansi.Purple + fmt.Sprint(v) + ansi.Reset
 }
 
 func Value(v any) string {
-	return internal.ColorGreen + internal.AnsiBold + fmt.Sprint(v) + internal.AnsiReset
+	return ansi.Green + ansi.Bold + fmt.Sprint(v) + ansi.Reset
 }
 
 func FmtWarn(v any) string {
-	return internal.ColorYellow + fmt.Sprint(v) + internal.AnsiReset
+	return ansi.Yellow + fmt.Sprint(v) + ansi.Reset
 }

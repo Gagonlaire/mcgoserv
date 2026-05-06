@@ -3,7 +3,7 @@ package textcomponent
 import (
 	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
+	"github.com/Gagonlaire/mcgoserv/internal/ansi"
 )
 
 const (
@@ -24,25 +24,6 @@ const (
 	ColorYellow      = "yellow"
 	ColorWhite       = "white"
 )
-
-var AnsiColors = map[string]string{
-	ColorBlack:       "\u001B[30m",
-	ColorDarkBlue:    "\u001B[34m",
-	ColorDarkGreen:   "\u001B[32m",
-	ColorDarkAqua:    "\u001B[36m",
-	ColorDarkRed:     "\u001B[31m",
-	ColorDarkPurple:  "\u001B[35m",
-	ColorGold:        "\u001B[33m",
-	ColorGray:        "\u001B[37m",
-	ColorDarkGray:    "\u001B[90m",
-	ColorBlue:        "\u001B[94m",
-	ColorGreen:       "\u001B[92m",
-	ColorAqua:        "\u001B[96m",
-	ColorRed:         "\u001B[91m",
-	ColorLightPurple: "\u001B[95m",
-	ColorYellow:      "\u001B[93m",
-	ColorWhite:       "\u001B[97m",
-}
 
 type Formatting struct {
 	ShadowColor   any    `nbt:"shadow_color,omitempty" json:"shadow_color,omitempty"`
@@ -102,20 +83,20 @@ func (b *Base[T]) buildAnsiString(content string, parentStyle string) string {
 	var myStyleBuilder strings.Builder
 
 	if b.Formatting != nil {
-		if code, ok := AnsiColors[b.Formatting.Color]; ok {
+		if code, ok := ansi.MinecraftColors[b.Formatting.Color]; ok {
 			myStyleBuilder.WriteString(code)
 		}
 		if b.Formatting.Bold {
-			myStyleBuilder.WriteString(internal.AnsiBold)
+			myStyleBuilder.WriteString(ansi.Bold)
 		}
 		if b.Formatting.Italic {
-			myStyleBuilder.WriteString(internal.AnsiItalic)
+			myStyleBuilder.WriteString(ansi.Italic)
 		}
 		if b.Formatting.Underlined {
-			myStyleBuilder.WriteString(internal.AnsiUnderline)
+			myStyleBuilder.WriteString(ansi.Underline)
 		}
 		if b.Formatting.Strikethrough {
-			myStyleBuilder.WriteString(internal.AnsiStrike)
+			myStyleBuilder.WriteString(ansi.Strike)
 		}
 	}
 
@@ -129,7 +110,7 @@ func (b *Base[T]) buildAnsiString(content string, parentStyle string) string {
 	}
 
 	if myStyle != "" {
-		sb.WriteString(internal.AnsiReset)
+		sb.WriteString(ansi.Reset)
 		sb.WriteString(parentStyle)
 	}
 
@@ -154,7 +135,7 @@ func splitAnsiString(str string) []string {
 
 				currentLine.WriteString(code)
 
-				if code == internal.AnsiReset {
+				if code == ansi.Reset {
 					activeStyle.Reset()
 				} else {
 					activeStyle.WriteString(code)
@@ -170,7 +151,7 @@ func splitAnsiString(str string) []string {
 		}
 
 		if r == '\n' {
-			currentLine.WriteString(internal.AnsiReset)
+			currentLine.WriteString(ansi.Reset)
 			lines = append(lines, currentLine.String())
 			currentLine.Reset()
 			currentLine.WriteString(activeStyle.String())
@@ -181,7 +162,7 @@ func splitAnsiString(str string) []string {
 	}
 
 	if currentLine.Len() > 0 {
-		currentLine.WriteString(internal.AnsiReset)
+		currentLine.WriteString(ansi.Reset)
 		lines = append(lines, currentLine.String())
 	}
 
