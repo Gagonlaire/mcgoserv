@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/block"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
@@ -182,14 +182,14 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 		itemID, ok := item.FromID(int(slotData.ItemID))
 
 		if ok && itemID.IsBlock() {
-			block, _ := mcdata.GetBlock(itemID.BlockID())
+			blockID, _ := block.FromID(itemID.BlockID())
 			dim := c.Server.World.GetEntityDimension(c.Player)
-			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
+			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(blockID.DefaultStateID()))
 
 			pkt := c.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				data.Location,
-				mc.VarInt(block.DefaultStateID),
+				mc.VarInt(blockID.DefaultStateID()),
 			)
 			c.Server.BroadcastAll(pkt)
 
@@ -198,7 +198,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			// todo: sounds weird, tweak values
 			pitch := 0.5 + r.Float64()*(2-0.5)
-			if soundId, ok := block.Sounds["place"]; ok {
+			if soundId, ok := blockID.Sounds()["place"]; ok {
 				soundPkt := c.NewPacket(
 					packet.PlayClientboundSound,
 					mc.VarInt(soundId+1),

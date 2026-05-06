@@ -67,14 +67,15 @@ type GenBlock struct {
 }
 
 type BlockTemplateData struct {
-	Blocks     []GenBlock
-	MaxBlockID int
-	MaxStateID int
+	Blocks         []GenBlock
+	MaxBlockID     int
+	MaxStateID     int
+	StateIDToBlock []int
 }
 
 func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mcdata/blocks_gen.go"
+		outputFile = "internal/mc/block/block_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/blocks.tmpl"
 	)
 
@@ -171,10 +172,18 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
+	stateIDToBlock := make([]int, maxStateID+1)
+	for _, b := range processedBlocks {
+		for s := b.MinStateID; s <= b.MaxStateID; s++ {
+			stateIDToBlock[s] = b.ID
+		}
+	}
+
 	tmplData := BlockTemplateData{
-		Blocks:     processedBlocks,
-		MaxBlockID: maxBlockID,
-		MaxStateID: maxStateID,
+		Blocks:         processedBlocks,
+		MaxBlockID:     maxBlockID,
+		MaxStateID:     maxStateID,
+		StateIDToBlock: stateIDToBlock,
 	}
 
 	if err := tmpl.Execute(outFile, tmplData); err != nil {
