@@ -1,7 +1,7 @@
 package traits
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
 	"github.com/google/uuid"
 )
 
@@ -12,7 +12,7 @@ type Damageable interface {
 type Bucketable interface {
 	FromBucket() bool
 	SetFromBucket(bool)
-	GetBucketItem() mcdata.Item
+	GetBucketItem() item.ID
 }
 
 type Saddleable interface {

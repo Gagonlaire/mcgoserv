@@ -7,6 +7,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
@@ -178,10 +179,10 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 	var slotData = c.Player.Inventory.Get(slotId)
 
 	if slotData.Count > 0 {
-		item, ok := mcdata.GetItem(int(slotData.ItemID))
+		itemID, ok := item.FromID(int(slotData.ItemID))
 
-		if ok && item.BlockID != -1 {
-			block, _ := mcdata.GetBlock(item.BlockID)
+		if ok && itemID.IsBlock() {
+			block, _ := mcdata.GetBlock(itemID.BlockID())
 			dim := c.Server.World.GetEntityDimension(c.Player)
 			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(block.DefaultStateID))
 

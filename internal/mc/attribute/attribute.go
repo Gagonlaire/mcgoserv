@@ -35,6 +35,10 @@ func (id ID) Max() float64 {
 	return registry[id].Max
 }
 
+func (id ID) Raw() Properties {
+	return registry[id]
+}
+
 func FromString(name string) (ID, bool) {
 	id, ok := idByName[name]
 	return id, ok
