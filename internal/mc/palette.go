@@ -39,8 +39,8 @@ type SingleValueContainer struct {
 
 //field:encode mode=both
 type IndirectContainer struct {
-	DataArray   *DataArray
 	Palette     PrefixedArray[VarInt, *VarInt]
+	DataArray   *DataArray
 	MaxCapacity int `field:"-"`
 }
 
@@ -188,7 +188,10 @@ func (i *IndirectContainer) upgradeToDirect(index int, value int32) (Container, 
 		globalID := i.Get(x)
 		_, _ = direct.Set(x, globalID)
 	}
-	return direct.Set(index, value)
+	if _, err := direct.Set(index, value); err != nil {
+		return nil, err
+	}
+	return direct, nil
 }
 
 func (i *IndirectContainer) Size() int {
