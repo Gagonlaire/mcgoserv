@@ -9,33 +9,29 @@ import (
 )
 
 type EntityDefinition struct {
-	ID           int      `json:"id"`
-	InternalID   int      `json:"internalId"`
-	Name         string   `json:"name"`
-	DisplayName  string   `json:"displayName"`
-	Width        float64  `json:"width"`
-	Height       float64  `json:"height"`
-	Type         string   `json:"type"`
-	Category     string   `json:"category"`
-	MetadataKeys []string `json:"metadataKeys"`
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	DisplayName string  `json:"displayName"`
+	Width       float64 `json:"width"`
+	Height      float64 `json:"height"`
+	Type        string  `json:"type"`
+	Category    string  `json:"category"`
 }
 
 type GenEntity struct {
-	PascalName   string
-	ID           int
-	InternalID   int
-	Name         string
-	DisplayName  string
-	Width        float64
-	Height       float64
-	Type         string
-	Category     string
-	MetadataKeys []string
+	PascalName  string
+	ID          int
+	Name        string
+	DisplayName string
+	Width       float64
+	Height      float64
+	Type        string
+	Category    string
 }
 
 func generateEntities(rawEntities io.ReadCloser, _ map[string]any) error {
 	const (
-		outputFile = "internal/mcdata/entities_gen.go"
+		outputFile = "internal/mc/entity/entity_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/entities.tmpl"
 	)
 
@@ -52,25 +48,20 @@ func generateEntities(rawEntities io.ReadCloser, _ map[string]any) error {
 	}
 
 	processedEntities := make([]*GenEntity, maxID+1)
-
 	for _, def := range definitions {
 		pascalName := toPascalCase(def.Name)
-
 		if pascalName == "" {
 			continue
 		}
-
 		processedEntities[def.ID] = &GenEntity{
-			PascalName:   "Entity" + pascalName,
-			ID:           def.ID,
-			InternalID:   def.InternalID,
-			Name:         def.Name,
-			DisplayName:  def.DisplayName,
-			Width:        def.Width,
-			Height:       def.Height,
-			Type:         def.Type,
-			Category:     def.Category,
-			MetadataKeys: def.MetadataKeys,
+			PascalName:  pascalName + "ID",
+			ID:          def.ID,
+			Name:        def.Name,
+			DisplayName: def.DisplayName,
+			Width:       def.Width,
+			Height:      def.Height,
+			Type:        def.Type,
+			Category:    def.Category,
 		}
 	}
 

@@ -4,7 +4,7 @@ import (
 	"io"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 )
 
 type AddEntity struct {
@@ -36,7 +36,7 @@ func (a *AddEntity) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func NewAddEntity(entity entities.Entity) *AddEntity {
+func NewAddEntity(entity entity.Entity) *AddEntity {
 	rot := entity.GetRot()
 	motion := entity.GetMotion()
 	yaw := mc.DegreesToAngle(rot[0])

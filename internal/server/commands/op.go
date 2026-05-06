@@ -1,10 +1,9 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -47,13 +46,13 @@ func registerOp(s *server.Server) {
 							}
 							targets = append(targets, opTarget{u, realName})
 						} else {
-							offlineUUID := internal.GetOfflineUUID(target.Name)
+							offlineUUID := api.OfflineUUID(target.Name)
 							targets = append(targets, opTarget{offlineUUID, target.Name})
 						}
 					case mc.TargetTypeSelector:
 						var sourceUUID uuid.UUID
 						var sourcePos [3]float64
-						if player, ok := cc.Source.Entity.(*entities.Player); ok {
+						if player, ok := cc.Source.Entity.(*entity.Player); ok {
 							sourceUUID = uuid.UUID(player.UUID)
 							sourcePos = player.Position
 						}
@@ -119,7 +118,7 @@ func registerDeop(s *server.Server) {
 					case mc.TargetTypeSelector:
 						var sourceUUID uuid.UUID
 						var sourcePos [3]float64
-						if player, ok := cc.Source.Entity.(*entities.Player); ok {
+						if player, ok := cc.Source.Entity.(*entity.Player); ok {
 							sourceUUID = uuid.UUID(player.UUID)
 							sourcePos = player.Position
 						}

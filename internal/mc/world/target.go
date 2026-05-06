@@ -6,25 +6,25 @@ import (
 	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/google/uuid"
 )
 
 // ResolveTarget resolves a target to all matching entities. Player-only selectors
 // (@p, @r, @a) -> player index, entity selectors (@e, @n) -> full entity index. @s -> source
 // UUID -> full entity index, name targets only match players
-func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []entities.Entity {
+func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []entity.Entity {
 	switch target.Type {
 	case mc.TargetTypePlayerName:
 		for _, p := range w.PlayersByID {
 			if p.Name == target.Name {
-				return []entities.Entity{p}
+				return []entity.Entity{p}
 			}
 		}
 		return nil
 	case mc.TargetTypeUUID:
 		if e := w.EntitiesByUUID[target.UUID]; e != nil {
-			return []entities.Entity{e}
+			return []entity.Entity{e}
 		}
 		return nil
 	case mc.TargetTypeSelector:
@@ -33,47 +33,47 @@ func (w *World) ResolveTarget(target *mc.EntityTarget, sourceUUID uuid.UUID, sou
 	return nil
 }
 
-func (w *World) ResolvePlayers(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []*entities.Player {
+func (w *World) ResolvePlayers(target *mc.EntityTarget, sourceUUID uuid.UUID, sourcePos [3]float64) []*entity.Player {
 	ents := w.ResolveTarget(target, sourceUUID, sourcePos)
 	if len(ents) == 0 {
 		return nil
 	}
-	players := make([]*entities.Player, 0, len(ents))
+	players := make([]*entity.Player, 0, len(ents))
 	for _, e := range ents {
-		if p, ok := e.(*entities.Player); ok {
+		if p, ok := e.(*entity.Player); ok {
 			players = append(players, p)
 		}
 	}
 	return players
 }
 
-func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []entities.Entity {
+func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []entity.Entity {
 	switch sel.Variable {
 	case mc.SelectorVariableSelf:
 		if e := w.EntitiesByUUID[sourceUUID]; e != nil {
-			return []entities.Entity{e}
+			return []entity.Entity{e}
 		}
 		return nil
 	case mc.SelectorVariableAllPlayers:
-		out := make([]entities.Entity, 0, len(w.PlayersByID))
+		out := make([]entity.Entity, 0, len(w.PlayersByID))
 		for _, p := range w.PlayersByID {
 			out = append(out, p)
 		}
 		return out
 	case mc.SelectorVariableAllEntities:
-		out := make([]entities.Entity, 0, len(w.EntitiesByID))
+		out := make([]entity.Entity, 0, len(w.EntitiesByID))
 		for _, e := range w.EntitiesByID {
 			out = append(out, e)
 		}
 		return out
 	case mc.SelectorVariableNearestPlayer:
 		if p := w.nearestPlayer(sourcePos); p != nil {
-			return []entities.Entity{p}
+			return []entity.Entity{p}
 		}
 		return nil
 	case mc.SelectorVariableNearestEntity:
 		if e := w.nearestEntity(sourcePos); e != nil {
-			return []entities.Entity{e}
+			return []entity.Entity{e}
 		}
 		return nil
 	case mc.SelectorVariableRandomPlayer:
@@ -81,13 +81,13 @@ func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePo
 		if len(players) == 0 {
 			return nil
 		}
-		return []entities.Entity{players[rand.IntN(len(players))]}
+		return []entity.Entity{players[rand.IntN(len(players))]}
 	}
 	return nil
 }
 
-func (w *World) nearestEntity(pos [3]float64) entities.Entity {
-	var nearest entities.Entity
+func (w *World) nearestEntity(pos [3]float64) entity.Entity {
+	var nearest entity.Entity
 	bestDist := math.MaxFloat64
 	for _, e := range w.EntitiesByID {
 		d := distSq(pos, e.Base().Position)
@@ -99,8 +99,8 @@ func (w *World) nearestEntity(pos [3]float64) entities.Entity {
 	return nearest
 }
 
-func (w *World) nearestPlayer(pos [3]float64) *entities.Player {
-	var nearest *entities.Player
+func (w *World) nearestPlayer(pos [3]float64) *entity.Player {
+	var nearest *entity.Player
 	bestDist := math.MaxFloat64
 	for _, p := range w.PlayersByID {
 		d := distSq(pos, p.Position)
@@ -124,7 +124,7 @@ func (w *World) ResolveMessage(msg *mc.ParsedMessage, sourceUUID uuid.UUID, sour
 		ents := w.resolveSelector(span.Selector, sourceUUID, sourcePos)
 		first := true
 		for _, e := range ents {
-			p, ok := e.(*entities.Player)
+			p, ok := e.(*entity.Player)
 			if !ok {
 				continue
 			}

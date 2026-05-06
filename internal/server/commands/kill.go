@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -15,7 +15,7 @@ func registerKill(s *server.Server) {
 		Literal("kill").Connect(
 			Argument("target", parsers.Entity).
 				Executes(func(cc *CommandContext) (*CommandResult, error) {
-					sender := cc.Source.Entity.(*entities.Player)
+					sender := cc.Source.Entity.(*entity.Player)
 					target := cc.Args.GetEntityTarget("target")
 					resolved := s.World.ResolveTarget(target, uuid.UUID(sender.UUID), sender.Position)
 
@@ -24,9 +24,9 @@ func registerKill(s *server.Server) {
 						return &CommandResult{Success: 0}, nil
 					}
 
-					entity := resolved[0]
-					displayName := entityDisplayName(entity)
-					killEntity(s, entity)
+					e := resolved[0]
+					displayName := entityDisplayName(e)
+					killEntity(s, e)
 
 					cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, displayName))
 					return &CommandResult{Success: 1, Result: 1}, nil
@@ -35,8 +35,8 @@ func registerKill(s *server.Server) {
 	)
 }
 
-func killEntity(s *server.Server, entity entities.Entity) {
-	if player, ok := entity.(*entities.Player); ok {
+func killEntity(s *server.Server, e entity.Entity) {
+	if player, ok := e.(*entity.Player); ok {
 		if conn, loaded := s.ConnectionsByEID.Load(player.EntityID); loaded {
 			conn.(*server.Connection).Disconnect(tc.Translatable(mcdata.CommandsKillSuccessSingle, tc.PlayerName(player.Name)))
 			return
@@ -44,15 +44,12 @@ func killEntity(s *server.Server, entity entities.Entity) {
 		s.DespawnPlayer(player)
 		return
 	}
-	s.DespawnEntity(entity)
+	s.DespawnEntity(e)
 }
 
-func entityDisplayName(entity entities.Entity) tc.Component {
-	if player, ok := entity.(*entities.Player); ok {
+func entityDisplayName(e entity.Entity) tc.Component {
+	if player, ok := e.(*entity.Player); ok {
 		return tc.PlayerName(player.Name)
 	}
-	if data := mcdata.GetEntity(int(entity.Base().TypeID)); data != nil {
-		return tc.Text(data.DisplayName)
-	}
-	return tc.Text("entity")
+	return tc.Text(e.Base().ID.DisplayName())
 }

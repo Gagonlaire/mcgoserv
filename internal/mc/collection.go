@@ -5,7 +5,6 @@ import (
 	"io"
 	"iter"
 
-	"github.com/Gagonlaire/mcgoserv/internal/errutil"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 )
 
@@ -265,7 +264,7 @@ func (d *DataArray) Get(index int) int {
 func (f *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
 	nBytes, err := io.ReadFull(r, f.Data)
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error reading FixedBitSet")
+		return int64(nBytes), WrapIOErr(err, "error reading FixedBitSet")
 	}
 	return int64(nBytes), nil
 }
@@ -273,7 +272,7 @@ func (f *FixedBitSet) ReadFrom(r io.Reader) (n int64, err error) {
 func (f FixedBitSet) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(f.Data)
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error writing FixedBitSet")
+		return int64(nBytes), WrapIOErr(err, "error writing FixedBitSet")
 	}
 	return int64(nBytes), nil
 }
@@ -379,7 +378,7 @@ func (p PrefixedArray[T, PT]) WriteTo(w io.Writer) (n int64, err error) {
 func (a *ByteArray) ReadFrom(r io.Reader) (n int64, err error) {
 	nBytes, err := io.ReadFull(r, a.Data)
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error reading ByteArray")
+		return int64(nBytes), WrapIOErr(err, "error reading ByteArray")
 	}
 	return int64(nBytes), nil
 }
@@ -387,7 +386,7 @@ func (a *ByteArray) ReadFrom(r io.Reader) (n int64, err error) {
 func (a ByteArray) WriteTo(w io.Writer) (n int64, err error) {
 	nBytes, err := w.Write(a.Data)
 	if err != nil {
-		return int64(nBytes), errutil.WrapIOErr(err, "error writing ByteArray")
+		return int64(nBytes), WrapIOErr(err, "error writing ByteArray")
 	}
 	return int64(nBytes), nil
 }
@@ -410,7 +409,7 @@ func (p *PrefixedByteArray) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	nBytes, err := io.ReadFull(r, p.Data)
 	if err != nil {
-		return n + int64(nBytes), errutil.WrapIOErr(err, "error reading PrefixedByteArray data")
+		return n + int64(nBytes), WrapIOErr(err, "error reading PrefixedByteArray data")
 	}
 	return n + int64(nBytes), nil
 }
@@ -424,7 +423,7 @@ func (p PrefixedByteArray) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	nBytes, err := w.Write(p.Data)
 	if err != nil {
-		return n + int64(nBytes), errutil.WrapIOErr(err, "error writing PrefixedByteArray data")
+		return n + int64(nBytes), WrapIOErr(err, "error writing PrefixedByteArray data")
 	}
 	return n + int64(nBytes), nil
 }

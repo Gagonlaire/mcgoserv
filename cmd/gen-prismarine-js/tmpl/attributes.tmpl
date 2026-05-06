@@ -8,14 +8,14 @@ const (
 {{- end }}
 )
 
-type properties struct {
+type Properties struct {
 	Name    string
 	Default float64
 	Min     float64
 	Max     float64
 }
 
-var registry = [...]properties{
+var registry = [...]Properties{
 {{- range . }}
 	{{ .PascalName }}: {"{{ .Resource }}", {{ printf "%g" .Default }}, {{ printf "%g" .Min }}, {{ printf "%g" .Max }}},
 {{- end }}

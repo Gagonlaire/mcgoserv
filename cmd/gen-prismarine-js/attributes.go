@@ -42,7 +42,7 @@ func generateAttributes(rawAttributes io.ReadCloser, _ map[string]any) error {
 			continue
 		}
 		processed = append(processed, GenAttribute{
-			PascalName: pascal,
+			PascalName: pascal + "ID",
 			Resource:   def.Resource,
 			Min:        def.Min,
 			Max:        def.Max,

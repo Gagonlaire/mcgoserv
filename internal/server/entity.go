@@ -2,13 +2,13 @@ package server
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
 
-func (s *Server) SpawnEntity(entity entities.Entity) error {
+func (s *Server) SpawnEntity(entity entity.Entity) error {
 	if err := s.World.AddEntity(entity); err != nil {
 		return err
 	}
@@ -16,12 +16,12 @@ func (s *Server) SpawnEntity(entity entities.Entity) error {
 	return nil
 }
 
-func (s *Server) DespawnEntity(entity entities.Entity) {
+func (s *Server) DespawnEntity(entity entity.Entity) {
 	s.broadcastDespawn(entity)
 	s.World.RemoveEntity(entity)
 }
 
-func (s *Server) SpawnPlayer(player *entities.Player, dimensionID world.DimensionID) error {
+func (s *Server) SpawnPlayer(player *entity.Player, dimensionID world.DimensionID) error {
 	if err := s.World.AddPlayer(player, dimensionID); err != nil {
 		return err
 	}
@@ -29,12 +29,12 @@ func (s *Server) SpawnPlayer(player *entities.Player, dimensionID world.Dimensio
 	return nil
 }
 
-func (s *Server) DespawnPlayer(player *entities.Player) {
+func (s *Server) DespawnPlayer(player *entity.Player) {
 	s.broadcastDespawn(player)
 	s.World.RemovePlayer(player)
 }
 
-func (s *Server) broadcastSpawn(entity entities.Entity) {
+func (s *Server) broadcastSpawn(entity entity.Entity) {
 	pkt, err := packet.NewPacket(packet.PlayClientboundAddEntity, encoders.NewAddEntity(entity))
 	if err != nil {
 		return
@@ -42,7 +42,7 @@ func (s *Server) broadcastSpawn(entity entities.Entity) {
 	s.BroadcastEntityViewers(entity, pkt)
 }
 
-func (s *Server) broadcastDespawn(entity entities.Entity) {
+func (s *Server) broadcastDespawn(entity entity.Entity) {
 	pkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(entity.GetID()))
 	if err != nil {
 		return

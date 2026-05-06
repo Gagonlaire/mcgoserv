@@ -59,7 +59,7 @@ var itemBlockExclusions = map[string]bool{
 
 func generateItems(rawItemDefinitions io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mcdata/items_gen.go"
+		outputFile = "internal/mc/item/item_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/items.tmpl"
 	)
 
@@ -96,7 +96,7 @@ func generateItems(rawItemDefinitions io.ReadCloser, data map[string]any) error 
 			item.MaxDurability = -1
 		}
 		processedItems = append(processedItems, GenItem{
-			PascalName: toPascalCase(item.Name),
+			PascalName: toPascalCase(item.Name) + "ID",
 			BlockID:    bID,
 
 			ID:                item.ID,

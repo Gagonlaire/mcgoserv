@@ -1,8 +1,8 @@
 {{- define "factory" -}}
-func NewFromType(t mcdata.EntityType, dimension string, pos [3]float64, rot [2]float32) Entity {
+func NewFromType(t ID, dimension string, pos [3]float64, rot [2]float32) Entity {
 	switch t {
 {{- range . }}
-	case mcdata.{{.Type}}:
+	case {{.Type}}:
 		return New{{.Name}}(dimension, pos, rot)
 {{- end }}
 	default:

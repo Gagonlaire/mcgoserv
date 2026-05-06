@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -16,7 +16,7 @@ func registerMsg(s *server.Server) {
 	s.Commander.Register(Literal("msg").Connect(
 		Argument("targets", parsers.Entity.PlayersOnly(true)).Connect(
 			Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-				player := cc.Source.Entity.(*entities.Player)
+				player := cc.Source.Entity.(*entity.Player)
 				targets := cc.Args.GetEntityTarget("targets")
 				message := cc.Args["message"].(*mc.ParsedMessage)
 				text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
@@ -56,7 +56,7 @@ func registerTellRaw(s *server.Server) {
 func registerSay(s *server.Server) {
 	s.Commander.Register(Literal("say").Connect(
 		Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-			player := cc.Source.Entity.(*entities.Player)
+			player := cc.Source.Entity.(*entity.Player)
 			message := cc.Args["message"].(*mc.ParsedMessage)
 			text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
 			signature := cc.Signed.GetArgSignature("message")

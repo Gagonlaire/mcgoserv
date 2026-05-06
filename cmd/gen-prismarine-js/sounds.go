@@ -13,26 +13,38 @@ type SoundDefinition struct {
 	Name string `json:"name"`
 }
 
+type GenSound struct {
+	PascalName string
+	ID         int
+	Name       string
+}
+
 type SoundTemplateData struct {
-	Sounds     []SoundDefinition
+	Sounds     []GenSound
 	MaxSoundID int
 }
 
 func generateSounds(rawSounds io.ReadCloser, data map[string]any) error {
 	const (
-		outputFile = "internal/mcdata/sounds_gen.go"
+		outputFile = "internal/mc/sound/sound_gen.go"
 		tmplFile   = "cmd/gen-prismarine-js/tmpl/sounds.tmpl"
 	)
 
-	var sounds []SoundDefinition
-	if err := json.NewDecoder(rawSounds).Decode(&sounds); err != nil {
+	var soundDefs []SoundDefinition
+	if err := json.NewDecoder(rawSounds).Decode(&soundDefs); err != nil {
 		return err
 	}
 
 	maxID := 0
-	for _, s := range sounds {
+	processed := make([]GenSound, len(soundDefs))
+	for i, s := range soundDefs {
 		if s.ID > maxID {
 			maxID = s.ID
+		}
+		processed[i] = GenSound{
+			PascalName: toPascalCase(s.Name) + "ID",
+			ID:         s.ID,
+			Name:       s.Name,
 		}
 	}
 
@@ -47,16 +59,10 @@ func generateSounds(rawSounds io.ReadCloser, data map[string]any) error {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	tmplData := SoundTemplateData{
-		Sounds:     sounds,
-		MaxSoundID: maxID,
-	}
-
-	if err := tmpl.Execute(outFile, tmplData); err != nil {
+	if err := tmpl.Execute(outFile, SoundTemplateData{Sounds: processed, MaxSoundID: maxID}); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	data["sounds"] = sounds
-
+	data["sounds"] = soundDefs
 	return nil
 }

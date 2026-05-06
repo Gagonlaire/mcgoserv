@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -43,7 +42,7 @@ func kickRemovedPlayer(s *server.Server, uuidStr string) {
 	}
 	s.Connections.Range(func(k, v interface{}) bool {
 		conn := k.(*server.Connection)
-		if conn.Player != nil && conn.Player.UUID == entities.NbtUUID(removedUUID) {
+		if conn.Player != nil && conn.Player.UUID == entity.NbtUUID(removedUUID) {
 			conn.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectNotWhitelisted))
 			return false
 		}
@@ -86,13 +85,13 @@ func registerWhitelist(s *server.Server) {
 								}
 								targets = append(targets, whitelistTarget{u, realName})
 							} else {
-								offlineUUID := internal.GetOfflineUUID(target.Name)
+								offlineUUID := api.OfflineUUID(target.Name)
 								targets = append(targets, whitelistTarget{offlineUUID, target.Name})
 							}
 						case mc.TargetTypeSelector:
 							var sourceUUID uuid.UUID
 							var sourcePos [3]float64
-							if player, ok := cc.Source.Entity.(*entities.Player); ok {
+							if player, ok := cc.Source.Entity.(*entity.Player); ok {
 								sourceUUID = uuid.UUID(player.UUID)
 								sourcePos = player.Position
 							}
@@ -150,7 +149,7 @@ func registerWhitelist(s *server.Server) {
 						case mc.TargetTypeSelector:
 							var sourceUUID uuid.UUID
 							var sourcePos [3]float64
-							if player, ok := cc.Source.Entity.(*entities.Player); ok {
+							if player, ok := cc.Source.Entity.(*entity.Player); ok {
 								sourceUUID = uuid.UUID(player.UUID)
 								sourcePos = player.Position
 							}

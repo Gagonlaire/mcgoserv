@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal"
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/entities"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
@@ -25,7 +27,7 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	c.ContextData["loginName"] = string(data.Name)
 	logger.Debug("Login request from %s (%s)", string(data.Name), c.Conn.RemoteAddr())
 	if !c.Server.Config.Security.OnlineMode {
-		offlineUUID := internal.GetOfflineUUID(c.ContextData["loginName"].(string))
+		offlineUUID := api.OfflineUUID(c.ContextData["loginName"].(string))
 		c.ContextData["loginUUID"] = offlineUUID
 		logger.Debug("Offline mode: assigned UUID %s to %s", offlineUUID, string(data.Name))
 		c.FinishLogin([]api.MojangSessionProperty{})
@@ -84,7 +86,7 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 	c.Conn = encryptedConn
 	logger.Debug("Encryption enabled for %s", c.Conn.RemoteAddr())
 
-	authHash := internal.AuthDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.Keys.EncodedPublicKey))
+	authHash := authDigest(c.Server.ID + string(decryptedSecret) + string(c.Server.Keys.EncodedPublicKey))
 	url := fmt.Sprintf("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s", c.ContextData["loginName"].(string), authHash)
 	if c.Server.Config.Security.PreventProxyConnection {
 		url += "&ip=" + c.Conn.RemoteAddr().String()
@@ -142,7 +144,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	loginName := c.ContextData["loginName"].(string)
 	logger.Info("UUID of player %s is %s", logger.Identity(loginName), logger.Identity(loginUUID))
 
-	c.Player = entities.NewPlayer(
+	c.Player = entity.NewPlayer(
 		loginUUID,
 		loginName,
 		permissionLevel,
@@ -222,4 +224,35 @@ func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 
 	pkt := c.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)
 	c.SendSync(pkt)
+}
+
+// authDigest computes the Mojang server-id hash used by hasJoined.
+// https://minecraft.wiki/w/Java_Edition_protocol/Encryption#Sample_Code
+func authDigest(s string) string {
+	h := sha1.New()
+	_, _ = io.WriteString(h, s)
+	hash := h.Sum(nil)
+	negative := (hash[0] & 0x80) == 0x80
+	if negative {
+		hash = twosComplement(hash)
+	}
+
+	res := strings.TrimLeft(hex.EncodeToString(hash), "0")
+	if negative {
+		res = "-" + res
+	}
+
+	return res
+}
+
+func twosComplement(p []byte) []byte {
+	carry := true
+	for i := len(p) - 1; i >= 0; i-- {
+		p[i] = ^p[i]
+		if carry {
+			carry = p[i] == 0xff
+			p[i]++
+		}
+	}
+	return p
 }
