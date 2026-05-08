@@ -1,0 +1,40 @@
+{{- define "metaSnapshot" -}}
+func ({{.Recv}} *{{.Struct}}) MetaSnapshot() metadata.Snapshot {
+{{- if .Parents }}
+{{- range $i, $p := .Parents }}
+{{- if eq $i 0 }}
+	snap := {{$.Recv}}.{{$p}}.MetaSnapshot()
+{{- else }}
+	for k, v := range {{$.Recv}}.{{$p}}.MetaSnapshot() {
+		snap[k] = v
+	}
+{{- end }}
+{{- end }}
+{{- else }}
+	snap := metadata.Snapshot{}
+{{- end }}
+{{- range .Fields }}
+	snap[{{.Index}}] = {{$.Recv}}.{{.FieldName}}
+{{- end }}
+	return snap
+}
+
+{{ end -}}
+
+{{- define "metaDiffMark" -}}
+func ({{.Recv}} *{{.Struct}}) MetaDiffMark(snap metadata.Snapshot) {
+{{- range .Parents }}
+	{{$.Recv}}.{{.}}.MetaDiffMark(snap)
+{{- end }}
+{{- range .Fields }}
+	if !nbtpath.MetaEqual({{$.Recv}}.{{.FieldName}}, snap[{{.Index}}]) {
+{{- if eq $.Mode "layer" }}
+		{{$.Recv}}.markDirty({{.Index}})
+{{- else }}
+		{{$.Recv}}.MarkDirty({{.Index}})
+{{- end }}
+	}
+{{- end }}
+}
+
+{{ end -}}

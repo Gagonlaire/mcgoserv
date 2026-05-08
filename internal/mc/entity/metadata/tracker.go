@@ -23,3 +23,8 @@ func (d *DirtyTracker) Clear() {
 func (d *DirtyTracker) MarkAll() {
 	d.bits = ^uint64(0)
 }
+
+// Snapshot captures the values of metadata-tracked fields keyed by Index.
+// NBT writes take a Snapshot before mutation, then call MetaDiffMark
+// (generated) to flip only the indices whose values changed.
+type Snapshot = map[Index]any

@@ -1,84 +1,146 @@
 {{- define "nbtAccessors" -}}
-func ({{.Recv}} *{{.Struct}}) NbtData() (nbt.StringifiedMessage, error) {
-	m, err := nbtpath.ToMap({{.Recv}})
-	if err != nil {
-		return "", err
-	}
-	return nbtpath.MapToSNBT(m)
+func ({{.Recv}} *{{.Struct}}) NbtRoot() (any, error) {
+	return nbtpath.MarshalToValue({{.Recv}})
 }
 
-func ({{.Recv}} *{{.Struct}}) NbtGet(path *nbtpath.Path) (nbt.StringifiedMessage, error) {
-	m, err := nbtpath.ToMap({{.Recv}})
+func ({{.Recv}} *{{.Struct}}) NbtGet(path nbtpath.Path) (any, error) {
+	root, err := nbtpath.MarshalToValue({{.Recv}})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	val, err := nbtpath.Navigate(m, path.Nodes)
+	anchors, err := nbtpath.Resolve(root, path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return nbtpath.ValueToSNBT(val)
+	if len(anchors) == 0 {
+		return nil, nbtpath.ErrPathNotFound
+	}
+	return anchors[0].Value(), nil
 }
 
 {{- if eq .Nbt "accessors" "both" }}
 
-func ({{.Recv}} *{{.Struct}}) NbtMerge(compound nbt.StringifiedMessage) error {
-	return nbtpath.MergeOnto({{.Recv}}, compound)
+func ({{.Recv}} *{{.Struct}}) NbtSet(path nbtpath.Path, v any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
+	if err != nil {
+		return 0, err
+	}
+	n, err := nbtpath.Set(m, path, v)
+	if err != nil {
+		return 0, err
+	}
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
+	}
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
 }
 
-func ({{.Recv}} *{{.Struct}}) NbtAppend(path *nbtpath.Path, value nbt.StringifiedMessage) error {
-	m, err := nbtpath.ToMap({{.Recv}})
+func ({{.Recv}} *{{.Struct}}) NbtAppend(path nbtpath.Path, v any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	v, err := nbtpath.SNBTToValue(value)
+	n, err := nbtpath.Append(m, path, v)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err := nbtpath.ListAppend(m, path.Nodes, v); err != nil {
-		return err
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
 	}
-	return nbtpath.WriteBack({{.Recv}}, m)
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
 }
 
-func ({{.Recv}} *{{.Struct}}) NbtPrepend(path *nbtpath.Path, value nbt.StringifiedMessage) error {
-	m, err := nbtpath.ToMap({{.Recv}})
+func ({{.Recv}} *{{.Struct}}) NbtPrepend(path nbtpath.Path, v any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	v, err := nbtpath.SNBTToValue(value)
+	n, err := nbtpath.Prepend(m, path, v)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err := nbtpath.ListPrepend(m, path.Nodes, v); err != nil {
-		return err
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
 	}
-	return nbtpath.WriteBack({{.Recv}}, m)
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
 }
 
-func ({{.Recv}} *{{.Struct}}) NbtInsert(path *nbtpath.Path, index int, value nbt.StringifiedMessage) error {
-	m, err := nbtpath.ToMap({{.Recv}})
+func ({{.Recv}} *{{.Struct}}) NbtInsert(path nbtpath.Path, idx int, v any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	v, err := nbtpath.SNBTToValue(value)
+	n, err := nbtpath.Insert(m, path, idx, v)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err := nbtpath.ListInsert(m, path.Nodes, index, v); err != nil {
-		return err
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
 	}
-	return nbtpath.WriteBack({{.Recv}}, m)
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
 }
 
-func ({{.Recv}} *{{.Struct}}) NbtRemove(path *nbtpath.Path) error {
-	m, err := nbtpath.ToMap({{.Recv}})
+func ({{.Recv}} *{{.Struct}}) NbtRemove(path nbtpath.Path) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err := nbtpath.RemoveAtPath(m, path.Nodes); err != nil {
-		return err
+	n, err := nbtpath.Remove(m, path)
+	if err != nil {
+		return 0, err
 	}
-	return nbtpath.WriteBack({{.Recv}}, m)
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
+	}
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtMerge(src map[string]any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
+	if err != nil {
+		return 0, err
+	}
+	root, ok := m.(map[string]any)
+	if !ok {
+		return 0, nbtpath.ErrNotACompound
+	}
+	n, err := nbtpath.MergeRoot(root, src)
+	if err != nil {
+		return 0, err
+	}
+	if err := nbtpath.WriteBack({{.Recv}}, root); err != nil {
+		return 0, err
+	}
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
+}
+
+func ({{.Recv}} *{{.Struct}}) NbtMergeAt(path nbtpath.Path, src map[string]any) (int, error) {
+	snap := {{.Recv}}.MetaSnapshot()
+	m, err := nbtpath.MarshalToValue({{.Recv}})
+	if err != nil {
+		return 0, err
+	}
+	n, err := nbtpath.MergeAt(m, path, src)
+	if err != nil {
+		return 0, err
+	}
+	if err := nbtpath.WriteBack({{.Recv}}, m); err != nil {
+		return 0, err
+	}
+	{{.Recv}}.MetaDiffMark(snap)
+	return n, nil
 }
 {{- end }}
 
