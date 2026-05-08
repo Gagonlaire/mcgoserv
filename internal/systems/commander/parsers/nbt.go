@@ -78,37 +78,33 @@ var NbtPath = NbtPathType{}
 
 type NbtPathType struct{}
 
-type NbtPathNode = nbtpath.Node
-
-type ParsedNbtPath = nbtpath.Path
-
 func (n NbtPathType) ID() int { return 23 } // minecraft:nbt_path
 
 func (n NbtPathType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
-	var nodes []NbtPathNode
+	var steps []nbtpath.PathStep
 
 	for r.CanRead() && r.Peek() != ' ' {
-		parsed, err := readNbtPathNode(r)
+		parsed, err := readNbtPathSegment(r)
 		if err != nil {
 			r.SetCursor(start)
 			return nil, err
 		}
-		nodes = append(nodes, parsed...)
+		steps = append(steps, parsed...)
 
 		if r.CanRead() && r.Peek() == '.' {
 			r.Skip()
 		}
 	}
-	if len(nodes) == 0 {
+	if len(steps) == 0 {
 		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), r.Cursor(),
 		)
 	}
 
-	return &ParsedNbtPath{
-		Nodes: nodes,
+	return &nbtpath.Path{
+		Steps: steps,
 		Raw:   r.Input()[start:r.Cursor()],
 	}, nil
 }
@@ -209,7 +205,7 @@ func validateSNBT(raw string) (byte, error) {
 	return tagType, nil
 }
 
-func readNbtPathNode(r *commander.CommandReader) ([]NbtPathNode, error) {
+func readNbtPathSegment(r *commander.CommandReader) ([]nbtpath.PathStep, error) {
 	if !r.CanRead() || r.Peek() == ' ' {
 		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
@@ -223,42 +219,42 @@ func readNbtPathNode(r *commander.CommandReader) ([]NbtPathNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return []NbtPathNode{{IsMatch: true, Index: -1, Filter: filter}}, nil
+		return []nbtpath.PathStep{nbtpath.SelfMatch{Filter: filter}}, nil
 	}
 	if ch == '[' {
-		node, err := readNbtPathIndex(r)
+		step, err := readNbtPathIndex(r)
 		if err != nil {
 			return nil, err
 		}
-		return []NbtPathNode{node}, nil
+		return []nbtpath.PathStep{step}, nil
 	}
 	name, err := readNbtPathKey(r)
 	if err != nil {
 		return nil, err
 	}
-	node := NbtPathNode{Name: name, Index: -1}
-	var extra []NbtPathNode
+	out := []nbtpath.PathStep{nbtpath.MemberStep{Name: name}}
+	selfMatched := false
 	for r.CanRead() {
 		c := r.Peek()
-		if c == '{' && !node.IsMatch {
+		if c == '{' && !selfMatched {
 			filter, err := readCompoundFilter(r)
 			if err != nil {
 				return nil, err
 			}
-			node.IsMatch = true
-			node.Filter = filter
+			out = append(out, nbtpath.SelfMatch{Filter: filter})
+			selfMatched = true
 		} else if c == '[' {
-			idxNode, err := readNbtPathIndex(r)
+			step, err := readNbtPathIndex(r)
 			if err != nil {
 				return nil, err
 			}
-			extra = append(extra, idxNode)
+			out = append(out, step)
 		} else {
 			break
 		}
 	}
 
-	return append([]NbtPathNode{node}, extra...), nil
+	return out, nil
 }
 
 func readNbtPathKey(r *commander.CommandReader) (string, error) {
@@ -294,10 +290,10 @@ func readNbtPathKey(r *commander.CommandReader) (string, error) {
 	return r.Input()[start:r.Cursor()], nil
 }
 
-func readNbtPathIndex(r *commander.CommandReader) (NbtPathNode, error) {
+func readNbtPathIndex(r *commander.CommandReader) (nbtpath.PathStep, error) {
 	r.Skip()
 	if !r.CanRead() {
-		return NbtPathNode{}, commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), r.Cursor(),
 		)
@@ -305,21 +301,21 @@ func readNbtPathIndex(r *commander.CommandReader) (NbtPathNode, error) {
 	ch := r.Peek()
 	if ch == ']' {
 		r.Skip()
-		return NbtPathNode{Index: -1}, nil
+		return nbtpath.AllStep{}, nil
 	}
 	if ch == '{' {
 		filter, err := readCompoundFilter(r)
 		if err != nil {
-			return NbtPathNode{}, err
+			return nil, err
 		}
 		if !r.CanRead() || r.Peek() != ']' {
-			return NbtPathNode{}, commander.NewParsingErrorAt(
+			return nil, commander.NewParsingErrorAt(
 				tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 				r.Input(), r.Cursor(),
 			)
 		}
 		r.Skip()
-		return NbtPathNode{Index: -1, IsMatch: true, Filter: filter}, nil
+		return nbtpath.MatchAll{Filter: filter}, nil
 	}
 	start := r.Cursor()
 	if r.CanRead() && r.Peek() == '-' {
@@ -329,42 +325,58 @@ func readNbtPathIndex(r *commander.CommandReader) (NbtPathNode, error) {
 		r.Skip()
 	}
 	if r.Cursor() == start {
-		return NbtPathNode{}, commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), r.Cursor(),
 		)
 	}
 	idx, err := strconv.Atoi(r.Input()[start:r.Cursor()])
 	if err != nil {
-		return NbtPathNode{}, commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), start,
 		)
 	}
 	if !r.CanRead() || r.Peek() != ']' {
-		return NbtPathNode{}, commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
 			r.Input(), r.Cursor(),
 		)
 	}
 	r.Skip()
 
-	return NbtPathNode{Index: idx}, nil
+	return nbtpath.IndexStep{Index: idx}, nil
 }
 
-func readCompoundFilter(r *commander.CommandReader) (nbt.StringifiedMessage, error) {
+// readCompoundFilter consumes a balanced {...} SNBT compound and returns
+// it as a pre-decoded map[string]any. Filter parsing happens once at parse
+// time rather than per resolve.
+func readCompoundFilter(r *commander.CommandReader) (map[string]any, error) {
 	start := r.Cursor()
 	if err := readSNBTBalanced(r); err != nil {
-		return "", err
+		return nil, err
 	}
 	raw := r.Input()[start:r.Cursor()]
 	tagType, err := validateSNBT(raw)
 	if err != nil || tagType != nbt.TagCompound {
-		return "", commander.NewParsingErrorAt(
+		return nil, commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
 			r.Input(), start,
 		)
 	}
-
-	return nbt.StringifiedMessage(raw), nil
+	v, err := nbtpath.SNBTToValue(nbt.StringifiedMessage(raw))
+	if err != nil {
+		return nil, commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
+			r.Input(), start,
+		)
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
+			r.Input(), start,
+		)
+	}
+	return m, nil
 }

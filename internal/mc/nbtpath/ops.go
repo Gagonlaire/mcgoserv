@@ -1,247 +1,214 @@
 package nbtpath
 
-import (
-	"bytes"
-	"errors"
-	"strings"
-
-	"github.com/Tnze/go-mc/nbt"
-)
-
-// NbtReader read nbt access
-type NbtReader interface {
-	NbtData() (nbt.StringifiedMessage, error)
-	NbtGet(path *Path) (nbt.StringifiedMessage, error)
-}
-
-// NbtAccessor read/write nbt access
-// todo: also split Writer in an interface
-type NbtAccessor interface {
-	NbtReader
-	NbtMerge(compound nbt.StringifiedMessage) error
-	NbtAppend(path *Path, value nbt.StringifiedMessage) error
-	NbtPrepend(path *Path, value nbt.StringifiedMessage) error
-	NbtInsert(path *Path, index int, value nbt.StringifiedMessage) error
-	NbtRemove(path *Path) error
-}
-
-// todo: maybe replace with the mc errors directly
-var (
-	ErrPathNotFound = errors.New("nbt: path not found")
-	ErrNotAList     = errors.New("nbt: value is not a list")
-	ErrIndexOOB     = errors.New("nbt: index out of bounds")
-	ErrEmptyPath    = errors.New("nbt: empty path")
-)
-
-func ToMap(v any) (map[string]any, error) {
-	bin, err := nbt.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]any
-	if err := nbt.Unmarshal(bin, &m); err != nil {
-		return nil, err
-	}
-	if m == nil {
-		m = make(map[string]any)
-	}
-	return m, nil
-}
-
-func MapToSNBT(m map[string]any) (nbt.StringifiedMessage, error) {
-	var value any
-	bin, err := nbt.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	if err := nbt.Unmarshal(bin, &value); err != nil {
-		return "", err
-	}
-	return FormatSNBT(value), nil
-}
-
-func ValueToSNBT(v any) (nbt.StringifiedMessage, error) {
-	bin, err := nbt.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	var value any
-	if err := nbt.Unmarshal(bin, &value); err != nil {
-		return "", err
-	}
-	return FormatSNBT(value), nil
-}
-
-func SNBTToValue(snbt nbt.StringifiedMessage) (any, error) {
-	var buf bytes.Buffer
-	tagType := snbt.TagType()
-	if tagType == nbt.TagEnd {
-		return nil, &nbt.SyntaxError{Message: "invalid SNBT"}
-	}
-
-	// write root tag header = tagType + empty name (2 bytes len=0)
-	buf.WriteByte(tagType)
-	buf.WriteByte(0)
-	buf.WriteByte(0)
-	if err := snbt.MarshalNBT(&buf); err != nil {
-		return nil, err
-	}
-
-	var value any
-	if err := nbt.Unmarshal(buf.Bytes(), &value); err != nil {
-		return nil, err
-	}
-	return value, nil
-}
-
-// Navigate walks a parsed NBT path through nested maps/slices.
-func Navigate(data any, nodes []Node) (any, error) {
-	current := data
-	for _, node := range nodes {
-		switch {
-		case node.Name != "":
-			m, ok := current.(map[string]any)
-			if !ok {
-				return nil, ErrPathNotFound
-			}
-			val, exists := m[node.Name]
-			if !exists {
-				return nil, ErrPathNotFound
-			}
-			current = val
-
-		case node.Index >= 0:
-			list, ok := toAnySlice(current)
-			if !ok {
-				return nil, ErrNotAList
-			}
-			if node.Index >= len(list) {
-				return nil, ErrIndexOOB
-			}
-			current = list[node.Index]
-
-		case node.IsMatch && node.Filter != "":
-			list, ok := toAnySlice(current)
-			if !ok {
-				return nil, ErrNotAList
-			}
-			filterVal, err := SNBTToValue(node.Filter)
-			if err != nil {
-				return nil, err
-			}
-			found := false
-			for _, elem := range list {
-				if compoundMatch(elem, filterVal) {
-					current = elem
-					found = true
-					break
-				}
-			}
-			if !found {
-				return nil, ErrPathNotFound
-			}
-
-		case node.IsMatch:
-		default:
-			// for both cases, return all elements
-		}
-	}
-	return current, nil
-}
-
-func MergeOnto(dst any, compound nbt.StringifiedMessage) error {
-	value, err := SNBTToValue(compound)
-	if err != nil {
-		return err
-	}
-	if _, ok := value.(map[string]any); !ok {
-		return errors.New("nbt: merge source must be a compound")
-	}
-	bin, err := nbt.Marshal(value)
-	if err != nil {
-		return err
-	}
-	return nbt.Unmarshal(bin, dst)
-}
-
-func WriteBack(dst any, m map[string]any) error {
-	bin, err := nbt.Marshal(m)
-	if err != nil {
-		return err
-	}
-	return nbt.Unmarshal(bin, dst)
-}
-
-func ListAppend(data map[string]any, nodes []Node, value any) error {
-	parent, node, list, err := getList(data, nodes)
-	if err != nil {
-		return err
-	}
-	return setAtNode(parent, node, append(list, value))
-}
-
-func ListPrepend(data map[string]any, nodes []Node, value any) error {
-	parent, node, list, err := getList(data, nodes)
-	if err != nil {
-		return err
-	}
-	return setAtNode(parent, node, append([]any{value}, list...))
-}
-
-func ListInsert(data map[string]any, nodes []Node, index int, value any) error {
-	parent, node, list, err := getList(data, nodes)
-	if err != nil {
-		return err
-	}
-	if index < 0 || index > len(list) {
-		return ErrIndexOOB
-	}
-	result := make([]any, 0, len(list)+1)
-	result = append(result, list[:index]...)
-	result = append(result, value)
-	result = append(result, list[index:]...)
-	return setAtNode(parent, node, result)
-}
-
-func RemoveAtPath(data map[string]any, nodes []Node) error {
-	parent, lastNode, err := navigateParent(data, nodes)
-	if err != nil {
-		return err
-	}
-
-	if lastNode.Name != "" {
-		m, ok := parent.(map[string]any)
+// setAnchor writes v at the anchor's location. Returns ErrSelectsRoot for
+// the root anchor (caller should use a root-level merge instead).
+func setAnchor(a Anchor, v any) error {
+	if a.Key != "" {
+		m, ok := a.Parent.(map[string]any)
 		if !ok {
 			return ErrPathNotFound
 		}
-		delete(m, lastNode.Name)
+		m[a.Key] = v
 		return nil
 	}
-
-	if lastNode.Index >= 0 {
-		list, ok := toAnySlice(parent)
+	if a.Index >= 0 {
+		list, ok := a.Parent.([]any)
 		if !ok {
 			return ErrNotAList
 		}
-		if lastNode.Index >= len(list) {
+		if a.Index >= len(list) {
 			return ErrIndexOOB
 		}
-		if len(nodes) < 2 {
-			return ErrPathNotFound
-		}
-		grandparent, parentNode, err := navigateParent(data, nodes[:len(nodes)-1])
-		if err != nil {
-			return err
-		}
-		newList := append(list[:lastNode.Index], list[lastNode.Index+1:]...)
-		return setAtNode(grandparent, parentNode, newList)
+		list[a.Index] = v
+		return nil
 	}
-
-	return ErrPathNotFound
+	return ErrSelectsRoot
 }
 
-func FormatSNBT(v any) nbt.StringifiedMessage {
-	var sb strings.Builder
-	writeSNBT(&sb, v)
-	return nbt.StringifiedMessage(sb.String())
+// Set overwrites the value at every anchor matched by p with v.
+func Set(root any, p Path, v any) (int, error) {
+	anchors, err := Resolve(root, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range anchors {
+		if err := setAnchor(a, v); err != nil {
+			return 0, err
+		}
+	}
+	return len(anchors), nil
+}
+
+// Append appends v to every list anchor matched by p.
+func Append(root any, p Path, v any) (int, error) {
+	anchors, err := Resolve(root, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range anchors {
+		list, ok := a.Value().([]any)
+		if !ok {
+			return 0, ErrNotAList
+		}
+		if err := setAnchor(a, append(list, v)); err != nil {
+			return 0, err
+		}
+	}
+	return len(anchors), nil
+}
+
+// Prepend prepends v to every list anchor matched by p.
+func Prepend(root any, p Path, v any) (int, error) {
+	anchors, err := Resolve(root, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range anchors {
+		list, ok := a.Value().([]any)
+		if !ok {
+			return 0, ErrNotAList
+		}
+		newList := make([]any, 0, len(list)+1)
+		newList = append(newList, v)
+		newList = append(newList, list...)
+		if err := setAnchor(a, newList); err != nil {
+			return 0, err
+		}
+	}
+	return len(anchors), nil
+}
+
+// Remove deletes every tag matched by p. For map-key paths it deletes the
+// key; for index/match paths on lists it rebuilds the list without the
+// matched elements.
+func Remove(root any, p Path) (int, error) {
+	if len(p.Steps) == 0 {
+		return 0, ErrSelectsRoot
+	}
+	last := p.Steps[len(p.Steps)-1]
+	parentPath := Path{Steps: p.Steps[:len(p.Steps)-1]}
+	parents, err := Resolve(root, parentPath)
+	if err != nil {
+		return 0, err
+	}
+
+	affected := 0
+	for _, pa := range parents {
+		v := pa.Value()
+		switch s := last.(type) {
+		case MemberStep:
+			m, ok := v.(map[string]any)
+			if !ok {
+				return 0, ErrNotACompound
+			}
+			if _, exists := m[s.Name]; exists {
+				delete(m, s.Name)
+				affected++
+			}
+		case IndexStep:
+			list, ok := v.([]any)
+			if !ok {
+				return 0, ErrNotAList
+			}
+			if s.Index < 0 || s.Index >= len(list) {
+				return 0, ErrIndexOOB
+			}
+			newList := make([]any, 0, len(list)-1)
+			newList = append(newList, list[:s.Index]...)
+			newList = append(newList, list[s.Index+1:]...)
+			if err := setAnchor(pa, newList); err != nil {
+				return 0, err
+			}
+			affected++
+		case AllStep:
+			list, ok := v.([]any)
+			if !ok {
+				return 0, ErrNotAList
+			}
+			affected += len(list)
+			if err := setAnchor(pa, []any{}); err != nil {
+				return 0, err
+			}
+		case MatchAll:
+			list, ok := v.([]any)
+			if !ok {
+				return 0, ErrNotAList
+			}
+			kept := make([]any, 0, len(list))
+			removed := 0
+			for _, elem := range list {
+				if cm, ok := elem.(map[string]any); ok && compoundMatch(cm, s.Filter) {
+					removed++
+					continue
+				}
+				kept = append(kept, elem)
+			}
+			if err := setAnchor(pa, kept); err != nil {
+				return 0, err
+			}
+			affected += removed
+		case SelfMatch:
+			return 0, ErrSelectsRoot
+		}
+	}
+	return affected, nil
+}
+
+// MergeRoot recursively merges src into root at the top level.
+func MergeRoot(root map[string]any, src map[string]any) (int, error) {
+	mergeCompound(root, src)
+	return 1, nil
+}
+
+// MergeAt merges src into every compound anchor matched by p.
+func MergeAt(root any, p Path, src map[string]any) (int, error) {
+	anchors, err := Resolve(root, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range anchors {
+		dst, ok := a.Value().(map[string]any)
+		if !ok {
+			return 0, ErrNotACompound
+		}
+		mergeCompound(dst, src)
+	}
+	return len(anchors), nil
+}
+
+func mergeCompound(dst, src map[string]any) {
+	for k, sv := range src {
+		if sm, ok := sv.(map[string]any); ok {
+			if dm, ok := dst[k].(map[string]any); ok {
+				mergeCompound(dm, sm)
+				continue
+			}
+		}
+		dst[k] = sv
+	}
+}
+
+// Insert inserts v at idx in every list anchor matched by p.
+func Insert(root any, p Path, idx int, v any) (int, error) {
+	anchors, err := Resolve(root, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range anchors {
+		list, ok := a.Value().([]any)
+		if !ok {
+			return 0, ErrNotAList
+		}
+		if idx < 0 || idx > len(list) {
+			return 0, ErrIndexOOB
+		}
+		newList := make([]any, 0, len(list)+1)
+		newList = append(newList, list[:idx]...)
+		newList = append(newList, v)
+		newList = append(newList, list[idx:]...)
+		if err := setAnchor(a, newList); err != nil {
+			return 0, err
+		}
+	}
+	return len(anchors), nil
 }

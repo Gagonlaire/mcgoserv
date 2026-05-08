@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
@@ -9,10 +10,6 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
 	"github.com/Tnze/go-mc/nbt"
 )
-
-type nbtMergeable interface {
-	NbtMerge(compound nbt.StringifiedMessage) error
-}
 
 func registerSummon(s *server.Server) {
 	s.Commander.Register(
@@ -55,12 +52,22 @@ func doSummon(s *server.Server, cc *CommandContext, pos [3]float64, compound nbt
 	}
 
 	if compound != "" {
-		merger, ok := e.(nbtMergeable)
+		merger, ok := e.(nbtpath.NbtTarget)
 		if !ok {
 			cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
 			return &CommandResult{Success: 0}, nil
 		}
-		if err := merger.NbtMerge(compound); err != nil {
+		v, err := nbtpath.SNBTToValue(compound)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataMergeFailed).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		src, ok := v.(map[string]any)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataMergeFailed).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		if _, err := merger.NbtMerge(src); err != nil {
 			cc.SendMessage(tc.Translatable(mcdata.CommandsDataMergeFailed).SetColor(tc.ColorRed))
 			return &CommandResult{Success: 0}, nil
 		}

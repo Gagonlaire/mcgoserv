@@ -1,15 +1,44 @@
 package nbtpath
 
-import "github.com/Tnze/go-mc/nbt"
-
-type Node struct {
-	Name    string
-	Index   int
-	IsMatch bool
-	Filter  nbt.StringifiedMessage
+type PathStep interface {
+	isStep()
 }
 
+type MemberStep struct {
+	Name string
+}
+
+func (MemberStep) isStep() {}
+
+type IndexStep struct {
+	Index int
+}
+
+func (IndexStep) isStep() {}
+
+type AllStep struct{}
+
+func (AllStep) isStep() {}
+
+type SelfMatch struct {
+	Filter map[string]any
+}
+
+func (SelfMatch) isStep() {}
+
+type MatchAll struct {
+	Filter map[string]any
+}
+
+func (MatchAll) isStep() {}
+
 type Path struct {
-	Nodes []Node
+	Steps []PathStep
 	Raw   string
+}
+
+type Anchor struct {
+	Parent any
+	Key    string
+	Index  int
 }
