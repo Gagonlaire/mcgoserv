@@ -48,68 +48,100 @@ func (w *World) ResolvePlayers(target *mc.EntityTarget, sourceUUID uuid.UUID, so
 }
 
 func (w *World) resolveSelector(sel *mc.Selector, sourceUUID uuid.UUID, sourcePos [3]float64) []entity.Entity {
-	switch sel.Variable {
-	case mc.SelectorVariableSelf:
-		if e := w.EntitiesByUUID[sourceUUID]; e != nil {
-			return []entity.Entity{e}
+	if sel.Variable == mc.SelectorVariableSelf {
+		e := w.EntitiesByUUID[sourceUUID]
+		if e == nil || !passesFilter(e, sel) {
+			return nil
 		}
-		return nil
-	case mc.SelectorVariableAllPlayers:
+		return []entity.Entity{e}
+	}
+
+	candidates := w.selectorCandidates(sel)
+	filtered := candidates[:0]
+	for _, e := range candidates {
+		if passesFilter(e, sel) {
+			filtered = append(filtered, e)
+		}
+	}
+	return reduceSelectorResult(sel, filtered, sourcePos)
+}
+
+func (w *World) selectorCandidates(sel *mc.Selector) []entity.Entity {
+	switch sel.Variable {
+	case mc.SelectorVariableAllPlayers,
+		mc.SelectorVariableNearestPlayer,
+		mc.SelectorVariableRandomPlayer:
 		out := make([]entity.Entity, 0, len(w.PlayersByID))
 		for _, p := range w.PlayersByID {
 			out = append(out, p)
 		}
 		return out
-	case mc.SelectorVariableAllEntities:
+	case mc.SelectorVariableAllEntities,
+		mc.SelectorVariableNearestEntity:
 		out := make([]entity.Entity, 0, len(w.EntitiesByID))
 		for _, e := range w.EntitiesByID {
 			out = append(out, e)
 		}
 		return out
-	case mc.SelectorVariableNearestPlayer:
-		if p := w.nearestPlayer(sourcePos); p != nil {
-			return []entity.Entity{p}
-		}
-		return nil
-	case mc.SelectorVariableNearestEntity:
-		if e := w.nearestEntity(sourcePos); e != nil {
-			return []entity.Entity{e}
-		}
-		return nil
-	case mc.SelectorVariableRandomPlayer:
-		players := w.Players()
-		if len(players) == 0 {
-			return nil
-		}
-		return []entity.Entity{players[rand.IntN(len(players))]}
 	}
 	return nil
 }
 
-func (w *World) nearestEntity(pos [3]float64) entity.Entity {
+func reduceSelectorResult(sel *mc.Selector, filtered []entity.Entity, sourcePos [3]float64) []entity.Entity {
+	switch sel.Variable {
+	case mc.SelectorVariableAllPlayers, mc.SelectorVariableAllEntities:
+		return filtered
+	case mc.SelectorVariableNearestPlayer, mc.SelectorVariableNearestEntity:
+		return nearestOf(filtered, sourcePos)
+	case mc.SelectorVariableRandomPlayer:
+		if len(filtered) == 0 {
+			return nil
+		}
+		return []entity.Entity{filtered[rand.IntN(len(filtered))]}
+	}
+	return nil
+}
+
+func nearestOf(ents []entity.Entity, pos [3]float64) []entity.Entity {
 	var nearest entity.Entity
 	bestDist := math.MaxFloat64
-	for _, e := range w.EntitiesByID {
+	for _, e := range ents {
 		d := distSq(pos, e.Base().Position)
 		if d < bestDist {
 			bestDist = d
 			nearest = e
 		}
 	}
-	return nearest
+	if nearest == nil {
+		return nil
+	}
+	return []entity.Entity{nearest}
 }
 
-func (w *World) nearestPlayer(pos [3]float64) *entity.Player {
-	var nearest *entity.Player
-	bestDist := math.MaxFloat64
-	for _, p := range w.PlayersByID {
-		d := distSq(pos, p.Position)
-		if d < bestDist {
-			bestDist = d
-			nearest = p
+// passesFilter reports whether entity e satisfies every filter argument in sel.
+// Filter args are applied independently of the selector variable; the variable
+// only governs candidate enumeration and reduction.
+func passesFilter(e entity.Entity, sel *mc.Selector) bool {
+	if !passesTypeFilter(e, sel) {
+		return false
+	}
+	return true
+}
+
+func passesTypeFilter(e entity.Entity, sel *mc.Selector) bool {
+	if !sel.TypeInclude.Present && len(sel.TypeExclude) == 0 {
+		return true
+	}
+	name := e.GetType().Name()
+	if sel.TypeInclude.Present && sel.TypeInclude.Value != name {
+		return false
+	}
+	for _, ex := range sel.TypeExclude {
+		if ex == name {
+			return false
 		}
 	}
-	return nearest
+	return true
 }
 
 func (w *World) ResolveMessage(msg *mc.ParsedMessage, sourceUUID uuid.UUID, sourcePos [3]float64) string {

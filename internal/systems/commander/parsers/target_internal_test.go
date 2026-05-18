@@ -3,8 +3,105 @@ package parsers
 import (
 	"testing"
 
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
+
+func parseSelectorOrFail(t *testing.T, input string) *mc.Selector {
+	t.Helper()
+	r := commander.NewCommandReader(input)
+	sel, err := parseSelector(r)
+	if err != nil {
+		t.Fatalf("parseSelector(%q): %v", input, err)
+	}
+	return sel
+}
+
+func parseSelectorErr(t *testing.T, input string) error {
+	t.Helper()
+	r := commander.NewCommandReader(input)
+	_, err := parseSelector(r)
+	if err == nil {
+		t.Fatalf("parseSelector(%q): expected error, got nil", input)
+	}
+	return err
+}
+
+func TestParseSelectorType(t *testing.T) {
+	t.Run("positive_bare_name", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, "@e[type=zombie]")
+		if !sel.TypeInclude.Present || sel.TypeInclude.Value != "zombie" {
+			t.Fatalf("want TypeInclude=zombie, got %+v", sel.TypeInclude)
+		}
+		if len(sel.TypeExclude) != 0 {
+			t.Fatalf("want no excludes, got %v", sel.TypeExclude)
+		}
+	})
+
+	t.Run("positive_strips_minecraft_namespace", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, "@e[type=minecraft:zombie]")
+		if !sel.TypeInclude.Present || sel.TypeInclude.Value != "zombie" {
+			t.Fatalf("want TypeInclude=zombie, got %+v", sel.TypeInclude)
+		}
+	})
+
+	t.Run("foreign_namespace_rejected", func(t *testing.T) {
+		parseSelectorErr(t, "@e[type=mymod:foo]")
+	})
+
+	t.Run("unknown_entity_rejected", func(t *testing.T) {
+		parseSelectorErr(t, "@e[type=not_an_entity_xyz]")
+	})
+
+	t.Run("negation_single", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, "@e[type=!zombie]")
+		if sel.TypeInclude.Present {
+			t.Fatalf("want no positive, got %+v", sel.TypeInclude)
+		}
+		if len(sel.TypeExclude) != 1 || sel.TypeExclude[0] != "zombie" {
+			t.Fatalf("want excludes=[zombie], got %v", sel.TypeExclude)
+		}
+	})
+
+	t.Run("negation_multiple_allowed", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, "@e[type=!zombie,type=!creeper]")
+		if len(sel.TypeExclude) != 2 {
+			t.Fatalf("want 2 excludes, got %v", sel.TypeExclude)
+		}
+	})
+
+	t.Run("duplicate_positive_rejected", func(t *testing.T) {
+		parseSelectorErr(t, "@e[type=zombie,type=creeper]")
+	})
+
+	t.Run("positive_after_negative_rejected", func(t *testing.T) {
+		parseSelectorErr(t, "@e[type=!creeper,type=zombie]")
+	})
+
+	t.Run("negative_after_positive_rejected", func(t *testing.T) {
+		parseSelectorErr(t, "@e[type=zombie,type=!creeper]")
+	})
+
+	t.Run("rejected_on_all_players", func(t *testing.T) {
+		parseSelectorErr(t, "@a[type=zombie]")
+	})
+
+	t.Run("rejected_on_nearest_player", func(t *testing.T) {
+		parseSelectorErr(t, "@p[type=zombie]")
+	})
+
+	t.Run("rejected_on_random_player", func(t *testing.T) {
+		parseSelectorErr(t, "@r[type=zombie]")
+	})
+
+	t.Run("allowed_on_self", func(t *testing.T) {
+		parseSelectorOrFail(t, "@s[type=zombie]")
+	})
+
+	t.Run("allowed_on_nearest_entity", func(t *testing.T) {
+		parseSelectorOrFail(t, "@n[type=zombie]")
+	})
+}
 
 func TestReadOptionValue(t *testing.T) {
 	cases := []struct {

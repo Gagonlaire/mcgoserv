@@ -3,8 +3,10 @@ package parsers
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
@@ -387,6 +389,8 @@ func parseSelectorOption(r *commander.CommandReader, sel *mc.Selector, key strin
 			return err
 		}
 		return parseSelectorGamemode(r, sel)
+	case "type":
+		return parseSelectorType(r, sel, keyStart)
 	default:
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsUnknown, tc.Text(key)),
@@ -459,6 +463,73 @@ func parseSelectorGamemode(r *commander.CommandReader, sel *mc.Selector) error {
 			r.Input(), start,
 		)
 	}
+}
+
+func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart int) error {
+	switch sel.Variable {
+	case mc.SelectorVariableAllPlayers, mc.SelectorVariableNearestPlayer, mc.SelectorVariableRandomPlayer:
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+			r.Input(), keyStart,
+		)
+	}
+
+	negated := false
+	if r.CanRead() && r.Peek() == '!' {
+		r.Skip()
+		negated = true
+	}
+
+	valueStart := r.Cursor()
+	raw := readOptionValue(r)
+	name, ok := canonicalEntityName(raw)
+	if !ok {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
+			r.Input(), valueStart,
+		)
+	}
+	if _, found := entity.FromString(name); !found {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
+			r.Input(), valueStart,
+		)
+	}
+
+	if negated {
+		if sel.TypeInclude.Present {
+			return commander.NewParsingErrorAt(
+				tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+				r.Input(), keyStart,
+			)
+		}
+		sel.TypeExclude = append(sel.TypeExclude, name)
+		return nil
+	}
+
+	if sel.TypeInclude.Present || len(sel.TypeExclude) > 0 {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+			r.Input(), keyStart,
+		)
+	}
+	sel.TypeInclude = mc.Optional[string]{Value: name, Present: true}
+	return nil
+}
+
+// todo: move this logic to Identifier
+func canonicalEntityName(raw string) (string, bool) {
+	name := raw
+	if i := strings.IndexByte(name, ':'); i >= 0 {
+		if name[:i] != "minecraft" {
+			return "", false
+		}
+		name = name[i+1:]
+	}
+	if name == "" {
+		return "", false
+	}
+	return name, true
 }
 
 func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.FloatRange], nonNegative bool) error {
