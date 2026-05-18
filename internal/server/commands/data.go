@@ -18,89 +18,122 @@ func registerData(s *server.Server) {
 	s.Commander.Register(
 		Literal("data").Connect(
 			Literal("get").Connect(
-				Argument("target", parsers.Entity.Single(true)).
-					Executes(dataGetEntity(s)).
-					Connect(
-						Argument("path", parsers.NbtPath).
-							Executes(dataGetEntityPath(s)),
-					),
+				Literal("entity").Connect(
+					Argument("target", parsers.Entity.Single(true)).
+						Executes(dataGetEntity(s)).
+						Connect(
+							Argument("path", parsers.NbtPath).
+								Executes(dataGetEntityPath(s)).
+								Connect(
+									Argument("scale", parsers.Double).
+										Executes(dataGetEntityPathScale(s)),
+								),
+						),
+				),
 			),
 			Literal("merge").Connect(
-				Argument("target", parsers.Entity.Single(true)).Connect(
-					Argument("nbt", parsers.NbtCompoundTag).
-						Executes(dataMergeEntity(s)),
+				Literal("entity").Connect(
+					Argument("target", parsers.Entity.Single(true)).Connect(
+						Argument("nbt", parsers.NbtCompoundTag).
+							Executes(dataMergeEntity(s)),
+					),
 				),
 			),
 			Literal("modify").Connect(
-				Argument("target", parsers.Entity.Single(true)).Connect(
-					Argument("path", parsers.NbtPath).Connect(
-						Literal("set").Connect(
-							Literal("value").Connect(
-								Argument("nbt", parsers.NbtTag).
-									Executes(dataModifyOp(s, opSet)),
-							),
-							Literal("from").Connect(
-								Literal("entity").Connect(
-									Argument("source", parsers.Entity.Single(true)).
-										Executes(dataModifyFrom(s, opSet, false)).
-										Connect(
-											Argument("sourcePath", parsers.NbtPath).
-												Executes(dataModifyFrom(s, opSet, true)),
-										),
-								),
-							),
-						),
-						Literal("append").Connect(
-							Literal("value").Connect(
-								Argument("nbt", parsers.NbtTag).
-									Executes(dataModifyOp(s, opAppend)),
-							),
-							Literal("from").Connect(
-								Literal("entity").Connect(
-									Argument("source", parsers.Entity.Single(true)).
-										Executes(dataModifyFrom(s, opAppend, false)).
-										Connect(
-											Argument("sourcePath", parsers.NbtPath).
-												Executes(dataModifyFrom(s, opAppend, true)),
-										),
-								),
-							),
-						),
-						Literal("prepend").Connect(
-							Literal("value").Connect(
-								Argument("nbt", parsers.NbtTag).
-									Executes(dataModifyOp(s, opPrepend)),
-							),
-							Literal("from").Connect(
-								Literal("entity").Connect(
-									Argument("source", parsers.Entity.Single(true)).
-										Executes(dataModifyFrom(s, opPrepend, false)).
-										Connect(
-											Argument("sourcePath", parsers.NbtPath).
-												Executes(dataModifyFrom(s, opPrepend, true)),
-										),
-								),
-							),
-						),
-						Literal("insert").Connect(
-							Argument("index", parsers.Int).Connect(
+				Literal("entity").Connect(
+					Argument("target", parsers.Entity.Single(true)).Connect(
+						Argument("path", parsers.NbtPath).Connect(
+							Literal("set").Connect(
 								Literal("value").Connect(
 									Argument("nbt", parsers.NbtTag).
-										Executes(dataModifyInsert(s, false)),
+										Executes(dataModifyOp(s, opSet)),
 								),
 								Literal("from").Connect(
 									Literal("entity").Connect(
 										Argument("source", parsers.Entity.Single(true)).
-											Executes(dataModifyInsertFrom(s, false)).
+											Executes(dataModifyFrom(s, opSet, false)).
 											Connect(
 												Argument("sourcePath", parsers.NbtPath).
-													Executes(dataModifyInsertFrom(s, true)),
+													Executes(dataModifyFrom(s, opSet, true)),
+											),
+									),
+								),
+							),
+							Literal("append").Connect(
+								Literal("value").Connect(
+									Argument("nbt", parsers.NbtTag).
+										Executes(dataModifyOp(s, opAppend)),
+								),
+								Literal("from").Connect(
+									Literal("entity").Connect(
+										Argument("source", parsers.Entity.Single(true)).
+											Executes(dataModifyFrom(s, opAppend, false)).
+											Connect(
+												Argument("sourcePath", parsers.NbtPath).
+													Executes(dataModifyFrom(s, opAppend, true)),
+											),
+									),
+								),
+							),
+							Literal("prepend").Connect(
+								Literal("value").Connect(
+									Argument("nbt", parsers.NbtTag).
+										Executes(dataModifyOp(s, opPrepend)),
+								),
+								Literal("from").Connect(
+									Literal("entity").Connect(
+										Argument("source", parsers.Entity.Single(true)).
+											Executes(dataModifyFrom(s, opPrepend, false)).
+											Connect(
+												Argument("sourcePath", parsers.NbtPath).
+													Executes(dataModifyFrom(s, opPrepend, true)),
+											),
+									),
+								),
+							),
+							Literal("insert").Connect(
+								Argument("index", parsers.Int).Connect(
+									Literal("value").Connect(
+										Argument("nbt", parsers.NbtTag).
+											Executes(dataModifyInsert(s, false)),
+									),
+									Literal("from").Connect(
+										Literal("entity").Connect(
+											Argument("source", parsers.Entity.Single(true)).
+												Executes(dataModifyInsertFrom(s, false)).
+												Connect(
+													Argument("sourcePath", parsers.NbtPath).
+														Executes(dataModifyInsertFrom(s, true)),
+												),
+										),
+									),
+								),
+							),
+							Literal("merge").Connect(
+								Literal("value").Connect(
+									Argument("nbt", parsers.NbtCompoundTag).
+										Executes(dataModifyMergeValue(s)),
+								),
+								Literal("from").Connect(
+									Literal("entity").Connect(
+										Argument("source", parsers.Entity.Single(true)).
+											Executes(dataModifyMergeFrom(s, false)).
+											Connect(
+												Argument("sourcePath", parsers.NbtPath).
+													Executes(dataModifyMergeFrom(s, true)),
 											),
 									),
 								),
 							),
 						),
-						Literal("remove").Executes(dataModifyRemove(s)),
+					),
+				),
+			),
+			Literal("remove").Connect(
+				Literal("entity").Connect(
+					Argument("target", parsers.Entity.Single(true)).Connect(
+						Argument("path", parsers.NbtPath).
+							Executes(dataRemoveEntity(s)),
 					),
 				),
 			),
@@ -164,6 +197,65 @@ func nbtErrKey(err error) mcdata.TranslationKey {
 	}
 }
 
+// floorInt implements the vanilla rounding formula: n < int(n) ? int(n)-1 : int(n).
+func floorInt(f float64) int {
+	n := int(f)
+	if float64(n) > f {
+		return n - 1
+	}
+	return n
+}
+
+// nbtAsFloat64 returns the float64 representation of a numeric NBT value.
+func nbtAsFloat64(v any) (float64, bool) {
+	switch val := v.(type) {
+	case int8:
+		return float64(val), true
+	case int16:
+		return float64(val), true
+	case int32:
+		return float64(val), true
+	case int64:
+		return float64(val), true
+	case float32:
+		return float64(val), true
+	case float64:
+		return val, true
+	}
+	return 0, false
+}
+
+func nbtResultValue(v any) int {
+	switch val := v.(type) {
+	case int8:
+		return int(val)
+	case int16:
+		return int(val)
+	case int32:
+		return int(val)
+	case int64:
+		return floorInt(float64(val))
+	case float32:
+		return floorInt(float64(val))
+	case float64:
+		return floorInt(val)
+	case string:
+		return len(val)
+	case []any:
+		return len(val)
+	case map[string]any:
+		return len(val)
+	case []byte:
+		return len(val)
+	case []int32:
+		return len(val)
+	case []int64:
+		return len(val)
+	default:
+		return 1
+	}
+}
+
 func dataGetEntity(s *server.Server) Command {
 	return func(cc *CommandContext) (*CommandResult, error) {
 		target, ok := resolveSingleEntity(s, cc, "target")
@@ -215,7 +307,47 @@ func dataGetEntityPath(s *server.Server) Command {
 		comp := nbtpath.FormatSNBTComponent(anchors[0].Value())
 		cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityGet,
 			tc.Text(path.Raw), entityDisplayName(target), comp))
-		return &CommandResult{Success: 1, Result: 1}, nil
+		return &CommandResult{Success: 1, Result: nbtResultValue(anchors[0].Value())}, nil
+	}
+}
+
+func dataGetEntityPathScale(s *server.Server) Command {
+	return func(cc *CommandContext) (*CommandResult, error) {
+		target, ok := resolveSingleEntity(s, cc, "target")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		src, ok := target.(nbtpath.NbtSource)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		path := GetArgument[*nbtpath.Path](cc.Args, "path")
+		root, err := src.NbtRoot()
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		anchors, err := nbtpath.Resolve(root, *path)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		if len(anchors) > 1 {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataGetMultiple).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		f, ok := nbtAsFloat64(anchors[0].Value())
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataGetInvalid).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		scale := GetArgument[float64](cc.Args, "scale")
+		result := floorInt(f * scale)
+		comp := nbtpath.FormatSNBTComponent(anchors[0].Value())
+		cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityGet,
+			tc.Text(path.Raw), entityDisplayName(target), comp))
+		return &CommandResult{Success: 1, Result: result}, nil
 	}
 }
 
@@ -393,7 +525,85 @@ func dataModifyInsertFrom(s *server.Server, withSourcePath bool) Command {
 	}
 }
 
-func dataModifyRemove(s *server.Server) Command {
+func dataModifyMergeValue(s *server.Server) Command {
+	return func(cc *CommandContext) (*CommandResult, error) {
+		target, ok := resolveSingleEntity(s, cc, "target")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		tgt, ok := asWriteTarget(cc, target)
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		path := GetArgument[*nbtpath.Path](cc.Args, "path")
+		raw := GetArgument[nbt.StringifiedMessage](cc.Args, "nbt")
+		v, err := nbtpath.SNBTToValue(raw)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataMergeFailed).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		compound, ok := v.(map[string]any)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataModifyExpectedObject).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		n, err := tgt.NbtMergeAt(*path, compound)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityModified, entityDisplayName(target)))
+		return &CommandResult{Success: 1, Result: n}, nil
+	}
+}
+
+func dataModifyMergeFrom(s *server.Server, withSourcePath bool) Command {
+	return func(cc *CommandContext) (*CommandResult, error) {
+		target, ok := resolveSingleEntity(s, cc, "target")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		tgt, ok := asWriteTarget(cc, target)
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		source, ok := resolveSingleEntity(s, cc, "source")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		srcSource, ok := source.(nbtpath.NbtSource)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		path := GetArgument[*nbtpath.Path](cc.Args, "path")
+		var srcPath nbtpath.Path
+		if withSourcePath {
+			sp := GetArgument[*nbtpath.Path](cc.Args, "sourcePath")
+			srcPath = *sp
+		}
+		fv := nbtpath.FromValueSource{Src: srcSource, Path: srcPath}
+		values, err := fv.Resolve()
+		if err != nil || len(values) == 0 {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataGetUnknown).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		compound, ok := values[0].(map[string]any)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataModifyExpectedObject).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		n, err := tgt.NbtMergeAt(*path, compound)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityModified, entityDisplayName(target)))
+		return &CommandResult{Success: 1, Result: n}, nil
+	}
+}
+
+func dataRemoveEntity(s *server.Server) Command {
 	return func(cc *CommandContext) (*CommandResult, error) {
 		target, ok := resolveSingleEntity(s, cc, "target")
 		if !ok {
