@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"strconv"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -31,16 +33,21 @@ func registerKill(s *server.Server) {
 						return &CommandResult{Success: 0}, nil
 					}
 
-					e := resolved[0]
-					displayName := entityDisplayName(e)
 					var killer entity.Entity
 					if sender != nil {
 						killer = sender
 					}
-					s.Kill(e, killer, deathCause(e, sender))
+					for _, e := range resolved {
+						s.Kill(e, killer, deathCause(e, sender))
+					}
 
-					cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, displayName))
-					return &CommandResult{Success: 1, Result: 1}, nil
+					count := len(resolved)
+					if count == 1 {
+						cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, entityDisplayName(resolved[0])))
+					} else {
+						cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessMultiple, tc.Text(strconv.Itoa(count))))
+					}
+					return &CommandResult{Success: 1, Result: count}, nil
 				}),
 		),
 	)
