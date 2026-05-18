@@ -16,6 +16,8 @@ const (
 	IndexBedLocation    metadata.Index = 14
 )
 
+func (e *LivingEntity) LivingBase() *LivingEntity { return e }
+
 type HandState byte
 
 const (
@@ -51,6 +53,7 @@ type LivingEntity struct {
 	HandFlags                  HandState `meta:"IndexHandFlags,Byte,flags" nbt:"-"`
 	CanPickUpLoot              bool
 	IsPotionAmbient            bool           `meta:"IndexPotionAmbience,Boolean" nbt:"-"`
+	IsDying                    bool           `nbt:"-"`
 	Attributes                 *attribute.Set `nbt:"-"` // todo: implement nbt encoding/decoding
 	// todo: implement active_effects, brain, drop_chances, equipment, leash, locator_bar_icon, team
 	// todo: Tags common to all mobs with drops from loot tables

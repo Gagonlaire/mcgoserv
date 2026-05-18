@@ -15,9 +15,16 @@ func registerKill(s *server.Server) {
 		Literal("kill").Connect(
 			Argument("target", parsers.Entity).
 				Executes(func(cc *CommandContext) (*CommandResult, error) {
-					sender := cc.Source.Entity.(*entity.Player)
+					sender, _ := cc.Source.Entity.(*entity.Player)
 					target := cc.Args.GetEntityTarget("target")
-					resolved := s.World.ResolveTarget(target, uuid.UUID(sender.UUID), sender.Position)
+
+					var senderUUID uuid.UUID
+					var senderPos [3]float64
+					if sender != nil {
+						senderUUID = uuid.UUID(sender.UUID)
+						senderPos = sender.Position
+					}
+					resolved := s.World.ResolveTarget(target, senderUUID, senderPos)
 
 					if len(resolved) == 0 {
 						cc.SendMessage(tc.Translatable(mcdata.ArgumentEntityNotfoundEntity).SetColor(tc.ColorRed))
@@ -26,7 +33,11 @@ func registerKill(s *server.Server) {
 
 					e := resolved[0]
 					displayName := entityDisplayName(e)
-					killEntity(s, e)
+					var killer entity.Entity
+					if sender != nil {
+						killer = sender
+					}
+					s.Kill(e, killer, deathCause(e, sender))
 
 					cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, displayName))
 					return &CommandResult{Success: 1, Result: 1}, nil
@@ -35,21 +46,17 @@ func registerKill(s *server.Server) {
 	)
 }
 
-func killEntity(s *server.Server, e entity.Entity) {
-	if player, ok := e.(*entity.Player); ok {
-		if conn, loaded := s.ConnectionsByEID.Load(player.EntityID); loaded {
-			conn.(*server.Connection).Disconnect(tc.Translatable(mcdata.CommandsKillSuccessSingle, tc.PlayerName(player.Name)))
-			return
-		}
-		s.DespawnPlayer(player)
-		return
-	}
-	s.DespawnEntity(e)
-}
-
 func entityDisplayName(e entity.Entity) tc.Component {
 	if player, ok := e.(*entity.Player); ok {
 		return tc.PlayerName(player.Name)
 	}
 	return tc.Text(e.Base().ID.DisplayName())
+}
+
+func deathCause(target entity.Entity, killer *entity.Player) tc.Component {
+	targetName := entityDisplayName(target)
+	if killer != nil {
+		return tc.Translatable(mcdata.DeathAttackGenericKillPlayer, targetName, tc.PlayerName(killer.Name))
+	}
+	return tc.Translatable(mcdata.DeathAttackGenericKill, targetName)
 }

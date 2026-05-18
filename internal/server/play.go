@@ -72,6 +72,13 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 	c.Player.Loaded = true
 }
 
+func (c *Connection) HandleClientCommand(action *mc.VarInt) {
+	switch *action {
+	case 0:
+		c.Server.Respawn(c.Player)
+	}
+}
+
 func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	switch mc.PlayerCommand(data.ActionID) {
 	case mc.CommandStartSprinting:

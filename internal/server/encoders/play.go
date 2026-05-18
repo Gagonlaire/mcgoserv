@@ -133,3 +133,36 @@ func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	return n, nil
 }
+
+type Respawn struct {
+	DimensionType    mc.VarInt
+	DimensionName    mc.Identifier
+	HashedSeed       mc.Long
+	GameMode         mc.UnsignedByte
+	PreviousGameMode mc.Byte
+	IsDebug          mc.Boolean
+	IsFlat           mc.Boolean
+	HasDeathLocation mc.Boolean
+	PortalCooldown   mc.VarInt
+	SeaLevel         mc.VarInt
+	DataKept         mc.Byte
+}
+
+func (r *Respawn) WriteTo(w io.Writer) (n int64, err error) {
+	fields := [11]io.WriterTo{
+		r.DimensionType, r.DimensionName,
+		r.HashedSeed,
+		r.GameMode, r.PreviousGameMode,
+		r.IsDebug, r.IsFlat, r.HasDeathLocation,
+		r.PortalCooldown, r.SeaLevel,
+		r.DataKept,
+	}
+	for _, f := range fields {
+		nn, err := f.WriteTo(w)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
+}

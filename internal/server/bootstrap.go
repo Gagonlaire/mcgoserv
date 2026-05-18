@@ -9,6 +9,7 @@ import (
 func (s *Server) registerTickerSteps() {
 	s.Ticker.Register(func() { updateTime(s) })
 	s.Ticker.Register(func() { processIncomingPackets(s) })
+	s.Ticker.Register(func() { reapDyingEntities(s) })
 	s.Ticker.Register(func() { flushEntityMetadata(s) })
 }
 
@@ -126,6 +127,12 @@ func registerPlayHandlers(s *Server) {
 	RegisterIgnored(
 		s.Router,
 		mc.StatePlay, packet.PlayServerboundClientTickEnd,
+	)
+	RegisterTyped(
+		s.Router,
+		mc.StatePlay, packet.PlayServerboundClientCommand,
+		true,
+		decoders.DecodeClientCommand, (*Connection).HandleClientCommand,
 	)
 	RegisterTyped(
 		s.Router,

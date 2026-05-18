@@ -406,6 +406,28 @@ func processIncomingPackets(s *Server) {
 	})
 }
 
+func reapDyingEntities(s *Server) {
+	queue := s.World.DyingEntities
+	kept := queue[:0]
+	for _, e := range queue {
+		living := asLiving(e)
+		if living == nil {
+			continue
+		}
+		living.DeathTime++
+		if living.DeathTime < deathAnimationTicks {
+			kept = append(kept, e)
+			continue
+		}
+		removePkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(e.GetID()))
+		if err == nil {
+			s.BroadcastEntityViewers(e, removePkt)
+		}
+		s.World.RemoveEntity(e)
+	}
+	s.World.DyingEntities = kept
+}
+
 func flushEntityMetadata(s *Server) {
 	queue := s.World.DirtyEntities
 	for _, entity := range queue {

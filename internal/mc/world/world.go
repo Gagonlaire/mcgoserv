@@ -20,6 +20,8 @@ type World struct {
 	PlayersByID    map[EntityID]*entity.Player
 	PlayersByUUID  map[uuid.UUID]*entity.Player
 	DirtyEntities  []entity.Entity
+	DyingEntities  []entity.Entity
+	SpawnPos       [3]float64
 	Time           int64
 	DayTime        int64
 	Day            int64
@@ -56,6 +58,7 @@ func NewWorld() *World {
 		EntitiesByUUID: make(map[uuid.UUID]entity.Entity),
 		PlayersByID:    make(map[EntityID]*entity.Player),
 		PlayersByUUID:  make(map[uuid.UUID]*entity.Player),
+		SpawnPos:       [3]float64{0, 80, 0},
 	}
 
 	for _, dimension := range world.Dimensions {

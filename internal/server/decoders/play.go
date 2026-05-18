@@ -261,6 +261,14 @@ func DecodeSetCreativeModeSlot(pkt *packet.InboundPacket) (*SetCreativeModeSlot,
 	return data, nil
 }
 
+func DecodeClientCommand(pkt *packet.InboundPacket) (*mc.VarInt, error) {
+	var action mc.VarInt
+	if err := pkt.Decode(&action); err != nil {
+		return nil, err
+	}
+	return &action, nil
+}
+
 func DecodeUseItemOn(pkt *packet.InboundPacket) (*UseItemOn, error) {
 	data := &UseItemOn{}
 	if err := pkt.Decode(
