@@ -544,6 +544,10 @@ func readOptionValue(r *commander.CommandReader) string {
 	depth := 0
 	for r.CanRead() {
 		ch := r.Peek()
+		if ch == '"' || ch == '\'' {
+			skipQuotedSpan(r, ch)
+			continue
+		}
 		if ch == '{' || ch == '[' {
 			depth++
 			r.Skip()
@@ -560,6 +564,27 @@ func readOptionValue(r *commander.CommandReader) string {
 		}
 	}
 	return r.Input()[start:r.Cursor()]
+}
+
+// skipQuotedSpan advances the cursor past a quoted string literal opened at
+// the current position with the given quote byte. Backslash escapes the next
+// byte. If the string is unterminated, the cursor is advanced to end-of-input.
+func skipQuotedSpan(r *commander.CommandReader, quote byte) {
+	r.Skip()
+	for r.CanRead() {
+		ch := r.Peek()
+		if ch == '\\' {
+			r.Skip()
+			if r.CanRead() {
+				r.Skip()
+			}
+			continue
+		}
+		r.Skip()
+		if ch == quote {
+			return
+		}
+	}
 }
 
 func isUUIDCandidate(r *commander.CommandReader) bool {
