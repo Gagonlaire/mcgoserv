@@ -27,8 +27,8 @@ const (
 
 //meta:encode mode=entity parents=BaseEntity
 type LivingEntity struct {
-	SleepingPos []int `nbt:"sleeping_pos,omitempty"`
-	HomePos     []int `nbt:"home_pos,omitempty"`
+	SleepingPos []int32 `nbt:"sleeping_pos,omitempty"`
+	HomePos     []int32 `nbt:"home_pos,omitempty"`
 	BaseEntity
 	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
 	Health                     float32                                        `meta:"IndexHealth,Float,default=1"`

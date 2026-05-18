@@ -46,7 +46,7 @@ func Append(root any, p Path, v any) (int, error) {
 		return 0, err
 	}
 	for _, a := range anchors {
-		list, ok := a.Value().([]any)
+		list, ok := toAnySlice(a.Value())
 		if !ok {
 			return 0, ErrNotAList
 		}
@@ -64,7 +64,7 @@ func Prepend(root any, p Path, v any) (int, error) {
 		return 0, err
 	}
 	for _, a := range anchors {
-		list, ok := a.Value().([]any)
+		list, ok := toAnySlice(a.Value())
 		if !ok {
 			return 0, ErrNotAList
 		}
@@ -195,7 +195,7 @@ func Insert(root any, p Path, idx int, v any) (int, error) {
 		return 0, err
 	}
 	for _, a := range anchors {
-		list, ok := a.Value().([]any)
+		list, ok := toAnySlice(a.Value())
 		if !ok {
 			return 0, ErrNotAList
 		}
