@@ -103,6 +103,73 @@ func TestParseSelectorType(t *testing.T) {
 	})
 }
 
+func TestParseSelectorNbt(t *testing.T) {
+	t.Run("positive_compound_appended", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, `@e[nbt={OnGround:true}]`)
+		if len(sel.NbtIncludes) != 1 {
+			t.Fatalf("want 1 include, got %d", len(sel.NbtIncludes))
+		}
+		m, ok := sel.NbtIncludes[0].(map[string]any)
+		if !ok {
+			t.Fatalf("want map[string]any, got %T", sel.NbtIncludes[0])
+		}
+		if v, ok := m["OnGround"]; !ok || v != int8(1) {
+			t.Fatalf("want OnGround=int8(1), got %#v", m["OnGround"])
+		}
+		if len(sel.NbtExcludes) != 0 {
+			t.Fatalf("want no excludes, got %v", sel.NbtExcludes)
+		}
+	})
+
+	t.Run("negation_appended_to_excludes", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, `@e[nbt=!{OnGround:true}]`)
+		if len(sel.NbtIncludes) != 0 {
+			t.Fatalf("want no includes, got %v", sel.NbtIncludes)
+		}
+		if len(sel.NbtExcludes) != 1 {
+			t.Fatalf("want 1 exclude, got %d", len(sel.NbtExcludes))
+		}
+	})
+
+	t.Run("multiple_positives_allowed", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, `@e[nbt={A:1b},nbt={B:2b}]`)
+		if len(sel.NbtIncludes) != 2 {
+			t.Fatalf("want 2 includes, got %d", len(sel.NbtIncludes))
+		}
+	})
+
+	t.Run("mixed_positive_and_negative_allowed", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, `@e[nbt={A:1b},nbt=!{B:2b}]`)
+		if len(sel.NbtIncludes) != 1 || len(sel.NbtExcludes) != 1 {
+			t.Fatalf("want 1 include + 1 exclude, got %d/%d",
+				len(sel.NbtIncludes), len(sel.NbtExcludes))
+		}
+	})
+
+	t.Run("non_compound_scalar_rejected", func(t *testing.T) {
+		parseSelectorErr(t, `@e[nbt=42]`)
+	})
+
+	t.Run("non_compound_list_rejected", func(t *testing.T) {
+		parseSelectorErr(t, `@e[nbt=[1,2,3]]`)
+	})
+
+	t.Run("malformed_snbt_rejected", func(t *testing.T) {
+		parseSelectorErr(t, `@e[nbt={unterminated]`)
+	})
+
+	t.Run("compound_with_quoted_string_containing_brace", func(t *testing.T) {
+		sel := parseSelectorOrFail(t, `@e[nbt={Name:"a}b"}]`)
+		if len(sel.NbtIncludes) != 1 {
+			t.Fatalf("want 1 include, got %d", len(sel.NbtIncludes))
+		}
+		m := sel.NbtIncludes[0].(map[string]any)
+		if v, _ := m["Name"].(string); v != "a}b" {
+			t.Fatalf("want Name=a}b, got %#v", m["Name"])
+		}
+	})
+}
+
 func TestReadOptionValue(t *testing.T) {
 	cases := []struct {
 		name      string
