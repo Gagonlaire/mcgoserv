@@ -14,7 +14,7 @@ import (
 func registerSummon(s *server.Server) {
 	s.Commander.Register(
 		Literal("summon").Connect(
-			Argument("entity", parsers.String).Executes(func(cc *CommandContext) (*CommandResult, error) {
+			Argument("entity", parsers.Resource(entity.Registry)).Executes(func(cc *CommandContext) (*CommandResult, error) {
 				sender := cc.Source.Entity.(*entity.Player)
 				return doSummon(s, cc, sender.Position, "")
 			}).Connect(
@@ -37,12 +37,7 @@ func registerSummon(s *server.Server) {
 }
 
 func doSummon(s *server.Server, cc *CommandContext, pos [3]float64, compound nbt.StringifiedMessage) (*CommandResult, error) {
-	name := GetArgument[string](cc.Args, "entity")
-	entityID, ok := entity.FromString(name)
-	if !ok {
-		cc.SendMessage(tc.Translatable(mcdata.CommandsSummonFailed).SetColor(tc.ColorRed))
-		return &CommandResult{Success: 0}, nil
-	}
+	entityID := GetArgument[entity.ID](cc.Args, "entity")
 
 	sender := cc.Source.Entity.(*entity.Player)
 	e := entity.NewFromType(entityID, sender.DimensionID, pos, sender.Rotation)

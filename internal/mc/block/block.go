@@ -1,5 +1,7 @@
 package block
 
+import "github.com/Gagonlaire/mcgoserv/internal/mc"
+
 type ID uint16
 
 func (id ID) Name() string {
@@ -99,4 +101,15 @@ func FromStateID(stateID int) (ID, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+type registryImpl struct{}
+
+// Registry exposes the block registry to the command parsers
+var Registry registryImpl
+
+func (registryImpl) WireName() mc.Identifier { return "block" }
+
+func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+	return FromString(string(path))
 }

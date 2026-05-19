@@ -1,6 +1,10 @@
 package attribute
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
+)
 
 type Instance struct {
 	Id          ID
@@ -43,7 +47,7 @@ func (i *Instance) AddModifier(m Modifier) {
 	i.dirty = true
 }
 
-func (i *Instance) RemoveModifier(id string) {
+func (i *Instance) RemoveModifier(id mc.Identifier) {
 	for idx, existing := range i.modifiers {
 		if existing.ID == id {
 			// swap target with last elem, then slice off end.

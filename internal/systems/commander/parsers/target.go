@@ -486,13 +486,14 @@ func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart in
 
 	valueStart := r.Cursor()
 	raw := readOptionValue(r)
-	name, ok := canonicalEntityName(raw)
-	if !ok {
+	id, err := mc.ParseIdentifier(raw)
+	if err != nil {
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
 			r.Input(), valueStart,
 		)
 	}
+	name := string(id)
 	if _, found := entity.FromString(name); !found {
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
@@ -616,21 +617,6 @@ func isSNBTIdentStart(c byte) bool {
 
 func isSNBTIdentPart(c byte) bool {
 	return isSNBTIdentStart(c) || (c >= '0' && c <= '9')
-}
-
-// todo: move this logic to Identifier
-func canonicalEntityName(raw string) (string, bool) {
-	name := raw
-	if i := strings.IndexByte(name, ':'); i >= 0 {
-		if name[:i] != "minecraft" {
-			return "", false
-		}
-		name = name[i+1:]
-	}
-	if name == "" {
-		return "", false
-	}
-	return name, true
 }
 
 func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.FloatRange], nonNegative bool) error {

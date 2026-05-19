@@ -572,33 +572,43 @@ func (u UUID) WriteTo(w io.Writer) (n int64, err error) {
 	return int64(nBytes), nil
 }
 
+func ParseIdentifier(s string) (Identifier, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) > 2 {
+		return "", fmt.Errorf("invalid Identifier: too many colons in %q", s)
+	}
+	path := parts[len(parts)-1]
+	if len(parts) == 2 && parts[0] != "minecraft" && parts[0] != "" {
+		return "", fmt.Errorf("invalid Identifier: unsupported namespace %q", parts[0])
+	}
+	if path == "" {
+		return "", fmt.Errorf("invalid Identifier: empty path in %q", s)
+	}
+	for _, c := range path {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '_' || c == '-' || c == '.' || c == '/') {
+			return "", fmt.Errorf("invalid Identifier: forbidden character %q in path %q", c, path)
+		}
+	}
+	return Identifier(path), nil
+}
+
 func (i *Identifier) ReadFrom(r io.Reader) (n int64, err error) {
 	var value String
 	n, err = value.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
-	parts := strings.Split(string(value), ":")
-	count := len(parts)
-	if count < 1 || count > 2 {
-		return n, fmt.Errorf("invalid Identifier: too many or not enough colons in %s", value)
+	parsed, perr := ParseIdentifier(string(value))
+	if perr != nil {
+		return n, perr
 	}
-	if count == 2 {
-		if parts[0] != "minecraft" && parts[0] != "" {
-			return n, fmt.Errorf("invalid Identifier: invalid namespace %s", parts[0])
-		}
-	}
-	*i = Identifier(parts[count-1])
-	for _, c := range *i {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '_' || c == '-' || c == '.' || c == '/') {
-			return n, fmt.Errorf("invalid Identifier: forbidden character '%c' in path %s", c, *i)
-		}
-	}
+	*i = parsed
 	return n, nil
 }
 
+// WriteTo emits the identifier as `minecraft:path`. This codebase assumes the
+// minecraft namespace; custom namespaces are not supported.
 func (i Identifier) WriteTo(w io.Writer) (n int64, err error) {
-	// NOTE: we only support the default namespace
 	return String("minecraft:" + i).WriteTo(w)
 }
 
