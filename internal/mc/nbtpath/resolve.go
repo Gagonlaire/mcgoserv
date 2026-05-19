@@ -20,24 +20,43 @@ func (a Anchor) Value() any {
 	return a.Parent
 }
 
-func compoundMatch(candidate, filter map[string]any) bool {
-	for k, fv := range filter {
-		cv, exists := candidate[k]
-		if !exists {
+func Match(candidate, filter any) bool {
+	if fMap, ok := filter.(map[string]any); ok {
+		cMap, ok := candidate.(map[string]any)
+		if !ok {
 			return false
 		}
-		if fMap, ok := fv.(map[string]any); ok {
-			cMap, ok2 := cv.(map[string]any)
-			if !ok2 || !compoundMatch(cMap, fMap) {
+		for k, fv := range fMap {
+			cv, exists := cMap[k]
+			if !exists {
 				return false
 			}
-			continue
+			if !Match(cv, fv) {
+				return false
+			}
 		}
-		if !reflect.DeepEqual(cv, fv) {
+		return true
+	}
+	if fList, ok := toAnySlice(filter); ok {
+		cList, ok := toAnySlice(candidate)
+		if !ok {
 			return false
 		}
+		for _, fv := range fList {
+			matched := false
+			for _, cv := range cList {
+				if Match(cv, fv) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				return false
+			}
+		}
+		return true
 	}
-	return true
+	return reflect.DeepEqual(candidate, filter)
 }
 
 func toAnySlice(v any) ([]any, bool) {
@@ -105,7 +124,7 @@ func stepResolve(in []Anchor, step PathStep) ([]Anchor, error) {
 			if !ok {
 				return nil, ErrNotACompound
 			}
-			if !compoundMatch(cm, s.Filter) {
+			if !Match(cm, s.Filter) {
 				return nil, ErrPathNotFound
 			}
 			out = append(out, a)
@@ -119,7 +138,7 @@ func stepResolve(in []Anchor, step PathStep) ([]Anchor, error) {
 				if !ok {
 					continue
 				}
-				if compoundMatch(cm, s.Filter) {
+				if Match(cm, s.Filter) {
 					out = append(out, Anchor{Parent: v, Index: i})
 				}
 			}

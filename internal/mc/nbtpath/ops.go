@@ -137,7 +137,7 @@ func Remove(root any, p Path) (int, error) {
 			kept := make([]any, 0, len(list))
 			removed := 0
 			for _, elem := range list {
-				if cm, ok := elem.(map[string]any); ok && compoundMatch(cm, s.Filter) {
+				if cm, ok := elem.(map[string]any); ok && Match(cm, s.Filter) {
 					removed++
 					continue
 				}

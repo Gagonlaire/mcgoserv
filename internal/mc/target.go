@@ -36,16 +36,20 @@ const (
 )
 
 type Selector struct {
-	Sort       Optional[string]
-	Distance   Optional[FloatRange]
-	X, Y, Z    Optional[float64]
-	Dx, Dy, Dz Optional[float64]
-	XRotation  Optional[FloatRange]
-	YRotation  Optional[FloatRange]
-	Limit      Optional[int]
-	Level      Optional[IntRange]
-	Gamemode   Optional[string]
-	Variable   SelectorVariable
+	Sort        Optional[string]
+	Distance    Optional[FloatRange]
+	X, Y, Z     Optional[float64]
+	Dx, Dy, Dz  Optional[float64]
+	XRotation   Optional[FloatRange]
+	YRotation   Optional[FloatRange]
+	Limit       Optional[int]
+	Level       Optional[IntRange]
+	Gamemode    Optional[string]
+	TypeInclude Optional[string]
+	TypeExclude []string
+	NbtIncludes []any
+	NbtExcludes []any
+	Variable    SelectorVariable
 }
 
 type IntRange struct {

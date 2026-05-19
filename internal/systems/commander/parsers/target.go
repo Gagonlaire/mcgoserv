@@ -3,11 +3,15 @@ package parsers
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/Tnze/go-mc/nbt"
 	"github.com/google/uuid"
 )
 
@@ -387,6 +391,10 @@ func parseSelectorOption(r *commander.CommandReader, sel *mc.Selector, key strin
 			return err
 		}
 		return parseSelectorGamemode(r, sel)
+	case "type":
+		return parseSelectorType(r, sel, keyStart)
+	case "nbt":
+		return parseSelectorNbt(r, sel)
 	default:
 		return commander.NewParsingErrorAt(
 			tc.Translatable(mcdata.ArgumentEntityOptionsUnknown, tc.Text(key)),
@@ -459,6 +467,170 @@ func parseSelectorGamemode(r *commander.CommandReader, sel *mc.Selector) error {
 			r.Input(), start,
 		)
 	}
+}
+
+func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart int) error {
+	switch sel.Variable {
+	case mc.SelectorVariableAllPlayers, mc.SelectorVariableNearestPlayer, mc.SelectorVariableRandomPlayer:
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+			r.Input(), keyStart,
+		)
+	}
+
+	negated := false
+	if r.CanRead() && r.Peek() == '!' {
+		r.Skip()
+		negated = true
+	}
+
+	valueStart := r.Cursor()
+	raw := readOptionValue(r)
+	name, ok := canonicalEntityName(raw)
+	if !ok {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
+			r.Input(), valueStart,
+		)
+	}
+	if _, found := entity.FromString(name); !found {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
+			r.Input(), valueStart,
+		)
+	}
+
+	if negated {
+		if sel.TypeInclude.Present {
+			return commander.NewParsingErrorAt(
+				tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+				r.Input(), keyStart,
+			)
+		}
+		sel.TypeExclude = append(sel.TypeExclude, name)
+		return nil
+	}
+
+	if sel.TypeInclude.Present || len(sel.TypeExclude) > 0 {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
+			r.Input(), keyStart,
+		)
+	}
+	sel.TypeInclude = mc.Optional[string]{Value: name, Present: true}
+	return nil
+}
+
+func parseSelectorNbt(r *commander.CommandReader, sel *mc.Selector) error {
+	negated := false
+	if r.CanRead() && r.Peek() == '!' {
+		r.Skip()
+		negated = true
+	}
+
+	valueStart := r.Cursor()
+	raw := readOptionValue(r)
+	if raw == "" {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
+			r.Input(), valueStart,
+		)
+	}
+
+	val, err := nbtpath.SNBTToValue(nbt.StringifiedMessage(canonicalizeSNBTBooleans(raw)))
+	if err != nil {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
+			r.Input(), valueStart,
+		)
+	}
+
+	if _, ok := val.(map[string]any); !ok {
+		return commander.NewParsingErrorAt(
+			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
+			r.Input(), valueStart,
+		)
+	}
+
+	if negated {
+		sel.NbtExcludes = append(sel.NbtExcludes, val)
+	} else {
+		sel.NbtIncludes = append(sel.NbtIncludes, val)
+	}
+	return nil
+}
+
+// canonicalizeSNBTBooleans rewrites bare-word `true`/`false` tokens in src
+// to `1b`/`0b` so that entity NBT (which serializes Go bool as TagByte) can
+// be subset-matched against the wiki-canonical filter syntax
+// `nbt={Field:true}`. Tokens inside quoted strings are preserved.
+func canonicalizeSNBTBooleans(src string) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	i := 0
+	for i < len(src) {
+		ch := src[i]
+		if ch == '"' || ch == '\'' {
+			end := i + 1
+			for end < len(src) {
+				if src[end] == '\\' && end+1 < len(src) {
+					end += 2
+					continue
+				}
+				if src[end] == ch {
+					end++
+					break
+				}
+				end++
+			}
+			b.WriteString(src[i:end])
+			i = end
+			continue
+		}
+		if isSNBTIdentStart(ch) {
+			end := i + 1
+			for end < len(src) && isSNBTIdentPart(src[end]) {
+				end++
+			}
+			word := src[i:end]
+			switch word {
+			case "true":
+				b.WriteString("1b")
+			case "false":
+				b.WriteString("0b")
+			default:
+				b.WriteString(word)
+			}
+			i = end
+			continue
+		}
+		b.WriteByte(ch)
+		i++
+	}
+	return b.String()
+}
+
+func isSNBTIdentStart(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+}
+
+func isSNBTIdentPart(c byte) bool {
+	return isSNBTIdentStart(c) || (c >= '0' && c <= '9')
+}
+
+// todo: move this logic to Identifier
+func canonicalEntityName(raw string) (string, bool) {
+	name := raw
+	if i := strings.IndexByte(name, ':'); i >= 0 {
+		if name[:i] != "minecraft" {
+			return "", false
+		}
+		name = name[i+1:]
+	}
+	if name == "" {
+		return "", false
+	}
+	return name, true
 }
 
 func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.FloatRange], nonNegative bool) error {
@@ -544,6 +716,10 @@ func readOptionValue(r *commander.CommandReader) string {
 	depth := 0
 	for r.CanRead() {
 		ch := r.Peek()
+		if ch == '"' || ch == '\'' {
+			skipQuotedSpan(r, ch)
+			continue
+		}
 		if ch == '{' || ch == '[' {
 			depth++
 			r.Skip()
@@ -560,6 +736,27 @@ func readOptionValue(r *commander.CommandReader) string {
 		}
 	}
 	return r.Input()[start:r.Cursor()]
+}
+
+// skipQuotedSpan advances the cursor past a quoted string literal opened at
+// the current position with the given quote byte. Backslash escapes the next
+// byte. If the string is unterminated, the cursor is advanced to end-of-input.
+func skipQuotedSpan(r *commander.CommandReader, quote byte) {
+	r.Skip()
+	for r.CanRead() {
+		ch := r.Peek()
+		if ch == '\\' {
+			r.Skip()
+			if r.CanRead() {
+				r.Skip()
+			}
+			continue
+		}
+		r.Skip()
+		if ch == quote {
+			return
+		}
+	}
 }
 
 func isUUIDCandidate(r *commander.CommandReader) bool {
