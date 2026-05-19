@@ -1,7 +1,6 @@
 package commander
 
 import (
-	"fmt"
 	"io"
 
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -29,7 +28,7 @@ type ParsedArgs map[string]any
 
 type Node struct {
 	Parser           ArgumentParser
-	Children         map[string]*Node
+	Children         []*Node
 	Run              Command
 	SuggestFn        SuggestFunc
 	Redirect         *Node
@@ -75,39 +74,31 @@ const (
 
 func Literal(name string) *Node {
 	return &Node{
-		Kind:     LiteralNode,
-		Name:     name,
-		Children: make(map[string]*Node),
+		Kind: LiteralNode,
+		Name: name,
 	}
 }
 
 func Argument(name string, parser ArgumentParser) *Node {
 	return &Node{
-		Kind:     ArgumentNode,
-		Name:     name,
-		Parser:   parser,
-		Children: make(map[string]*Node),
+		Kind:   ArgumentNode,
+		Name:   name,
+		Parser: parser,
 	}
 }
 
 func (n *Node) Connect(children ...*Node) *Node {
-	if n.Children == nil {
-		n.Children = make(map[string]*Node)
-	}
-	for _, child := range children {
-		if child.Kind == ArgumentNode {
-			for _, existing := range n.Children {
-				if existing.Kind == ArgumentNode {
-					panic(fmt.Sprintf(
-						"commander: node '%s' already has argument child '%s', cannot add '%s'",
-						n.Name, existing.Name, child.Name,
-					))
-				}
-			}
-		}
-		n.Children[child.Name] = child
-	}
+	n.Children = append(n.Children, children...)
 	return n
+}
+
+func (n *Node) findLiteralChild(name string) *Node {
+	for _, c := range n.Children {
+		if c.Kind == LiteralNode && c.Name == name {
+			return c
+		}
+	}
+	return nil
 }
 
 func (n *Node) RedirectTo(target *Node) *Node {
