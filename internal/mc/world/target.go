@@ -3,6 +3,7 @@ package world
 import (
 	"math"
 	"math/rand/v2"
+	"sort"
 	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -105,35 +106,60 @@ func (w *World) selectorCandidates(sel *mc.Selector) []entity.Entity {
 	return nil
 }
 
-func reduceSelectorResult(sel *mc.Selector, filtered []entity.Entity, sourcePos [3]float64) []entity.Entity {
-	switch sel.Variable {
-	case mc.SelectorVariableAllPlayers, mc.SelectorVariableAllEntities:
-		return filtered
-	case mc.SelectorVariableNearestPlayer, mc.SelectorVariableNearestEntity:
-		return nearestOf(filtered, sourcePos)
-	case mc.SelectorVariableRandomPlayer:
-		if len(filtered) == 0 {
-			return nil
-		}
-		return []entity.Entity{filtered[rand.IntN(len(filtered))]}
-	}
-	return nil
-}
-
-func nearestOf(ents []entity.Entity, pos [3]float64) []entity.Entity {
-	var nearest entity.Entity
-	bestDist := math.MaxFloat64
-	for _, e := range ents {
-		d := distSq(pos, e.Base().Position)
-		if d < bestDist {
-			bestDist = d
-			nearest = e
-		}
-	}
-	if nearest == nil {
+func reduceSelectorResult(sel *mc.Selector, filtered []entity.Entity, refPos [3]float64) []entity.Entity {
+	if len(filtered) == 0 {
 		return nil
 	}
-	return []entity.Entity{nearest}
+	sortEntities(filtered, selectorSortMode(sel), refPos)
+	if limit := selectorLimit(sel); limit > 0 && len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	return filtered
+}
+
+// selectorSortMode returns the user-specified sort mode, or the canonical
+// Mojang default for the selector variable: @p/@n → nearest, @r → random, @a/@e → arbitrary.
+func selectorSortMode(sel *mc.Selector) string {
+	if sel.Sort.Present {
+		return sel.Sort.Value
+	}
+	switch sel.Variable {
+	case mc.SelectorVariableNearestPlayer, mc.SelectorVariableNearestEntity:
+		return "nearest"
+	case mc.SelectorVariableRandomPlayer:
+		return "random"
+	}
+	return "arbitrary"
+}
+
+// selectorLimit returns the explicit limit, or the canonical Mojang default:
+// single-target variables (@p/@n/@r) implicitly cap at 1; @a/@e are unbounded (0 represents no cap).
+func selectorLimit(sel *mc.Selector) int {
+	if sel.Limit.Present {
+		return sel.Limit.Value
+	}
+	switch sel.Variable {
+	case mc.SelectorVariableNearestPlayer,
+		mc.SelectorVariableNearestEntity,
+		mc.SelectorVariableRandomPlayer:
+		return 1
+	}
+	return 0
+}
+
+func sortEntities(ents []entity.Entity, mode string, refPos [3]float64) {
+	switch mode {
+	case "nearest":
+		sort.SliceStable(ents, func(i, j int) bool {
+			return distSq(refPos, ents[i].GetPos()) < distSq(refPos, ents[j].GetPos())
+		})
+	case "furthest":
+		sort.SliceStable(ents, func(i, j int) bool {
+			return distSq(refPos, ents[i].GetPos()) > distSq(refPos, ents[j].GetPos())
+		})
+	case "random":
+		rand.Shuffle(len(ents), func(i, j int) { ents[i], ents[j] = ents[j], ents[i] })
+	}
 }
 
 // passesFilter reports whether entity e satisfies every filter argument in sel.

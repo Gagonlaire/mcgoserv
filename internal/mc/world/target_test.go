@@ -470,3 +470,130 @@ func TestResolveSelectorGamemode(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveSelectorSortLimit(t *testing.T) {
+	t.Run("sort_nearest_limit_two_picks_two_closest", func(t *testing.T) {
+		w := NewWorld()
+		a := makeEntity(entity.ZombieID, [3]float64{1, 0, 0})
+		b := makeEntity(entity.ZombieID, [3]float64{2, 0, 0})
+		c := makeEntity(entity.ZombieID, [3]float64{10, 0, 0})
+		addEntity(w, a)
+		addEntity(w, b)
+		addEntity(w, c)
+
+		sel := &mc.Selector{
+			Variable: mc.SelectorVariableAllEntities,
+			Sort:     mc.Optional[string]{Value: "nearest", Present: true},
+			Limit:    mc.Optional[int]{Value: 2, Present: true},
+		}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 2 || got[0] != a || got[1] != b {
+			t.Fatalf("want [a, b] ordered nearest, got %v", got)
+		}
+	})
+
+	t.Run("sort_furthest_overrides_nearest_default_on_p", func(t *testing.T) {
+		w := NewWorld()
+		near := makePlayer("near", [3]float64{1, 0, 0}, 0, 0)
+		far := makePlayer("far", [3]float64{100, 0, 0}, 0, 0)
+		addEntity(w, near)
+		addEntity(w, far)
+
+		sel := &mc.Selector{
+			Variable: mc.SelectorVariableNearestPlayer,
+			Sort:     mc.Optional[string]{Value: "furthest", Present: true},
+		}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 1 || got[0] != far {
+			t.Fatalf("want farthest player, got %v", got)
+		}
+	})
+
+	t.Run("limit_only_caps_count", func(t *testing.T) {
+		w := NewWorld()
+		for i := 0; i < 5; i++ {
+			addEntity(w, makeEntity(entity.ZombieID, [3]float64{float64(i), 0, 0}))
+		}
+
+		sel := &mc.Selector{
+			Variable: mc.SelectorVariableAllEntities,
+			Limit:    mc.Optional[int]{Value: 3, Present: true},
+		}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 3 {
+			t.Fatalf("want 3 results, got %d", len(got))
+		}
+	})
+
+	t.Run("default_p_picks_one_nearest", func(t *testing.T) {
+		w := NewWorld()
+		near := makePlayer("near", [3]float64{1, 0, 0}, 0, 0)
+		far := makePlayer("far", [3]float64{100, 0, 0}, 0, 0)
+		addEntity(w, near)
+		addEntity(w, far)
+
+		sel := &mc.Selector{Variable: mc.SelectorVariableNearestPlayer}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 1 || got[0] != near {
+			t.Fatalf("want nearest player, got %v", got)
+		}
+	})
+
+	t.Run("default_n_picks_one_nearest_entity", func(t *testing.T) {
+		w := NewWorld()
+		near := makeEntity(entity.ZombieID, [3]float64{1, 0, 0})
+		far := makeEntity(entity.ZombieID, [3]float64{100, 0, 0})
+		addEntity(w, near)
+		addEntity(w, far)
+
+		sel := &mc.Selector{Variable: mc.SelectorVariableNearestEntity}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 1 || got[0] != near {
+			t.Fatalf("want nearest entity, got %v", got)
+		}
+	})
+
+	t.Run("default_r_picks_one", func(t *testing.T) {
+		w := NewWorld()
+		for i := 0; i < 5; i++ {
+			addEntity(w, makePlayer("p", [3]float64{float64(i), 0, 0}, 0, 0))
+		}
+
+		sel := &mc.Selector{Variable: mc.SelectorVariableRandomPlayer}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 1 {
+			t.Fatalf("want exactly 1 random player, got %d", len(got))
+		}
+	})
+
+	t.Run("default_a_returns_all", func(t *testing.T) {
+		w := NewWorld()
+		for i := 0; i < 4; i++ {
+			addEntity(w, makePlayer("p", [3]float64{float64(i), 0, 0}, 0, 0))
+		}
+
+		sel := &mc.Selector{Variable: mc.SelectorVariableAllPlayers}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{})
+		if len(got) != 4 {
+			t.Fatalf("want all 4 players, got %d", len(got))
+		}
+	})
+
+	t.Run("xyz_overrides_sort_reference", func(t *testing.T) {
+		// Source at origin, but x=50 → nearest is whichever player is closest to x=50.
+		w := NewWorld()
+		at1 := makePlayer("at1", [3]float64{1, 0, 0}, 0, 0)
+		at48 := makePlayer("at48", [3]float64{48, 0, 0}, 0, 0)
+		addEntity(w, at1)
+		addEntity(w, at48)
+
+		sel := &mc.Selector{
+			Variable: mc.SelectorVariableNearestPlayer,
+			X:        mc.Optional[float64]{Value: 50, Present: true},
+		}
+		got := w.resolveSelector(sel, uuid.Nil, [3]float64{0, 0, 0})
+		if len(got) != 1 || got[0] != at48 {
+			t.Fatalf("want at48 (nearest to x=50), got %v", got)
+		}
+	})
+}
