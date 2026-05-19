@@ -1,5 +1,7 @@
 package item
 
+import "github.com/Gagonlaire/mcgoserv/internal/mc"
+
 type ID uint16
 
 func (id ID) Name() string {
@@ -70,4 +72,15 @@ func (s Stack) IsEmpty() bool {
 
 func (s Stack) IsDamaged() bool {
 	return s.Damage > 0
+}
+
+type registryImpl struct{}
+
+// Registry exposes the item registry to the command parsers
+var Registry registryImpl
+
+func (registryImpl) WireName() mc.Identifier { return "item" }
+
+func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+	return FromString(string(path))
 }

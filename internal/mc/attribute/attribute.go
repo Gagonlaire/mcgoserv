@@ -1,5 +1,7 @@
 package attribute
 
+import "github.com/Gagonlaire/mcgoserv/internal/mc"
+
 type Operation int
 
 const (
@@ -42,4 +44,15 @@ func (id ID) Raw() Properties {
 func FromString(name string) (ID, bool) {
 	id, ok := idByName[name]
 	return id, ok
+}
+
+type registryImpl struct{}
+
+// Registry exposes the attribute registry to the command parsers
+var Registry registryImpl
+
+func (registryImpl) WireName() mc.Identifier { return "attribute" }
+
+func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+	return FromString(string(path))
 }

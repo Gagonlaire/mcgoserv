@@ -1,6 +1,10 @@
 package entity
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
+)
 
 type ID uint16
 
@@ -38,4 +42,15 @@ func FromID(id int) (ID, bool) {
 		return 0, false
 	}
 	return ID(id), true
+}
+
+type registryImpl struct{}
+
+// Registry exposes the entity-type registry to the command parsers
+var Registry registryImpl
+
+func (registryImpl) WireName() mc.Identifier { return "entity_type" }
+
+func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+	return FromString(string(path))
 }
