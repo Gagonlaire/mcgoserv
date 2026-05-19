@@ -14,7 +14,7 @@ const (
 )
 
 type Modifier struct {
-	ID        string // todo: replace with Identifier data type
+	ID        mc.Identifier
 	Amount    float64
 	Operation Operation
 }
