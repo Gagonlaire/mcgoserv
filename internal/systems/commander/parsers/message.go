@@ -16,10 +16,7 @@ func (m MessageType) ID() int { return 20 } // minecraft:message
 
 func (m MessageType) Parse(r *commander.CommandReader) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(
-			tc.Text("Expected message"),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Text("Expected message"))
 	}
 
 	start := r.Cursor()

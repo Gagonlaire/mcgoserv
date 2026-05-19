@@ -56,6 +56,17 @@ func (d *Dispatcher) Resolve(name string) *Node {
 	return nil
 }
 
+// deepestError picks the parsing error whose cursor reached furthest into the input.
+func deepestError(errs []*CommandParsingError) *CommandParsingError {
+	best := errs[0]
+	for _, e := range errs[1:] {
+		if e.cursor > best.cursor {
+			best = e
+		}
+	}
+	return best
+}
+
 func (d *Dispatcher) Parse(src *CommandSource, input string) *ParsedCommand {
 	reader := NewCommandReader(input)
 	result := &ParsedCommand{
@@ -145,8 +156,8 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 
 	if len(result.Errors) == 0 {
 		result.Errors = append(result.Errors, NewParsingError(
+			reader,
 			tc.Translatable(mcdata.CommandUnknownCommand),
-			reader.Input(),
 		))
 	}
 }
@@ -154,16 +165,17 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*CommandResult, error) {
 	if parsed.Command == nil {
 		if len(parsed.Errors) > 0 {
+			best := deepestError(parsed.Errors)
 			// If the parsing never got past the root node, we consider it
 			// an execution error instead of a parsing error, to match vanilla's behavior
 			if len(parsed.Nodes) == 0 {
-				return nil, NewExecutionError(parsed.Errors[0].component, parsed.Errors[0].input)
+				return nil, NewExecutionErrorFromParsing(best)
 			}
-			return nil, parsed.Errors[0]
+			return nil, best
 		}
 		return nil, NewExecutionError(
+			parsed.Reader,
 			tc.Translatable(mcdata.CommandUnknownCommand),
-			parsed.Reader.Input(),
 		)
 	}
 

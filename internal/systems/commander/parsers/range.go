@@ -49,7 +49,7 @@ func parseRangeArg[T cmp.Ordered](
 	build func(mc.Optional[T], mc.Optional[T]) any,
 ) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentRangeEmpty), r.Input(), r.Cursor())
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentRangeEmpty))
 	}
 
 	start := r.Cursor()
@@ -58,26 +58,17 @@ func parseRangeArg[T cmp.Ordered](
 	rMin, rMax, err := parseRange(raw, parse)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(invalidKey, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(invalidKey, tc.Text(raw)), start)
 	}
 
 	if !rMin.Present && !rMax.Present {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentRangeEmpty),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentRangeEmpty), start)
 	}
 
 	if rMin.Present && rMax.Present && rMin.Value > rMax.Value {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentRangeSwapped),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentRangeSwapped), start)
 	}
 
 	return build(rMin, rMax), nil

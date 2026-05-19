@@ -44,10 +44,7 @@ func (v Vec3Type) ID() int { return 10 }
 
 func (v Vec2Type) Parse(r *commander.CommandReader) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentPos2dIncomplete),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentPos2dIncomplete))
 	}
 	x, err := parseCoord(r, false)
 	if err != nil {
@@ -65,10 +62,7 @@ func (v Vec2Type) Parse(r *commander.CommandReader) (any, error) {
 
 func (v Vec3Type) Parse(r *commander.CommandReader) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentPos3dIncomplete),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentPos3dIncomplete))
 	}
 	x, err := parseCoord(r, true)
 	if err != nil {
@@ -92,7 +86,7 @@ func (v Vec3Type) Parse(r *commander.CommandReader) (any, error) {
 	anyLocal := x.Kind == CoordLocal || y.Kind == CoordLocal || z.Kind == CoordLocal
 	allLocal := x.Kind == CoordLocal && y.Kind == CoordLocal && z.Kind == CoordLocal
 	if anyLocal && !allLocal {
-		return nil, commander.NewParsingError(tc.Translatable(mcdata.ArgumentPosMixed), r.Input())
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentPosMixed))
 	}
 
 	return ParsedVec3{X: x, Y: y, Z: z}, nil
@@ -157,10 +151,7 @@ func resolveLocal(v ParsedVec3, origin [3]float64, rot [2]float32) [3]float64 {
 
 func parseCoord(r *commander.CommandReader, allowLocal bool) (Coord, error) {
 	if !r.CanRead() {
-		return Coord{}, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentPosMissingDouble),
-			r.Input(), r.Cursor(),
-		)
+		return Coord{}, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentPosMissingDouble))
 	}
 
 	start := r.Cursor()
@@ -174,10 +165,7 @@ func parseCoord(r *commander.CommandReader, allowLocal bool) (Coord, error) {
 		return Coord{Kind: CoordRelative, Value: val}, nil
 	case '^':
 		if !allowLocal {
-			return Coord{}, commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ArgumentPosMixed),
-				r.Input(), start,
-			)
+			return Coord{}, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentPosMixed), start)
 		}
 		r.Skip()
 		val, err := readOptionalNumber(r, start)
@@ -187,19 +175,13 @@ func parseCoord(r *commander.CommandReader, allowLocal bool) (Coord, error) {
 		return Coord{Kind: CoordLocal, Value: val}, nil
 	default:
 		if !commander.IsAllowedInNumericUnquotedString(r.Peek()) {
-			return Coord{}, commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ArgumentPosMissingDouble),
-				r.Input(), start,
-			)
+			return Coord{}, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentPosMissingDouble), start)
 		}
 		raw := r.ReadUnquotedString()
 		val, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			r.SetCursor(start)
-			return Coord{}, commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
-				r.Input(), start,
-			)
+			return Coord{}, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)), start)
 		}
 		return Coord{Kind: CoordAbsolute, Value: val}, nil
 	}
@@ -213,17 +195,14 @@ func readOptionalNumber(r *commander.CommandReader, start int) (float64, error) 
 	val, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		r.SetCursor(start)
-		return 0, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return 0, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)), start)
 	}
 	return val, nil
 }
 
 func consumeCoordSep(r *commander.CommandReader, missingKey mcdata.TranslationKey) error {
 	if !r.CanRead() || r.Peek() != ' ' {
-		return commander.NewParsingErrorAt(tc.Translatable(missingKey), r.Input(), r.Cursor())
+		return commander.NewParsingError(r, tc.Translatable(missingKey))
 	}
 	r.Skip()
 	return nil
