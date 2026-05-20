@@ -44,8 +44,8 @@ func getPlayerList(srv *server.Server, withUUID bool) (tc.Component, int) {
 }
 
 func registerList(s *server.Server) {
-	s.Commander.Register(
-		Literal("list").Executes(func(cc *CommandContext) (*CommandResult, error) {
+	s.Commander.RegisterBuilders(func() {
+		Build("/list").Executes(func(cc *CommandContext) (*CommandResult, error) {
 			playerList, playerCount := getPlayerList(s, false)
 
 			cc.SendMessage(tc.Translatable(
@@ -56,19 +56,19 @@ func registerList(s *server.Server) {
 			))
 
 			return &CommandResult{Success: 1, Result: playerCount}, nil
-		}).Connect(
-			Literal("uuids").Executes(func(cc *CommandContext) (*CommandResult, error) {
-				playerList, playerCount := getPlayerList(s, true)
+		})
 
-				cc.SendMessage(tc.Translatable(
-					mcdata.CommandsListPlayers,
-					tc.Text(strconv.Itoa(playerCount)),
-					tc.Text(strconv.Itoa(s.Config.Server.MaxPlayers)),
-					playerList,
-				))
+		Build("/list uuids").Executes(func(cc *CommandContext) (*CommandResult, error) {
+			playerList, playerCount := getPlayerList(s, true)
 
-				return &CommandResult{Success: 1, Result: playerCount}, nil
-			}),
-		),
-	)
+			cc.SendMessage(tc.Translatable(
+				mcdata.CommandsListPlayers,
+				tc.Text(strconv.Itoa(playerCount)),
+				tc.Text(strconv.Itoa(s.Config.Server.MaxPlayers)),
+				playerList,
+			))
+
+			return &CommandResult{Success: 1, Result: playerCount}, nil
+		})
+	})
 }

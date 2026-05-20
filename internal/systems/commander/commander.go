@@ -124,6 +124,10 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 			Range: StringRange{Start: start, End: end},
 		})
 
+		if literal.BindKey != "" {
+			result.Args[literal.BindKey] = literal.Name
+		}
+
 		if literal.Redirect != nil {
 			if literal.IsFork {
 				result.Forks = true

@@ -20,6 +20,24 @@ func GetArgument[T any](args ParsedArgs, name string) T {
 	return tVal
 }
 
+func GetArgumentOr[T any](args ParsedArgs, name string, fallback T) T {
+	val, ok := args[name]
+	if !ok {
+		return fallback
+	}
+	tVal, ok := val.(T)
+	if !ok {
+		var zero T
+		panic(fmt.Errorf("commander: argument '%s' is not of type %T, got %T", name, zero, val))
+	}
+	return tVal
+}
+
+func (p ParsedArgs) Has(name string) bool {
+	_, ok := p[name]
+	return ok
+}
+
 func (p ParsedArgs) GetBool(name string) bool {
 	return GetArgument[bool](p, name)
 }

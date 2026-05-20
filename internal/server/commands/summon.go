@@ -12,28 +12,25 @@ import (
 )
 
 func registerSummon(s *server.Server) {
-	s.Commander.Register(
-		Literal("summon").Connect(
-			Argument("entity", parsers.Resource(entity.Registry)).Executes(func(cc *CommandContext) (*CommandResult, error) {
-				sender := cc.Source.Entity.(*entity.Player)
-				return doSummon(s, cc, sender.Position, "")
-			}).Connect(
-				Argument("pos", parsers.Vec3).Executes(func(cc *CommandContext) (*CommandResult, error) {
-					sender := cc.Source.Entity.(*entity.Player)
-					pos := cc.Args["pos"].(parsers.ParsedVec3).Resolve(sender.Position, sender.Rotation)
-					return doSummon(s, cc, pos, "")
-				}).Connect(
-					Argument("nbt", parsers.NbtCompoundTag).
-						Executes(func(cc *CommandContext) (*CommandResult, error) {
-							sender := cc.Source.Entity.(*entity.Player)
-							pos := cc.Args["pos"].(parsers.ParsedVec3).Resolve(sender.Position, sender.Rotation)
-							compound := cc.Args["nbt"].(nbt.StringifiedMessage)
-							return doSummon(s, cc, pos, compound)
-						}),
-				),
-			),
-		),
-	)
+	s.Commander.RegisterBuilders(func() {
+		Build("/summon <entity> [<pos>] [<nbt>]",
+			parsers.Resource(entity.Registry), parsers.Vec3, parsers.NbtCompoundTag,
+		).Executes(func(cc *CommandContext) (*CommandResult, error) {
+			sender := cc.Source.Entity.(*entity.Player)
+
+			pos := sender.Position
+			if cc.Args.Has("pos") {
+				pos = cc.Args["pos"].(parsers.ParsedVec3).Resolve(sender.Position, sender.Rotation)
+			}
+
+			var compound nbt.StringifiedMessage
+			if cc.Args.Has("nbt") {
+				compound = cc.Args["nbt"].(nbt.StringifiedMessage)
+			}
+
+			return doSummon(s, cc, pos, compound)
+		})
+	})
 }
 
 func doSummon(s *server.Server, cc *CommandContext, pos [3]float64, compound nbt.StringifiedMessage) (*CommandResult, error) {

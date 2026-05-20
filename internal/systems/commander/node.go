@@ -34,10 +34,20 @@ type Node struct {
 	Redirect         *Node
 	RedirectModifier RedirectModifier
 	Name             string
+	Description      string
+	BindKey          string
+	RegisteredAt     string
 	Suggestion       SuggestionType
 	Kind             NodeType
 	PermissionLevel  int
 	IsFork           bool
+}
+
+func (n *Node) UsageText() string {
+	if n.Kind == ArgumentNode {
+		return "<" + n.Name + ">"
+	}
+	return n.Name
 }
 
 type ParsedNode struct {
@@ -126,6 +136,11 @@ func (n *Node) Fork() *Node {
 
 func (n *Node) Executes(cmd Command) *Node {
 	n.Run = cmd
+	return n
+}
+
+func (n *Node) SetDescription(desc string) *Node {
+	n.Description = desc
 	return n
 }
 

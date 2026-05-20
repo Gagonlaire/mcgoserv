@@ -54,8 +54,8 @@ func registerTellRaw(s *server.Server) {
 }
 
 func registerSay(s *server.Server) {
-	s.Commander.Register(Literal("say").Connect(
-		Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
+	s.Commander.RegisterBuilders(func() {
+		Build("/say <message ...>", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			player := cc.Source.Entity.(*entity.Player)
 			message := cc.Args["message"].(*mc.ParsedMessage)
 			text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
@@ -73,8 +73,8 @@ func registerSay(s *server.Server) {
 			}
 
 			return &CommandResult{Success: 0, Result: 0}, nil
-		}),
-	))
+		})
+	})
 }
 
 func registerTeamMsg(s *server.Server) {
