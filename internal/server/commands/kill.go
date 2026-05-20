@@ -13,44 +13,42 @@ import (
 )
 
 func registerKill(s *server.Server) {
-	s.Commander.Register(
-		Literal("kill").Connect(
-			Argument("target", parsers.Entity).
-				Executes(func(cc *CommandContext) (*CommandResult, error) {
-					sender, _ := cc.Source.Entity.(*entity.Player)
-					target := cc.Args.GetEntityTarget("target")
+	s.Commander.RegisterBuilders(func() {
+		Build("/kill <target>", parsers.Entity).
+			Executes(func(cc *CommandContext) (*CommandResult, error) {
+				sender, _ := cc.Source.Entity.(*entity.Player)
+				target := cc.Args.GetEntityTarget("target")
 
-					var senderUUID uuid.UUID
-					var senderPos [3]float64
-					if sender != nil {
-						senderUUID = uuid.UUID(sender.UUID)
-						senderPos = sender.Position
-					}
-					resolved := s.World.ResolveTarget(target, senderUUID, senderPos)
+				var senderUUID uuid.UUID
+				var senderPos [3]float64
+				if sender != nil {
+					senderUUID = uuid.UUID(sender.UUID)
+					senderPos = sender.Position
+				}
+				resolved := s.World.ResolveTarget(target, senderUUID, senderPos)
 
-					if len(resolved) == 0 {
-						cc.SendMessage(tc.Translatable(mcdata.ArgumentEntityNotfoundEntity).SetColor(tc.ColorRed))
-						return &CommandResult{Success: 0}, nil
-					}
+				if len(resolved) == 0 {
+					cc.SendMessage(tc.Translatable(mcdata.ArgumentEntityNotfoundEntity).SetColor(tc.ColorRed))
+					return &CommandResult{Success: 0}, nil
+				}
 
-					var killer entity.Entity
-					if sender != nil {
-						killer = sender
-					}
-					for _, e := range resolved {
-						s.Kill(e, killer, deathCause(e, sender))
-					}
+				var killer entity.Entity
+				if sender != nil {
+					killer = sender
+				}
+				for _, e := range resolved {
+					s.Kill(e, killer, deathCause(e, sender))
+				}
 
-					count := len(resolved)
-					if count == 1 {
-						cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, entityDisplayName(resolved[0])))
-					} else {
-						cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessMultiple, tc.Text(strconv.Itoa(count))))
-					}
-					return &CommandResult{Success: 1, Result: count}, nil
-				}),
-		),
-	)
+				count := len(resolved)
+				if count == 1 {
+					cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessSingle, entityDisplayName(resolved[0])))
+				} else {
+					cc.SendMessage(tc.Translatable(mcdata.CommandsKillSuccessMultiple, tc.Text(strconv.Itoa(count))))
+				}
+				return &CommandResult{Success: 1, Result: count}, nil
+			})
+	})
 }
 
 func entityDisplayName(e entity.Entity) tc.Component {

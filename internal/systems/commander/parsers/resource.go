@@ -28,8 +28,9 @@ func (t ResourceType) Parse(r *commander.CommandReader) (any, error) {
 	if !ok {
 		r.SetCursor(start)
 		return nil, commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentResourceNotFound, tc.Text(string(id)), tc.Text(string(t.registry.WireName()))),
-			r.Input(), start,
+			start,
 		)
 	}
 	return value, nil

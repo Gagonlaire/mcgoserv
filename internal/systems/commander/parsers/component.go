@@ -26,10 +26,7 @@ func (c ComponentType) Parse(r *commander.CommandReader) (any, error) {
 	tagType, err := validateSNBT(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentComponentInvalid),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentComponentInvalid), start)
 	}
 
 	// A component must be either a compound a string or a list of (compound|string)
@@ -40,10 +37,7 @@ func (c ComponentType) Parse(r *commander.CommandReader) (any, error) {
 		return nbt.StringifiedMessage(raw), nil
 	default:
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentComponentInvalid),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentComponentInvalid), start)
 	}
 }
 

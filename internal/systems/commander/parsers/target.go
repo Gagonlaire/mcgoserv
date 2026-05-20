@@ -39,7 +39,7 @@ func (e EntityType) ID() int { return 6 } // minecraft:entity
 
 func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentEntityInvalid), r.Input(), r.Cursor())
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentEntityInvalid))
 	}
 
 	start := r.Cursor()
@@ -54,10 +54,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 			v := sel.Variable
 			if v == mc.SelectorVariableAllEntities || v == mc.SelectorVariableNearestEntity {
 				r.SetCursor(start)
-				return nil, commander.NewParsingErrorAt(
-					tc.Translatable(mcdata.ArgumentPlayerEntities),
-					r.Input(), start,
-				)
+				return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentPlayerEntities), start)
 			}
 		}
 
@@ -70,10 +67,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 				if e.playersOnly {
 					key = mcdata.ArgumentPlayerToomany
 				}
-				return nil, commander.NewParsingErrorAt(
-					tc.Translatable(key),
-					r.Input(), start,
-				)
+				return nil, commander.NewParsingErrorAt(r, tc.Translatable(key), start)
 			}
 			if sel.Limit.Present && sel.Limit.Value != 1 {
 				r.SetCursor(start)
@@ -81,10 +75,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 				if e.playersOnly {
 					key = mcdata.ArgumentPlayerToomany
 				}
-				return nil, commander.NewParsingErrorAt(
-					tc.Translatable(key),
-					r.Input(), start,
-				)
+				return nil, commander.NewParsingErrorAt(r, tc.Translatable(key), start)
 			}
 		}
 
@@ -96,10 +87,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 
 	if e.playersOnly && isUUIDCandidate(r) {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentPlayerUnknown),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentPlayerUnknown), start)
 	}
 
 	if isUUIDCandidate(r) {
@@ -107,7 +95,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 		if uuidStr != "" {
 			id, err := uuid.Parse(uuidStr)
 			if err != nil {
-				return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentUuidInvalid), r.Input(), start)
+				return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentUuidInvalid), start)
 			}
 			return &mc.EntityTarget{
 				Type: mc.TargetTypeUUID,
@@ -119,7 +107,7 @@ func (e EntityType) Parse(r *commander.CommandReader) (any, error) {
 
 	name := r.ReadUnquotedString()
 	if len(name) == 0 {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentEntityInvalid), r.Input(), start)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityInvalid), start)
 	}
 
 	return &mc.EntityTarget{
@@ -155,17 +143,17 @@ func (u UUIDType) Parse(r *commander.CommandReader) (any, error) {
 	start := r.Cursor()
 
 	if !isUUIDCandidate(r) {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentUuidInvalid), r.Input(), start)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentUuidInvalid), start)
 	}
 
 	uuidStr := readUUID(r)
 	if uuidStr == "" {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentUuidInvalid), r.Input(), start)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentUuidInvalid), start)
 	}
 
 	id, err := uuid.Parse(uuidStr)
 	if err != nil {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentUuidInvalid), r.Input(), start)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentUuidInvalid), start)
 	}
 
 	return id, nil
@@ -177,7 +165,7 @@ func (g GameProfileType) ID() int { return 7 } // minecraft:game_profile
 
 func (g GameProfileType) Parse(r *commander.CommandReader) (any, error) {
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentEntityInvalid), r.Input(), r.Cursor())
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentEntityInvalid))
 	}
 
 	start := r.Cursor()
@@ -190,10 +178,7 @@ func (g GameProfileType) Parse(r *commander.CommandReader) (any, error) {
 
 		if sel.Variable == mc.SelectorVariableAllEntities || sel.Variable == mc.SelectorVariableNearestEntity {
 			r.SetCursor(start)
-			return nil, commander.NewParsingError(
-				tc.Translatable(mcdata.ArgumentPlayerEntities),
-				r.Input(),
-			)
+			return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentPlayerEntities), start)
 		}
 
 		return &mc.EntityTarget{
@@ -207,7 +192,7 @@ func (g GameProfileType) Parse(r *commander.CommandReader) (any, error) {
 		if uuidStr != "" {
 			id, err := uuid.Parse(uuidStr)
 			if err != nil {
-				return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentUuidInvalid), r.Input(), start)
+				return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentUuidInvalid), start)
 			}
 			return &mc.EntityTarget{
 				Type: mc.TargetTypeUUID,
@@ -219,7 +204,7 @@ func (g GameProfileType) Parse(r *commander.CommandReader) (any, error) {
 
 	name := r.ReadUnquotedString()
 	if len(name) == 0 {
-		return nil, commander.NewParsingErrorAt(tc.Translatable(mcdata.ArgumentEntityInvalid), r.Input(), start)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityInvalid), start)
 	}
 
 	return &mc.EntityTarget{
@@ -232,25 +217,20 @@ func (g GameProfileType) WriteTo(_ io.Writer) (int64, error) { return 0, nil }
 
 func parseSelector(r *commander.CommandReader) (*mc.Selector, error) {
 	if !r.CanRead() || r.Peek() != '@' {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntitySelectorMissing),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentEntitySelectorMissing))
 	}
 	r.Skip()
 
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntitySelectorMissing),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentEntitySelectorMissing))
 	}
 
 	varByte := r.Read()
 	if !mc.ValidSelectorVariable(varByte) {
 		return nil, commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntitySelectorUnknown, tc.Text(string(varByte))),
-			r.Input(), r.Cursor()-1,
+			r.Cursor()-1,
 		)
 	}
 
@@ -273,10 +253,7 @@ func parseSelectorOptions(r *commander.CommandReader, sel *mc.Selector) error {
 		r.SkipWhitespace()
 
 		if !r.CanRead() {
-			return commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ArgumentEntityOptionsUnterminated),
-				r.Input(), r.Cursor(),
-			)
+			return commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentEntityOptionsUnterminated))
 		}
 
 		if r.Peek() == ']' {
@@ -288,16 +265,17 @@ func parseSelectorOptions(r *commander.CommandReader, sel *mc.Selector) error {
 		key := readOptionKey(r)
 		if len(key) == 0 {
 			return commander.NewParsingErrorAt(
+				r,
 				tc.Translatable(mcdata.ArgumentEntityOptionsUnknown, tc.Text("")),
-				r.Input(), keyStart,
+				keyStart,
 			)
 		}
 
 		r.SkipWhitespace()
 		if !r.CanRead() || r.Peek() != '=' {
-			return commander.NewParsingErrorAt(
+			return commander.NewParsingError(
+				r,
 				tc.Translatable(mcdata.ArgumentEntityOptionsValueless, tc.Text(key)),
-				r.Input(), r.Cursor(),
 			)
 		}
 		r.Skip()
@@ -318,8 +296,9 @@ func parseSelectorOption(r *commander.CommandReader, sel *mc.Selector, key strin
 	inapplicable := func(present bool) error {
 		if present {
 			return commander.NewParsingErrorAt(
+				r,
 				tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text(key)),
-				r.Input(), keyStart,
+				keyStart,
 			)
 		}
 		return nil
@@ -397,8 +376,9 @@ func parseSelectorOption(r *commander.CommandReader, sel *mc.Selector, key strin
 		return parseSelectorNbt(r, sel)
 	default:
 		return commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntityOptionsUnknown, tc.Text(key)),
-			r.Input(), keyStart,
+			keyStart,
 		)
 	}
 }
@@ -408,10 +388,7 @@ func parseSelectorFloat64(r *commander.CommandReader, target *mc.Optional[float6
 	raw := readOptionValue(r)
 	val, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)), start)
 	}
 	target.Value = val
 	target.Present = true
@@ -423,16 +400,10 @@ func parseSelectorInt(r *commander.CommandReader, target *mc.Optional[int], key 
 	raw := readOptionValue(r)
 	val, err := strconv.Atoi(raw)
 	if err != nil {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)), start)
 	}
 	if key == "limit" && val < 1 {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntityOptionsLimitToosmall),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityOptionsLimitToosmall), start)
 	}
 	target.Value = val
 	target.Present = true
@@ -447,10 +418,7 @@ func parseSelectorSort(r *commander.CommandReader, sel *mc.Selector) error {
 		sel.Sort = mc.Optional[string]{Value: raw, Present: true}
 		return nil
 	default:
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntityOptionsSortIrreversible, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityOptionsSortIrreversible, tc.Text(raw)), start)
 	}
 }
 
@@ -462,10 +430,7 @@ func parseSelectorGamemode(r *commander.CommandReader, sel *mc.Selector) error {
 		sel.Gamemode = mc.Optional[string]{Value: raw, Present: true}
 		return nil
 	default:
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntityOptionsModeInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityOptionsModeInvalid, tc.Text(raw)), start)
 	}
 }
 
@@ -473,8 +438,9 @@ func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart in
 	switch sel.Variable {
 	case mc.SelectorVariableAllPlayers, mc.SelectorVariableNearestPlayer, mc.SelectorVariableRandomPlayer:
 		return commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
-			r.Input(), keyStart,
+			keyStart,
 		)
 	}
 
@@ -489,23 +455,26 @@ func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart in
 	id, err := mc.ParseIdentifier(raw)
 	if err != nil {
 		return commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
-			r.Input(), valueStart,
+			valueStart,
 		)
 	}
 	name := string(id)
 	if _, found := entity.FromString(name); !found {
 		return commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntityOptionsTypeInvalid, tc.Text(raw)),
-			r.Input(), valueStart,
+			valueStart,
 		)
 	}
 
 	if negated {
 		if sel.TypeInclude.Present {
 			return commander.NewParsingErrorAt(
+				r,
 				tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
-				r.Input(), keyStart,
+				keyStart,
 			)
 		}
 		sel.TypeExclude = append(sel.TypeExclude, name)
@@ -514,8 +483,9 @@ func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart in
 
 	if sel.TypeInclude.Present || len(sel.TypeExclude) > 0 {
 		return commander.NewParsingErrorAt(
+			r,
 			tc.Translatable(mcdata.ArgumentEntityOptionsInapplicable, tc.Text("type")),
-			r.Input(), keyStart,
+			keyStart,
 		)
 	}
 	sel.TypeInclude = mc.Optional[string]{Value: name, Present: true}
@@ -532,25 +502,16 @@ func parseSelectorNbt(r *commander.CommandReader, sel *mc.Selector) error {
 	valueStart := r.Cursor()
 	raw := readOptionValue(r)
 	if raw == "" {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), valueStart,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue), valueStart)
 	}
 
 	val, err := nbtpath.SNBTToValue(nbt.StringifiedMessage(canonicalizeSNBTBooleans(raw)))
 	if err != nil {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), valueStart,
-		)
+		return nbtErrorToParsing(r, err, valueStart)
 	}
 
 	if _, ok := val.(map[string]any); !ok {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
-			r.Input(), valueStart,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedCompound), valueStart)
 	}
 
 	if negated {
@@ -628,17 +589,11 @@ func parseSelectorRange(r *commander.CommandReader, target *mc.Optional[mc.Float
 	})
 	nr := mc.FloatRange{Min: lo, Max: hi}
 	if err != nil {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingDoubleInvalid, tc.Text(raw)), start)
 	}
 
 	if nonNegative && nr.Min.Present && nr.Min.Value < 0 {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntityOptionsDistanceNegative),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityOptionsDistanceNegative), start)
 	}
 
 	target.Value = nr
@@ -653,17 +608,11 @@ func parseSelectorIntRange(r *commander.CommandReader, target *mc.Optional[mc.In
 	lo, hi, err := parseRange(raw, strconv.Atoi)
 	nr := mc.IntRange{Min: lo, Max: hi}
 	if err != nil {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ParsingIntInvalid, tc.Text(raw)), start)
 	}
 
 	if nr.Min.Present && nr.Min.Value < 0 {
-		return commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentEntityOptionsLevelNegative),
-			r.Input(), start,
-		)
+		return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentEntityOptionsLevelNegative), start)
 	}
 
 	target.Value = nr

@@ -79,16 +79,11 @@ func resolveIPTarget(s *server.Server, target string) (string, bool) {
 }
 
 func registerBan(s *server.Server) {
-	s.Commander.Register(
-		Literal("ban").Requires(3).Connect(
-			Argument("targets", parsers.GameProfile).
-				Executes(banExecutor(s, "")).
-				Connect(
-					Argument("reason", parsers.String.Behavior(parsers.GreedyPhrase)).
-						Executes(banExecutor(s, "reason")),
-				),
-		),
-	)
+	s.Commander.RegisterBuilders(func() {
+		Build("/ban <targets> [<reason>]",
+			parsers.GameProfile, parsers.String.Behavior(parsers.GreedyPhrase),
+		).Requires(3).Executes(banExecutor(s))
+	})
 }
 
 func registerBanIP(s *server.Server) {
@@ -208,13 +203,13 @@ func registerPardonIP(s *server.Server) {
 	)
 }
 
-func banExecutor(s *server.Server, reasonArg string) Command {
+func banExecutor(s *server.Server) Command {
 	return func(cc *CommandContext) (*CommandResult, error) {
 		target := cc.Args.GetEntityTarget("targets")
 
 		reason := "Banned by an operator."
-		if reasonArg != "" {
-			reason = cc.Args.GetString(reasonArg)
+		if cc.Args.Has("reason") {
+			reason = cc.Args.GetString("reason")
 		}
 
 		type banTarget struct {

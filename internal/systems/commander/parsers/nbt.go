@@ -3,6 +3,7 @@ package parsers
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -28,18 +29,12 @@ func (n NbtCompoundTagType) Parse(r *commander.CommandReader) (any, error) {
 	tagType, err := validateSNBT(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue), start)
 	}
 
 	if tagType != nbt.TagCompound {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedCompound), start)
 	}
 
 	return nbt.StringifiedMessage(raw), nil
@@ -63,10 +58,7 @@ func (n NbtTagType) Parse(r *commander.CommandReader) (any, error) {
 	_, err = validateSNBT(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue), start)
 	}
 
 	return nbt.StringifiedMessage(raw), nil
@@ -97,10 +89,7 @@ func (n NbtPathType) Parse(r *commander.CommandReader) (any, error) {
 		}
 	}
 	if len(steps) == 0 {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 
 	return &nbtpath.Path{
@@ -113,10 +102,7 @@ func (n NbtPathType) WriteTo(_ io.Writer) (int64, error) { return 0, nil }
 
 func readSNBT(r *commander.CommandReader) (string, error) {
 	if !r.CanRead() {
-		return "", commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return "", commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 
 	start := r.Cursor()
@@ -134,10 +120,7 @@ func readSNBT(r *commander.CommandReader) (string, error) {
 	default:
 		r.ReadUnquotedString()
 		if r.Cursor() == start {
-			return "", commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-				r.Input(), r.Cursor(),
-			)
+			return "", commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 		}
 	}
 
@@ -167,10 +150,7 @@ func readSNBTBalanced(r *commander.CommandReader) error {
 		}
 	}
 
-	return commander.NewParsingErrorAt(
-		tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-		r.Input(), r.Cursor(),
-	)
+	return commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 }
 
 func readSNBTQuoted(r *commander.CommandReader) error {
@@ -179,10 +159,7 @@ func readSNBTQuoted(r *commander.CommandReader) error {
 		ch := r.Read()
 		if ch == '\\' {
 			if !r.CanRead() {
-				return commander.NewParsingErrorAt(
-					tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-					r.Input(), r.Cursor(),
-				)
+				return commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 			}
 			r.Skip()
 		} else if ch == quote {
@@ -190,10 +167,7 @@ func readSNBTQuoted(r *commander.CommandReader) error {
 		}
 	}
 
-	return commander.NewParsingErrorAt(
-		tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-		r.Input(), r.Cursor(),
-	)
+	return commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 }
 
 func validateSNBT(raw string) (byte, error) {
@@ -207,10 +181,7 @@ func validateSNBT(raw string) (byte, error) {
 
 func readNbtPathSegment(r *commander.CommandReader) ([]nbtpath.PathStep, error) {
 	if !r.CanRead() || r.Peek() == ' ' {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 
 	ch := r.Peek()
@@ -259,10 +230,7 @@ func readNbtPathSegment(r *commander.CommandReader) ([]nbtpath.PathStep, error) 
 
 func readNbtPathKey(r *commander.CommandReader) (string, error) {
 	if !r.CanRead() {
-		return "", commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedKey),
-			r.Input(), r.Cursor(),
-		)
+		return "", commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedKey))
 	}
 	ch := r.Peek()
 	if ch == '"' || ch == '\'' {
@@ -281,10 +249,7 @@ func readNbtPathKey(r *commander.CommandReader) (string, error) {
 		r.Skip()
 	}
 	if r.Cursor() == start {
-		return "", commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedKey),
-			r.Input(), r.Cursor(),
-		)
+		return "", commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedKey))
 	}
 
 	return r.Input()[start:r.Cursor()], nil
@@ -293,10 +258,7 @@ func readNbtPathKey(r *commander.CommandReader) (string, error) {
 func readNbtPathIndex(r *commander.CommandReader) (nbtpath.PathStep, error) {
 	r.Skip()
 	if !r.CanRead() {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 	ch := r.Peek()
 	if ch == ']' {
@@ -309,10 +271,7 @@ func readNbtPathIndex(r *commander.CommandReader) (nbtpath.PathStep, error) {
 			return nil, err
 		}
 		if !r.CanRead() || r.Peek() != ']' {
-			return nil, commander.NewParsingErrorAt(
-				tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-				r.Input(), r.Cursor(),
-			)
+			return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 		}
 		r.Skip()
 		return nbtpath.MatchAll{Filter: filter}, nil
@@ -325,23 +284,14 @@ func readNbtPathIndex(r *commander.CommandReader) (nbtpath.PathStep, error) {
 		r.Skip()
 	}
 	if r.Cursor() == start {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 	idx, err := strconv.Atoi(r.Input()[start:r.Cursor()])
 	if err != nil {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue), start)
 	}
 	if !r.CanRead() || r.Peek() != ']' {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedValue),
-			r.Input(), r.Cursor(),
-		)
+		return nil, commander.NewParsingError(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue))
 	}
 	r.Skip()
 
@@ -358,25 +308,38 @@ func readCompoundFilter(r *commander.CommandReader) (map[string]any, error) {
 	}
 	raw := r.Input()[start:r.Cursor()]
 	tagType, err := validateSNBT(raw)
-	if err != nil || tagType != nbt.TagCompound {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
-			r.Input(), start,
-		)
+	if err != nil {
+		return nil, nbtErrorToParsing(r, err, start)
+	}
+	if tagType != nbt.TagCompound {
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedCompound), start)
 	}
 	v, err := nbtpath.SNBTToValue(nbt.StringifiedMessage(raw))
 	if err != nil {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
-			r.Input(), start,
-		)
+		return nil, nbtErrorToParsing(r, err, start)
 	}
 	m, ok := v.(map[string]any)
 	if !ok {
-		return nil, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentNbtExpectedCompound),
-			r.Input(), start,
-		)
+		return nil, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedCompound), start)
 	}
 	return m, nil
+}
+
+// todo: emit too opaque errors, improve this
+func nbtErrorToParsing(r *commander.CommandReader, err error, snbtStart int) *commander.CommandParsingError {
+	if se, ok := err.(*nbt.SyntaxError); ok {
+		cursor := snbtStart + se.Offset
+		return commander.NewParsingErrorAt(r, classifyNbtMessage(se.Message), cursor)
+	}
+	return commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentNbtExpectedValue), snbtStart)
+}
+
+func classifyNbtMessage(msg string) tc.Component {
+	switch {
+	case strings.Contains(msg, "different TagType in List"):
+		return tc.Translatable(mcdata.ArgumentNbtListMixed)
+	case strings.Contains(msg, "Array"):
+		return tc.Translatable(mcdata.ArgumentNbtArrayInvalid)
+	}
+	return tc.Translatable(mcdata.ArgumentNbtExpectedValue)
 }

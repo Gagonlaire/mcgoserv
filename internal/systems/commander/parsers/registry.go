@@ -32,18 +32,12 @@ func readIdentifier(r *commander.CommandReader) (mc.Identifier, int, error) {
 	start := r.Cursor()
 	raw := r.ReadWord()
 	if raw == "" {
-		return "", start, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return "", start, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)), start)
 	}
 	id, err := mc.ParseIdentifier(raw)
 	if err != nil {
 		r.SetCursor(start)
-		return "", start, commander.NewParsingErrorAt(
-			tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)),
-			r.Input(), start,
-		)
+		return "", start, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)), start)
 	}
 	return id, start, nil
 }

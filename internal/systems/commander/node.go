@@ -1,7 +1,6 @@
 package commander
 
 import (
-	"fmt"
 	"io"
 
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -29,16 +28,26 @@ type ParsedArgs map[string]any
 
 type Node struct {
 	Parser           ArgumentParser
-	Children         map[string]*Node
+	Children         []*Node
 	Run              Command
 	SuggestFn        SuggestFunc
 	Redirect         *Node
 	RedirectModifier RedirectModifier
 	Name             string
+	Description      string
+	BindKey          string
+	RegisteredAt     string
 	Suggestion       SuggestionType
 	Kind             NodeType
 	PermissionLevel  int
-	Fork             bool
+	IsFork           bool
+}
+
+func (n *Node) UsageText() string {
+	if n.Kind == ArgumentNode {
+		return "<" + n.Name + ">"
+	}
+	return n.Name
 }
 
 type ParsedNode struct {
@@ -75,42 +84,35 @@ const (
 
 func Literal(name string) *Node {
 	return &Node{
-		Kind:     LiteralNode,
-		Name:     name,
-		Children: make(map[string]*Node),
+		Kind: LiteralNode,
+		Name: name,
 	}
 }
 
 func Argument(name string, parser ArgumentParser) *Node {
 	return &Node{
-		Kind:     ArgumentNode,
-		Name:     name,
-		Parser:   parser,
-		Children: make(map[string]*Node),
+		Kind:   ArgumentNode,
+		Name:   name,
+		Parser: parser,
 	}
 }
 
 func (n *Node) Connect(children ...*Node) *Node {
-	if n.Children == nil {
-		n.Children = make(map[string]*Node)
-	}
-	for _, child := range children {
-		if child.Kind == ArgumentNode {
-			for _, existing := range n.Children {
-				if existing.Kind == ArgumentNode {
-					panic(fmt.Sprintf(
-						"commander: node '%s' already has argument child '%s', cannot add '%s'",
-						n.Name, existing.Name, child.Name,
-					))
-				}
-			}
-		}
-		n.Children[child.Name] = child
-	}
+	n.Children = append(n.Children, children...)
 	return n
 }
 
-func (n *Node) RedirectTo(target *Node) *Node {
+func (n *Node) findLiteralChild(name string) *Node {
+	for _, c := range n.Children {
+		if c.Kind == LiteralNode && c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// Redirects points this node at target. With no Modify() it is a pure alias
+func (n *Node) Redirects(target *Node) *Node {
 	if target.Kind != LiteralNode {
 		panic("commander: redirect target must be a literal node")
 	}
@@ -118,15 +120,27 @@ func (n *Node) RedirectTo(target *Node) *Node {
 	return n
 }
 
-func (n *Node) ForkTo(target *Node, modifier RedirectModifier) *Node {
-	n.Redirect = target
-	n.RedirectModifier = modifier
-	n.Fork = true
+// Modify attaches a RedirectModifier to this node. The modifier runs at
+// execution time, transforming the current source set into the next set
+func (n *Node) Modify(fn RedirectModifier) *Node {
+	n.RedirectModifier = fn
+	return n
+}
+
+// Fork marks this node as a fan-out point. Downstream execution runs once
+// per derived source and success counts sum across branches.
+func (n *Node) Fork() *Node {
+	n.IsFork = true
 	return n
 }
 
 func (n *Node) Executes(cmd Command) *Node {
 	n.Run = cmd
+	return n
+}
+
+func (n *Node) SetDescription(desc string) *Node {
+	n.Description = desc
 	return n
 }
 

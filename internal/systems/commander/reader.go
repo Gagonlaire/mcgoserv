@@ -62,7 +62,7 @@ func (r *CommandReader) ReadQuotedString() (string, error) {
 	}
 	quote := r.Peek()
 	if quote != '"' && quote != '\'' {
-		return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.input, r.cursor)
+		return "", NewParsingError(r, tc.Translatable(mcdata.ParsingQuoteExpectedStart))
 	}
 	r.Skip()
 	return r.readStringUntil(quote)
@@ -70,7 +70,7 @@ func (r *CommandReader) ReadQuotedString() (string, error) {
 
 func (r *CommandReader) ReadString() (string, error) {
 	if !r.CanRead() {
-		return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedStart), r.input, r.cursor)
+		return "", NewParsingError(r, tc.Translatable(mcdata.ParsingQuoteExpectedStart))
 	}
 	if ch := r.Peek(); ch == '"' || ch == '\'' {
 		return r.ReadQuotedString()
@@ -95,7 +95,7 @@ func (r *CommandReader) PeekWord() string {
 
 func (r *CommandReader) ExpectSeparator() error {
 	if r.CanRead() && r.Peek() != ' ' {
-		return NewParsingErrorAt(tc.Translatable(mcdata.CommandExpectedSeparator), r.input, r.cursor)
+		return NewParsingError(r, tc.Translatable(mcdata.CommandExpectedSeparator))
 	}
 	return nil
 }
@@ -108,9 +108,9 @@ func (r *CommandReader) readStringUntil(terminator byte) (string, error) {
 		if escaped {
 			if ch != terminator && ch != '\\' {
 				r.cursor--
-				return "", NewParsingErrorAt(
+				return "", NewParsingError(
+					r,
 					tc.Translatable(mcdata.ParsingQuoteEscape, tc.Text(string(ch))),
-					r.input, r.cursor,
 				)
 			}
 			buf = append(buf, ch)
@@ -123,7 +123,7 @@ func (r *CommandReader) readStringUntil(terminator byte) (string, error) {
 			buf = append(buf, ch)
 		}
 	}
-	return "", NewParsingErrorAt(tc.Translatable(mcdata.ParsingQuoteExpectedEnd), r.input, r.cursor)
+	return "", NewParsingError(r, tc.Translatable(mcdata.ParsingQuoteExpectedEnd))
 }
 
 func IsAllowedInNumericUnquotedString(c byte) bool {

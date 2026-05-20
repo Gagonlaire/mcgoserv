@@ -10,6 +10,7 @@ func RegisterAll(s *server.Server) {
 	registerBanIP(s)
 	registerData(s)
 	registerDeop(s)
+	registerHelp(s)
 	registerKick(s)
 	registerKill(s)
 	registerList(s)
