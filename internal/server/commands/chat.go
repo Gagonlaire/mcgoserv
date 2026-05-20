@@ -45,8 +45,8 @@ func registerMsg(s *server.Server) {
 	))
 
 	msg := s.Commander.Resolve("msg")
-	s.Commander.Register(Literal("tell").RedirectTo(msg))
-	s.Commander.Register(Literal("w").RedirectTo(msg))
+	s.Commander.Register(Literal("tell").Redirects(msg))
+	s.Commander.Register(Literal("w").Redirects(msg))
 }
 
 func registerTellRaw(s *server.Server) {
@@ -85,5 +85,5 @@ func registerTeamMsg(s *server.Server) {
 	))
 
 	teamMsg := s.Commander.Resolve("teammsg")
-	s.Commander.Register(Literal("tm").RedirectTo(teamMsg))
+	s.Commander.Register(Literal("tm").Redirects(teamMsg))
 }

@@ -58,6 +58,25 @@ func registerData(s *server.Server) {
 											),
 									),
 								),
+								// todo: extend to append/prepend/insert/merge
+								Literal("string").Connect(
+									Literal("entity").Connect(
+										Argument("source", parsers.Entity.Single(true)).
+											Executes(dataModifyString(s, opSet, false, false, false)).
+											Connect(
+												Argument("sourcePath", parsers.NbtPath).
+													Executes(dataModifyString(s, opSet, true, false, false)).
+													Connect(
+														Argument("start", parsers.Int).
+															Executes(dataModifyString(s, opSet, true, true, false)).
+															Connect(
+																Argument("end", parsers.Int).
+																	Executes(dataModifyString(s, opSet, true, true, true)),
+															),
+													),
+											),
+									),
+								),
 							),
 							Literal("append").Connect(
 								Literal("value").Connect(
@@ -594,6 +613,55 @@ func dataModifyMergeFrom(s *server.Server, withSourcePath bool) Command {
 			return &CommandResult{Success: 0}, nil
 		}
 		n, err := tgt.NbtMergeAt(*path, compound)
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityModified, entityDisplayName(target)))
+		return &CommandResult{Success: 1, Result: n}, nil
+	}
+}
+
+func dataModifyString(s *server.Server, op modifyOp, withSourcePath, withStart, withEnd bool) Command {
+	return func(cc *CommandContext) (*CommandResult, error) {
+		target, ok := resolveSingleEntity(s, cc, "target")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		tgt, ok := asWriteTarget(cc, target)
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		source, ok := resolveSingleEntity(s, cc, "source")
+		if !ok {
+			return &CommandResult{Success: 0}, nil
+		}
+		srcSource, ok := source.(nbtpath.NbtSource)
+		if !ok {
+			cc.SendMessage(tc.Translatable(mcdata.CommandsDataEntityInvalid).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		path := GetArgument[*nbtpath.Path](cc.Args, "path")
+		var srcPath nbtpath.Path
+		if withSourcePath {
+			sp := GetArgument[*nbtpath.Path](cc.Args, "sourcePath")
+			srcPath = *sp
+		}
+		sv := nbtpath.StringValueSource{Src: srcSource, Path: srcPath}
+		if withStart {
+			start := int(GetArgument[int32](cc.Args, "start"))
+			sv.Start = &start
+		}
+		if withEnd {
+			end := int(GetArgument[int32](cc.Args, "end"))
+			sv.End = &end
+		}
+		values, err := sv.Resolve()
+		if err != nil {
+			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
+			return &CommandResult{Success: 0}, nil
+		}
+		n, err := applyOp(tgt, op, *path, values[0])
 		if err != nil {
 			cc.SendMessage(tc.Translatable(nbtErrKey(err)).SetColor(tc.ColorRed))
 			return &CommandResult{Success: 0}, nil

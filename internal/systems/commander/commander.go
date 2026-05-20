@@ -125,7 +125,7 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 		})
 
 		if literal.Redirect != nil {
-			if literal.Fork {
+			if literal.IsFork {
 				result.Forks = true
 			}
 			d.parseNodes(literal.Redirect, reader, result)
@@ -171,7 +171,7 @@ func (d *Dispatcher) parseNodes(node *Node, reader *CommandReader, result *Parse
 		})
 
 		if child.Redirect != nil {
-			if child.Fork {
+			if child.IsFork {
 				result.Forks = true
 			}
 			d.parseNodes(child.Redirect, reader, result)
@@ -222,23 +222,22 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 	}
 
 	sources := []*CommandSource{parsed.Source}
-	if parsed.Forks {
-		for _, pn := range parsed.Nodes {
-			if pn.Node.Fork && pn.Node.RedirectModifier != nil {
-				var nextSources []*CommandSource
-				for _, src := range sources {
-					derived, err := pn.Node.RedirectModifier(ctx, src)
-					if err != nil {
-						return nil, AsCommandError(err)
-					}
-					nextSources = append(nextSources, derived...)
-				}
-				sources = nextSources
-				if len(sources) == 0 {
-					// Early termination — branch count is zero.
-					return &CommandResult{Success: 0, Result: 0}, nil
-				}
+	for _, pn := range parsed.Nodes {
+		if pn.Node.RedirectModifier == nil {
+			continue
+		}
+		var nextSources []*CommandSource
+		for _, src := range sources {
+			derived, err := pn.Node.RedirectModifier(ctx, src)
+			if err != nil {
+				return nil, AsCommandError(err)
 			}
+			nextSources = append(nextSources, derived...)
+		}
+		sources = nextSources
+		if len(sources) == 0 {
+			// Early termination — branch count is zero.
+			return &CommandResult{Success: 0, Result: 0}, nil
 		}
 	}
 
@@ -256,13 +255,22 @@ func (d *Dispatcher) Execute(ctx context.Context, parsed *ParsedCommand) (*Comma
 			Signed: parsed.Signed,
 		}
 		res, err := parsed.Command(cc)
+		var (
+			branchSuccess bool
+			branchResult  int
+		)
 		if err != nil {
 			lastErr = AsCommandError(err)
-			continue
+		} else {
+			if res != nil {
+				aggregate.Success += res.Success
+				aggregate.Result = res.Result
+				branchSuccess = res.Success > 0
+				branchResult = res.Result
+			}
 		}
-		if res != nil {
-			aggregate.Success += res.Success
-			aggregate.Result = res.Result
+		if src.ResultConsumer != nil {
+			src.ResultConsumer.OnResult(src, branchSuccess, branchResult)
 		}
 	}
 	if aggregate.Success == 0 && lastErr != nil {

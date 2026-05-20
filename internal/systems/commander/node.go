@@ -37,7 +37,7 @@ type Node struct {
 	Suggestion       SuggestionType
 	Kind             NodeType
 	PermissionLevel  int
-	Fork             bool
+	IsFork           bool
 }
 
 type ParsedNode struct {
@@ -101,7 +101,8 @@ func (n *Node) findLiteralChild(name string) *Node {
 	return nil
 }
 
-func (n *Node) RedirectTo(target *Node) *Node {
+// Redirects points this node at target. With no Modify() it is a pure alias
+func (n *Node) Redirects(target *Node) *Node {
 	if target.Kind != LiteralNode {
 		panic("commander: redirect target must be a literal node")
 	}
@@ -109,10 +110,17 @@ func (n *Node) RedirectTo(target *Node) *Node {
 	return n
 }
 
-func (n *Node) ForkTo(target *Node, modifier RedirectModifier) *Node {
-	n.Redirect = target
-	n.RedirectModifier = modifier
-	n.Fork = true
+// Modify attaches a RedirectModifier to this node. The modifier runs at
+// execution time, transforming the current source set into the next set
+func (n *Node) Modify(fn RedirectModifier) *Node {
+	n.RedirectModifier = fn
+	return n
+}
+
+// Fork marks this node as a fan-out point. Downstream execution runs once
+// per derived source and success counts sum across branches.
+func (n *Node) Fork() *Node {
+	n.IsFork = true
 	return n
 }
 
