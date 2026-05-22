@@ -1,25 +1,23 @@
 package attribute
 
-import (
-	"slices"
-
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
-)
+import "github.com/Gagonlaire/mcgoserv/internal/mc"
 
 type Instance struct {
-	Id          ID
-	BaseValue   float64
 	modifiers   []Modifier
+	BaseValue   float64
+	DefaultBase float64
 	cachedValue float64
+	Id          ID
 	dirty       bool
 }
 
 func NewInstance(id ID, baseValue float64) *Instance {
 	return &Instance{
-		Id:        id,
-		BaseValue: baseValue,
-		modifiers: make([]Modifier, 0, 4),
-		dirty:     true,
+		Id:          id,
+		BaseValue:   baseValue,
+		DefaultBase: baseValue,
+		modifiers:   make([]Modifier, 0, 4),
+		dirty:       true,
 	}
 }
 
@@ -34,30 +32,47 @@ func (i *Instance) SetBase(val float64) {
 	}
 }
 
-func (i *Instance) AddModifier(m Modifier) {
-	idx := slices.IndexFunc(i.modifiers, func(existing Modifier) bool {
-		return existing.ID == m.ID
-	})
-
-	if idx >= 0 {
-		i.modifiers[idx] = m
-	} else {
-		i.modifiers = append(i.modifiers, m)
-	}
-	i.dirty = true
+func (i *Instance) Reset() {
+	i.SetBase(i.DefaultBase)
 }
 
-func (i *Instance) RemoveModifier(id mc.Identifier) {
-	for idx, existing := range i.modifiers {
-		if existing.ID == id {
-			// swap target with last elem, then slice off end.
-			lastIdx := len(i.modifiers) - 1
-			i.modifiers[idx] = i.modifiers[lastIdx]
-			i.modifiers = i.modifiers[:lastIdx]
-			i.dirty = true
-			return
+func (i *Instance) indexOfModifier(id mc.Identifier) int {
+	for idx := range i.modifiers {
+		if i.modifiers[idx].ID == id {
+			return idx
 		}
 	}
+	return -1
+}
+
+func (i *Instance) AddModifier(m Modifier) bool {
+	if i.indexOfModifier(m.ID) >= 0 {
+		return false
+	}
+	i.modifiers = append(i.modifiers, m)
+	i.dirty = true
+	return true
+}
+
+func (i *Instance) RemoveModifier(id mc.Identifier) bool {
+	idx := i.indexOfModifier(id)
+	if idx < 0 {
+		return false
+	}
+	// swap target with last elem, then slice off end.
+	lastIdx := len(i.modifiers) - 1
+	i.modifiers[idx] = i.modifiers[lastIdx]
+	i.modifiers = i.modifiers[:lastIdx]
+	i.dirty = true
+	return true
+}
+
+// Modifier returns the modifier with the given ID, if present.
+func (i *Instance) Modifier(id mc.Identifier) (Modifier, bool) {
+	if idx := i.indexOfModifier(id); idx >= 0 {
+		return i.modifiers[idx], true
+	}
+	return Modifier{}, false
 }
 
 // Value returns the computed value of the attribute, recalculating it if necessary. It applies modifiers in the following order:

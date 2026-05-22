@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/template"
 )
 
@@ -41,9 +42,13 @@ func generateAttributes(rawAttributes io.ReadCloser, _ map[string]any) error {
 		if pascal == "" {
 			continue
 		}
+		resource := def.Resource
+		if idx := strings.IndexByte(resource, ':'); idx != -1 {
+			resource = resource[idx+1:]
+		}
 		processed = append(processed, GenAttribute{
 			PascalName: pascal + "ID",
-			Resource:   def.Resource,
+			Resource:   resource,
 			Min:        def.Min,
 			Max:        def.Max,
 			Default:    def.Default,

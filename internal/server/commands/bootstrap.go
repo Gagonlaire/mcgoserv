@@ -6,10 +6,12 @@ import (
 
 // RegisterAll https://minecraft.wiki/w/Commands#List_of_commands
 func RegisterAll(s *server.Server) {
+	registerAttribute(s)
 	registerBan(s)
 	registerBanIP(s)
 	registerData(s)
 	registerDeop(s)
+	registerGamemode(s)
 	registerHelp(s)
 	registerKick(s)
 	registerKill(s)
@@ -23,6 +25,8 @@ func RegisterAll(s *server.Server) {
 	registerSummon(s)
 	registerTeamMsg(s)
 	registerTellRaw(s)
+	registerTeleport(s)
+	registerTime(s)
 	registerVersion(s)
 	registerWhitelist(s)
 }

@@ -109,7 +109,7 @@ func NewPlayer(
 	player.ChatSession.Signed = false
 
 	player.InitMetaDefaults()
-	player.Attributes = attribute.NewSet()
+	player.Attributes = attribute.NewSetWithDefaults(attributeDefaults[PlayerID])
 	player.AvatarData.Init(player)
 
 	return player

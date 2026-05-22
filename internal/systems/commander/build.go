@@ -246,13 +246,6 @@ func (b *Builder) matchOrAddLiteral(parent *Node, name string) *Node {
 		if c.Kind == LiteralNode && c.Name == name {
 			return c
 		}
-		// todo: brigadier allows argument/literal collision
-		if c.Kind == ArgumentNode {
-			panic(fmt.Errorf(
-				"commander: Build(%q): cannot add literal %q at parent %q — an argument <%s> already exists there (added at %s). Use the imperative API.",
-				b.syntax, name, parent.Name, c.Name, callSiteOf(c),
-			))
-		}
 	}
 	n := Literal(name)
 	n.RegisteredAt = b.callSite
@@ -272,12 +265,6 @@ func (b *Builder) matchOrAddChoiceLiteral(parent *Node, branch, bindKey string) 
 			c.BindKey = bindKey
 			return c
 		}
-		if c.Kind == ArgumentNode {
-			panic(fmt.Errorf(
-				"commander: Build(%q): cannot add choice literal %q at parent %q — argument <%s> already exists there (added at %s)",
-				b.syntax, branch, parent.Name, c.Name, callSiteOf(c),
-			))
-		}
 	}
 	n := Literal(branch)
 	n.RegisteredAt = b.callSite
@@ -296,12 +283,6 @@ func (b *Builder) matchOrAddArgument(parent *Node, name string, parser ArgumentP
 				))
 			}
 			return c
-		}
-		if c.Kind == LiteralNode {
-			panic(fmt.Errorf(
-				"commander: Build(%q): cannot add argument <%s> at parent %q — literal %q already exists there (added at %s). Use the imperative API.",
-				b.syntax, name, parent.Name, c.Name, callSiteOf(c),
-			))
 		}
 	}
 	n := Argument(name, parser)

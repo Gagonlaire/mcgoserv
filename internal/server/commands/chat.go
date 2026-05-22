@@ -13,36 +13,36 @@ import (
 )
 
 func registerMsg(s *server.Server) {
-	s.Commander.Register(Literal("msg").Connect(
-		Argument("targets", parsers.Entity.PlayersOnly(true)).Connect(
-			Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-				player := cc.Source.Entity.(*entity.Player)
-				targets := cc.Args.GetEntityTarget("targets")
-				message := cc.Args["message"].(*mc.ParsedMessage)
-				text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
-				signature := cc.Signed.GetArgSignature("message")
+	s.Commander.RegisterBuilders(func() {
+		Build("/msg <targets> <message ...>",
+			parsers.Entity.PlayersOnly(true), parsers.Message,
+		).Executes(func(cc *CommandContext) (*CommandResult, error) {
+			player := cc.Source.Entity.(*entity.Player)
+			targets := cc.Args.GetEntityTarget("targets")
+			message := cc.Args["message"].(*mc.ParsedMessage)
+			text := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)
+			signature := cc.Signed.GetArgSignature("message")
 
-				resolved := s.World.ResolvePlayers(targets, uuid.UUID(player.UUID), player.Position)
-				senderConn, ok := s.ConnectionsByEID.Load(player.EntityID)
+			resolved := s.World.ResolvePlayers(targets, uuid.UUID(player.UUID), player.Position)
+			senderConn, ok := s.ConnectionsByEID.Load(player.EntityID)
+			if !ok {
+				return &CommandResult{Success: 0, Result: 0}, nil
+			}
+			sender := senderConn.(*server.Connection)
+			sender.SendSignedMessage(sender, message.Raw, mc.Optional[tc.Component]{Present: true, Value: tc.Text(text)}, signature, cc.Signed, 4)
+
+			for _, target := range resolved {
+				targetConn, ok := s.ConnectionsByEID.Load(target.EntityID)
 				if !ok {
-					return &CommandResult{Success: 0, Result: 0}, nil
+					continue
 				}
-				sender := senderConn.(*server.Connection)
-				sender.SendSignedMessage(sender, message.Raw, mc.Optional[tc.Component]{Present: true, Value: tc.Text(text)}, signature, cc.Signed, 4)
+				receiver := targetConn.(*server.Connection)
+				sender.SendSignedMessage(receiver, message.Raw, mc.Optional[tc.Component]{Present: true, Value: tc.Text(text)}, signature, cc.Signed, 3)
+			}
 
-				for _, target := range resolved {
-					targetConn, ok := s.ConnectionsByEID.Load(target.EntityID)
-					if !ok {
-						continue
-					}
-					receiver := targetConn.(*server.Connection)
-					sender.SendSignedMessage(receiver, message.Raw, mc.Optional[tc.Component]{Present: true, Value: tc.Text(text)}, signature, cc.Signed, 3)
-				}
-
-				return &CommandResult{Success: len(resolved), Result: 0}, nil
-			}),
-		),
-	))
+			return &CommandResult{Success: len(resolved), Result: 0}, nil
+		})
+	})
 
 	msg := s.Commander.Resolve("msg")
 	s.Commander.Register(Literal("tell").Redirects(msg))
@@ -78,11 +78,12 @@ func registerSay(s *server.Server) {
 }
 
 func registerTeamMsg(s *server.Server) {
-	s.Commander.Register(Literal("teammsg").Connect(
-		Argument("message", parsers.Message).Executes(func(cc *CommandContext) (*CommandResult, error) {
-			panic(context.TODO())
-		}),
-	))
+	s.Commander.RegisterBuilders(func() {
+		Build("/teammsg <message ...>", parsers.Message).
+			Executes(func(cc *CommandContext) (*CommandResult, error) {
+				panic(context.TODO())
+			})
+	})
 
 	teamMsg := s.Commander.Resolve("teammsg")
 	s.Commander.Register(Literal("tm").Redirects(teamMsg))

@@ -87,120 +87,111 @@ func registerBan(s *server.Server) {
 }
 
 func registerBanIP(s *server.Server) {
-	s.Commander.Register(
-		Literal("ban-ip").Requires(3).Connect(
-			Argument("target", parsers.String).
-				Executes(banIPExecutor(s, "")).
-				Connect(
-					Argument("reason", parsers.String.Behavior(parsers.GreedyPhrase)).
-						Executes(banIPExecutor(s, "reason")),
-				),
-		),
-	)
+	s.Commander.RegisterBuilders(func() {
+		Build("/ban-ip <target> [<reason>]",
+			parsers.String, parsers.String.Behavior(parsers.GreedyPhrase),
+		).Requires(3).Executes(banIPExecutor(s))
+	})
 }
 
 func registerPardon(s *server.Server) {
-	s.Commander.Register(
-		Literal("pardon").Requires(3).Connect(
-			Argument("targets", parsers.GameProfile).
-				Executes(func(cc *CommandContext) (*CommandResult, error) {
-					target := cc.Args.GetEntityTarget("targets")
+	s.Commander.RegisterBuilders(func() {
+		Build("/pardon <targets>", parsers.GameProfile).Requires(3).
+			Executes(func(cc *CommandContext) (*CommandResult, error) {
+				target := cc.Args.GetEntityTarget("targets")
 
-					type unbanInfo struct {
-						UUID string
-						Name string
+				type unbanInfo struct {
+					UUID string
+					Name string
+				}
+				var unbans []unbanInfo
+
+				switch target.Type {
+				case mc.TargetTypeUUID:
+					if banned, _ := s.PlayerRegistry.IsBanned(target.UUID); banned {
+						s.PlayerRegistry.UnbanByUUID(target.UUID.String())
+						unbans = append(unbans, unbanInfo{target.UUID.String(), target.UUID.String()})
 					}
-					var unbans []unbanInfo
-
-					switch target.Type {
-					case mc.TargetTypeUUID:
-						if banned, _ := s.PlayerRegistry.IsBanned(target.UUID); banned {
-							s.PlayerRegistry.UnbanByUUID(target.UUID.String())
-							unbans = append(unbans, unbanInfo{target.UUID.String(), target.UUID.String()})
-						}
-					case mc.TargetTypePlayerName:
-						s.PlayerRegistry.Mu.RLock()
-						var found bool
-						for _, entry := range s.PlayerRegistry.BannedPlayers {
-							if entry.Name == target.Name {
-								found = true
-								break
-							}
-						}
-						s.PlayerRegistry.Mu.RUnlock()
-						if found {
-							s.PlayerRegistry.Unban(target.Name)
-							unbans = append(unbans, unbanInfo{"", target.Name})
-						}
-					case mc.TargetTypeSelector:
-						var sourceUUID entity.NbtUUID
-						var sourcePos [3]float64
-						if player, ok := cc.Source.Entity.(*entity.Player); ok {
-							sourceUUID = player.UUID
-							sourcePos = player.Position
-						}
-						resolved := s.World.ResolvePlayers(target, uuid.UUID(sourceUUID), sourcePos)
-						for _, p := range resolved {
-							if banned, _ := s.PlayerRegistry.IsBanned(uuid.UUID(p.UUID)); banned {
-								s.PlayerRegistry.UnbanByUUID(uuid.UUID(p.UUID).String())
-								unbans = append(unbans, unbanInfo{uuid.UUID(p.UUID).String(), p.Name})
-							}
-						}
-					}
-
-					if len(unbans) == 0 {
-						cc.SendMessage(tc.Translatable(mcdata.CommandsPardonFailed))
-						return &CommandResult{Success: 0, Result: 0}, nil
-					}
-
-					for _, u := range unbans {
-						name := u.Name
-						if name == "" {
-							name = u.UUID
-						}
-						cc.SendMessage(tc.Translatable(mcdata.CommandsPardonSuccess, tc.Text(name)))
-					}
-
-					return &CommandResult{Success: len(unbans), Result: 0}, nil
-				}),
-		),
-	)
-}
-
-func registerPardonIP(s *server.Server) {
-	s.Commander.Register(
-		Literal("pardon-ip").Requires(3).Connect(
-			Argument("target", parsers.String).
-				Executes(func(cc *CommandContext) (*CommandResult, error) {
-					target := cc.Args.GetString("target")
-
-					if ip := net.ParseIP(target); ip == nil {
-						cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipInvalid))
-						return &CommandResult{Success: 0, Result: 0}, nil
-					}
-
+				case mc.TargetTypePlayerName:
 					s.PlayerRegistry.Mu.RLock()
 					var found bool
-					for _, entry := range s.PlayerRegistry.BannedIPs {
-						if entry.IP == target {
+					for _, entry := range s.PlayerRegistry.BannedPlayers {
+						if entry.Name == target.Name {
 							found = true
 							break
 						}
 					}
 					s.PlayerRegistry.Mu.RUnlock()
-
-					if !found {
-						cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipFailed))
-						return &CommandResult{Success: 0, Result: 0}, nil
+					if found {
+						s.PlayerRegistry.Unban(target.Name)
+						unbans = append(unbans, unbanInfo{"", target.Name})
 					}
+				case mc.TargetTypeSelector:
+					var sourceUUID entity.NbtUUID
+					var sourcePos [3]float64
+					if player, ok := cc.Source.Entity.(*entity.Player); ok {
+						sourceUUID = player.UUID
+						sourcePos = player.Position
+					}
+					resolved := s.World.ResolvePlayers(target, uuid.UUID(sourceUUID), sourcePos)
+					for _, p := range resolved {
+						if banned, _ := s.PlayerRegistry.IsBanned(uuid.UUID(p.UUID)); banned {
+							s.PlayerRegistry.UnbanByUUID(uuid.UUID(p.UUID).String())
+							unbans = append(unbans, unbanInfo{uuid.UUID(p.UUID).String(), p.Name})
+						}
+					}
+				}
 
-					s.PlayerRegistry.UnbanIP(target)
-					cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipSuccess, tc.Text(target)))
+				if len(unbans) == 0 {
+					cc.SendMessage(tc.Translatable(mcdata.CommandsPardonFailed))
+					return &CommandResult{Success: 0, Result: 0}, nil
+				}
 
-					return &CommandResult{Success: 1, Result: 0}, nil
-				}),
-		),
-	)
+				for _, u := range unbans {
+					name := u.Name
+					if name == "" {
+						name = u.UUID
+					}
+					cc.SendMessage(tc.Translatable(mcdata.CommandsPardonSuccess, tc.Text(name)))
+				}
+
+				return &CommandResult{Success: len(unbans), Result: 0}, nil
+			})
+	})
+}
+
+func registerPardonIP(s *server.Server) {
+	s.Commander.RegisterBuilders(func() {
+		Build("/pardon-ip <target>", parsers.String).Requires(3).
+			Executes(func(cc *CommandContext) (*CommandResult, error) {
+				target := cc.Args.GetString("target")
+
+				if ip := net.ParseIP(target); ip == nil {
+					cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipInvalid))
+					return &CommandResult{Success: 0, Result: 0}, nil
+				}
+
+				s.PlayerRegistry.Mu.RLock()
+				var found bool
+				for _, entry := range s.PlayerRegistry.BannedIPs {
+					if entry.IP == target {
+						found = true
+						break
+					}
+				}
+				s.PlayerRegistry.Mu.RUnlock()
+
+				if !found {
+					cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipFailed))
+					return &CommandResult{Success: 0, Result: 0}, nil
+				}
+
+				s.PlayerRegistry.UnbanIP(target)
+				cc.SendMessage(tc.Translatable(mcdata.CommandsPardonipSuccess, tc.Text(target)))
+
+				return &CommandResult{Success: 1, Result: 0}, nil
+			})
+	})
 }
 
 func banExecutor(s *server.Server) Command {
@@ -275,13 +266,13 @@ func banExecutor(s *server.Server) Command {
 	}
 }
 
-func banIPExecutor(s *server.Server, reasonArg string) Command {
+func banIPExecutor(s *server.Server) Command {
 	return func(cc *CommandContext) (*CommandResult, error) {
 		target := cc.Args.GetString("target")
 
 		reason := "Banned by an operator."
-		if reasonArg != "" {
-			reason = cc.Args.GetString(reasonArg)
+		if cc.Args.Has("reason") {
+			reason = cc.Args.GetString("reason")
 		}
 
 		ip, ok := resolveIPTarget(s, target)

@@ -28,10 +28,11 @@ func NewSetWithDefaults(defaults []Default) *Set {
 	}
 	for i, d := range defaults {
 		set.instances[i] = Instance{
-			Id:        d.ID,
-			BaseValue: d.Base,
-			modifiers: make([]Modifier, 0, 4),
-			dirty:     true,
+			Id:          d.ID,
+			BaseValue:   d.Base,
+			DefaultBase: d.Base,
+			modifiers:   make([]Modifier, 0, 4),
+			dirty:       true,
 		}
 	}
 	return set
@@ -48,6 +49,27 @@ func (s *Set) Get(id ID) *Instance {
 		}
 	}
 	return nil
+}
+
+func (s *Set) GetOrCreate(id ID) *Instance {
+	if inst := s.Get(id); inst != nil {
+		return inst
+	}
+	s.instances = append(s.instances, Instance{
+		Id:          id,
+		BaseValue:   id.Default(),
+		DefaultBase: id.Default(),
+		modifiers:   make([]Modifier, 0, 4),
+		dirty:       true,
+	})
+	return &s.instances[len(s.instances)-1]
+}
+
+func (s *Set) BaseValue(id ID) float64 {
+	if inst := s.Get(id); inst != nil {
+		return inst.Base()
+	}
+	return id.Default()
 }
 
 func (s *Set) Value(id ID) float64 {

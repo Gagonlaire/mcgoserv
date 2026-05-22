@@ -240,18 +240,33 @@ func TestBuild_Panic_DifferentParserSameName(t *testing.T) {
 	})
 }
 
-func TestBuild_Panic_LiteralVsArgumentCollision(t *testing.T) {
+func TestBuild_LiteralAndArgumentSiblings(t *testing.T) {
 	d := NewDispatcher()
-	mustPanic(t, "cannot add literal", func() {
-		d.RegisterBuilders(func() {
-			Build("/foo <x>", wordParser{}).Executes(func(*CommandContext) (*CommandResult, error) {
-				return nil, nil
-			})
-			Build("/foo bar").Executes(func(*CommandContext) (*CommandResult, error) {
-				return nil, nil
-			})
+	d.RegisterBuilders(func() {
+		Build("/foo <x>", wordParser{}).Executes(func(*CommandContext) (*CommandResult, error) {
+			return nil, nil
+		})
+		Build("/foo bar").Executes(func(*CommandContext) (*CommandResult, error) {
+			return nil, nil
 		})
 	})
+
+	foo := d.Resolve("foo")
+	if foo == nil {
+		t.Fatal("foo not registered")
+	}
+	var hasArg, hasLiteral bool
+	for _, c := range foo.Children {
+		if c.Kind == ArgumentNode && c.Name == "x" {
+			hasArg = true
+		}
+		if c.Kind == LiteralNode && c.Name == "bar" {
+			hasLiteral = true
+		}
+	}
+	if !hasArg || !hasLiteral {
+		t.Fatalf("expected both <x> argument and bar literal under foo, got hasArg=%v hasLiteral=%v", hasArg, hasLiteral)
+	}
 }
 
 func TestBuild_Panic_ChoiceBindKeyConflict(t *testing.T) {

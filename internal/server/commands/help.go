@@ -12,14 +12,10 @@ import (
 )
 
 func registerHelp(s *server.Server) {
-	s.Commander.Register(
-		Literal("help").
-			Executes(helpAll(s)).
-			Connect(
-				Argument("command", parsers.String.Behavior(parsers.GreedyPhrase)).
-					Executes(helpFor(s)),
-			),
-	)
+	s.Commander.RegisterBuilders(func() {
+		Build("/help [<command>]", parsers.String.Behavior(parsers.GreedyPhrase)).
+			ExecutesEach(helpAll(s), helpFor(s))
+	})
 
 	help := s.Commander.Resolve("help")
 	s.Commander.Register(Literal("?").Redirects(help))

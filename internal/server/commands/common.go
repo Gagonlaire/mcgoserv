@@ -4,11 +4,21 @@ import (
 	"fmt"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/google/uuid"
 )
+
+// todo: maybe export to a package of reusable code blocks
+func commandSource(cc *CommandContext) (uuid.UUID, [3]float64) {
+	if p, ok := cc.Source.Entity.(*entity.Player); ok {
+		return uuid.UUID(p.UUID), p.Position
+	}
+	return uuid.UUID{}, [3]float64{}
+}
 
 const repoURL = "https://github.com/Gagonlaire/mcgoserv"
 
@@ -69,19 +79,19 @@ func buildTimeValue() string {
 }
 
 func registerStop(s *server.Server) {
-	s.Commander.Register(
-		Literal("stop").Requires(4).Executes(func(cc *CommandContext) (*CommandResult, error) {
+	s.Commander.RegisterBuilders(func() {
+		Build("/stop").Requires(4).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			logger.Component(logger.INFO, tc.Text("Stopping the server"))
 			s.Stop()
 
 			return &CommandResult{Success: 1, Result: 0}, nil
-		}),
-	)
+		})
+	})
 }
 
 func registerVersion(s *server.Server) {
-	s.Commander.Register(
-		Literal("version").Executes(func(cc *CommandContext) (*CommandResult, error) {
+	s.Commander.RegisterBuilders(func() {
+		Build("/version").Executes(func(cc *CommandContext) (*CommandResult, error) {
 			header := tc.Container(
 				tc.Text("McGoServ").SetColor(tc.ColorGreen).SetBold(true),
 				tc.Text(" — ").SetColor(tc.ColorDarkGray),
@@ -116,6 +126,6 @@ func registerVersion(s *server.Server) {
 			))
 
 			return &CommandResult{Success: 1, Result: 0}, nil
-		}),
-	)
+		})
+	})
 }

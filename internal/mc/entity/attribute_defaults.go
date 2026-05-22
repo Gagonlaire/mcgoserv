@@ -3,6 +3,10 @@ package entity
 import "github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 
 var attributeDefaults = map[ID][]attribute.Default{
+	PlayerID: {
+		{ID: attribute.AttackDamageID, Base: 1},
+		{ID: attribute.MovementSpeedID, Base: 0.1},
+	},
 	ZombieID: {
 		{ID: attribute.ArmorID, Base: 2},
 		{ID: attribute.AttackDamageID, Base: 3},
