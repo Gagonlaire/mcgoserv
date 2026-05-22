@@ -9,14 +9,35 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/block"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
+	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
 
 func (c *Connection) HandleKeepAlive(id *mc.Long) {
-	c.LastKeepAliveID = int64(*id)
-	c.LastKeepAlive = c.Server.World.Time
+	if !c.acceptKeepAlive(int64(*id)) {
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
+	}
+}
+
+func (c *Connection) acceptKeepAlive(id int64) bool {
+	if !c.KeepAlivePending || id != c.LastKeepAliveID {
+		return false
+	}
+	c.KeepAlivePending = false
+	return true
+}
+
+func (c *Connection) keepAliveState(now time.Time) (send, timedOut bool) {
+	if c.State != mc.StatePlay && c.State != mc.StateConfiguration {
+		return false, false
+	}
+	if c.KeepAlivePending {
+		return false, now.Sub(c.LastKeepAliveSent) > c.Server.KeepAliveTimeout
+	}
+	return now.Sub(c.LastKeepAliveSent) >= c.Server.KeepAliveInterval, false
 }
 
 func (c *Connection) SendSpawnEntity(entity entity.Entity) {
@@ -49,8 +70,11 @@ func (c *Connection) SendKeepAlive() {
 		panic("Invalid state for sending keep-alive")
 	}
 
-	c.LastKeepAliveID = c.Server.World.Time
-	pkt := c.NewPacket(packetId, mc.Long(c.Server.World.Time))
+	now := time.Now()
+	c.LastKeepAliveID = now.UnixMilli()
+	c.LastKeepAliveSent = now
+	c.KeepAlivePending = true
+	pkt := c.NewPacket(packetId, mc.Long(c.LastKeepAliveID))
 	c.Send(pkt)
 }
 

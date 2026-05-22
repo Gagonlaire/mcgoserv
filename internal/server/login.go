@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
@@ -219,7 +220,7 @@ func (c *Connection) CanAccessServer() bool {
 
 func (c *Connection) HandleLoginAcknowledged(_ *packet.InboundPacket) {
 	c.State = mc.StateConfiguration
-	c.LastKeepAlive = c.Server.World.Time
+	c.LastKeepAliveSent = time.Now()
 	logger.Debug("%s entering configuration state", c.Player.Name)
 
 	pkt := c.NewPacket(packet.ConfigurationClientboundSelectKnownPacks, mc.ServerDataPacks)

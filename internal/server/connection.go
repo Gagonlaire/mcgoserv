@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -34,7 +35,8 @@ type Connection struct {
 	State                mc.State
 	CompressionThreshold int
 	LastKeepAliveID      int64
-	LastKeepAlive        int64
+	LastKeepAliveSent    time.Time
+	KeepAlivePending     bool
 	closeOnce            sync.Once
 	writeMu              sync.Mutex
 }
@@ -54,7 +56,7 @@ func (s *Server) NewConnection(conn net.Conn) *Connection {
 		InboundPackets:       make(chan QueuedPacket, s.Config.Security.RateLimit.MaxPacketsPerTick),
 		OutboundPackets:      make(chan *packet.OutboundPacket, OutboundChannelSize),
 		CompressionThreshold: -1,
-		LastKeepAlive:        s.World.Time,
+		LastKeepAliveSent:    time.Now(),
 		ctx:                  ctx,
 		cancel:               cancel,
 		ContextData:          make(map[string]interface{}),

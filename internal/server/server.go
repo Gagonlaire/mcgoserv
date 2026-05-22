@@ -67,8 +67,8 @@ type Server struct {
 	Keys              Keys
 	cliArgs           []string
 	wg                sync.WaitGroup
-	KeepAliveTimeout  int64
-	KeepAliveInterval int64
+	KeepAliveTimeout  time.Duration
+	KeepAliveInterval time.Duration
 	EnforceSecureChat bool
 }
 
@@ -104,7 +104,7 @@ func (s *Server) Start(args []string) {
 	}
 	s.Addr = fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	s.EnforceSecureChat = cfg.Security.SecureProfile && cfg.Security.OnlineMode
-	s.KeepAliveTimeout = int64(cfg.Network.ConnectionTimeout) * mc.TicksPerSecond
+	s.KeepAliveTimeout = time.Duration(cfg.Network.ConnectionTimeout) * time.Second
 	s.KeepAliveInterval = s.KeepAliveTimeout / 2
 	s.PlayerRegistry = player_registry.NewPlayerRegistry(
 		cfg.DataFiles.Whitelist,
@@ -252,7 +252,7 @@ func (s *Server) reloadConfig() {
 
 	s.Config = cfg
 	s.EnforceSecureChat = cfg.Security.SecureProfile && cfg.Security.OnlineMode
-	s.KeepAliveTimeout = int64(cfg.Network.ConnectionTimeout) * mc.TicksPerSecond
+	s.KeepAliveTimeout = time.Duration(cfg.Network.ConnectionTimeout) * time.Second
 	s.KeepAliveInterval = s.KeepAliveTimeout / 2
 	logger.Info("Config reloaded successfully")
 }
@@ -362,7 +362,7 @@ func updateTime(s *Server) {
 }
 
 func processIncomingPackets(s *Server) {
-	currentTick := s.World.Time
+	now := time.Now()
 
 	s.Connections.Range(func(key, value any) bool {
 		c := key.(*Connection)
@@ -386,20 +386,18 @@ func processIncomingPackets(s *Server) {
 			}
 		}
 
-		if c.State == mc.StatePlay || c.State == mc.StateConfiguration {
-			if currentTick-c.LastKeepAlive > s.KeepAliveTimeout {
-				source := c.Conn.RemoteAddr().String()
-				if c.Player != nil {
-					source = c.Player.Name
-				}
-				logger.Info("%s lost connection: Timed out", logger.Identity(source))
-				c.close()
-				return true
+		send, timedOut := c.keepAliveState(now)
+		if timedOut {
+			source := c.Conn.RemoteAddr().String()
+			if c.Player != nil {
+				source = c.Player.Name
 			}
-
-			if currentTick%s.KeepAliveInterval == 0 {
-				c.SendKeepAlive()
-			}
+			logger.Info("%s lost connection: Timed out", logger.Identity(source))
+			c.close()
+			return true
+		}
+		if send {
+			c.SendKeepAlive()
 		}
 
 		return true
