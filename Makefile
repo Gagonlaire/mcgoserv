@@ -6,7 +6,7 @@ BUILD_TIME=$(shell date -u '+%Y-%m-%d %H:%M:%S UTC')
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 LDFLAGS=-X '$(LDFLAGS_PKG).BuildTime=$(BUILD_TIME)' -X '$(LDFLAGS_PKG).Stable=true' -X '$(LDFLAGS_PKG).Branch=$(BRANCH)' -s -w
 
-all: build
+all: gen build
 
 bench:
 	@./scripts/benchmark.sh
@@ -17,7 +17,7 @@ fetch:
 gen: fetch
 	@go generate ./...
 
-build: gen
+build:
 	@go build -ldflags "$(LDFLAGS)" -trimpath -o $(BINARY_NAME)
 
 clean:
