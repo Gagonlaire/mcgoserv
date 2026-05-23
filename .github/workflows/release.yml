@@ -8,66 +8,117 @@ on:
 permissions:
   contents: write
 
+env:
+  GO_VERSION: '^1.25'
+  JAVA_VERSION: '21'
+
 jobs:
-  build-and-release:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64, ext: ''     }
+          - { goos: linux,   goarch: arm64, ext: ''     }
+          - { goos: darwin,  goarch: amd64, ext: ''     }
+          - { goos: darwin,  goarch: arm64, ext: ''     }
+          - { goos: windows, goarch: amd64, ext: '.exe' }
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '^1.25'
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Set up Java & Deps
-        uses: actions/setup-java@v3
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Read Game Version
-        id: config
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Read game version
+        id: cfg
         run: |
           VERSION=$(jq -r '.game_version' version.json)
+          echo "MC_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "JAR_FILENAME=server-$VERSION.jar" >> "$GITHUB_ENV"
+          echo "Game version: $VERSION"
 
-          echo "MC_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "JAR_FILENAME=server-$VERSION.jar" >> $GITHUB_ENV
-
-          echo "Detected Game Version: $VERSION"
-          echo "Target Jar: server-$VERSION.jar"
-
-      - run: sudo apt-get install -y jq
-
-      - name: Cache Jar
-        uses: actions/cache@v3
+      - name: Cache Minecraft jar
+        uses: actions/cache@v4
         with:
           path: ${{ env.JAR_FILENAME }}
           key: mc-server-jar-${{ env.MC_VERSION }}
 
-      - name: Run Makefile
-        run: make
+      - name: Generate code
+        run: make gen
 
-      - name: Upload to n8n and Get URL
-        id: n8n
+      - name: Build optimized binary
         env:
-          WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
         run: |
-          echo "Uploading binary..."
-        
-          RESPONSE=$(curl -s -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@./server" \
-            -F "tag=${{ github.ref_name }}")
-          
-          TEST_URL=$(echo "$RESPONSE" | jq -r '.testUrl')
-          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
+          BIN="mcgoserv-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          echo "Building $BIN (GOOS=$GOOS GOARCH=$GOARCH)"
+          make build BINARY_NAME="$BIN" BRANCH="${{ github.ref_name }}"
+          ls -lh "$BIN"
+          echo "ARTIFACT=$BIN" >> "$GITHUB_ENV"
 
-      - name: Create Draft Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: server
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish draft release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read game version
+        run: |
+          VERSION=$(jq -r '.game_version' version.json)
+          echo "MC_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
           draft: true
           name: Release ${{ github.ref_name }}
+          generate_release_notes: true
           body: |
             **Game Version:** `${{ env.MC_VERSION }}`
-            **Test URL:** `${{ env.TEST_URL }}`
+            **Tag:** `${{ github.ref_name }}`
+
+            Binaries are built with `CGO_ENABLED=0`, `-trimpath`, and stripped symbols (`-s -w`)
+            for the following targets:
+
+            - `linux/amd64`, `linux/arm64`
+            - `darwin/amd64`, `darwin/arm64`
+            - `windows/amd64`
