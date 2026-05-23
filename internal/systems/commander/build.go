@@ -34,6 +34,7 @@ type Builder struct {
 	syntax   string
 	tokens   []syntaxToken
 	parsers  []ArgumentParser
+	aliases  []string
 	perm     int
 	desc     string
 	callSite string
@@ -46,6 +47,11 @@ func (b *Builder) Requires(level int) *Builder {
 
 func (b *Builder) Description(desc string) *Builder {
 	b.desc = desc
+	return b
+}
+
+func (b *Builder) Aliases(names ...string) *Builder {
+	b.aliases = append(b.aliases, names...)
 	return b
 }
 
@@ -81,6 +87,9 @@ func (b *Builder) attach(single Command, perShape []Command) *Node {
 	root := b.ensureRootLiteral(d, b.tokens[0].name)
 	if b.desc != "" {
 		root.Description = b.desc
+	}
+	for _, alias := range b.aliases {
+		b.ensureAlias(d, alias, root)
 	}
 	leafShapes := b.expandLeafShapes()
 
@@ -190,6 +199,37 @@ func (b *Builder) expandLeafShapes() []leafShape {
 		}
 	}
 	return shapes
+}
+
+func (b *Builder) ensureAlias(d *Dispatcher, alias string, target *Node) {
+	if !isLiteralName(alias) {
+		panic(fmt.Errorf("commander: Build(%q): alias %q is not a valid literal name", b.syntax, alias))
+	}
+	if alias == target.Name {
+		panic(fmt.Errorf("commander: Build(%q): alias %q is identical to root command", b.syntax, alias))
+	}
+	for _, c := range d.Root.Children {
+		if c.Kind != LiteralNode || c.Name != alias {
+			continue
+		}
+		if c.Redirect == nil {
+			panic(fmt.Errorf(
+				"commander: Build(%q): alias %q collides with existing root command at %s",
+				b.syntax, alias, callSiteOf(c),
+			))
+		}
+		if c.Redirect != target {
+			panic(fmt.Errorf(
+				"commander: Build(%q): alias %q already redirects to %q at %s",
+				b.syntax, alias, c.Redirect.Name, callSiteOf(c),
+			))
+		}
+		return
+	}
+	n := Literal(alias)
+	n.RegisteredAt = b.callSite
+	n.Redirect = target
+	d.Root.Children = append(d.Root.Children, n)
 }
 
 func (b *Builder) ensureRootLiteral(d *Dispatcher, name string) *Node {

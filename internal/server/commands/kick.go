@@ -20,6 +20,7 @@ func registerKick(s *server.Server) {
 			targets := cc.Args.GetEntityTarget("targets")
 
 			var reason, disconnect tc.Component = tc.Translatable(mcdata.MultiplayerDisconnectKicked), tc.Translatable(mcdata.MultiplayerDisconnectKicked)
+			// todo: factor out the disconnect pattern
 			if cc.Args.Has("reason") {
 				message := cc.Args["reason"].(*mc.ParsedMessage)
 				resolved := s.World.ResolveMessage(message, uuid.UUID(player.UUID), player.Position)

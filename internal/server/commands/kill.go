@@ -14,7 +14,7 @@ import (
 
 func registerKill(s *server.Server) {
 	s.Commander.RegisterBuilders(func() {
-		Build("/kill <target>", parsers.Entity).
+		Build("/kill <target>", parsers.Entity).Requires(2).
 			Executes(func(cc *CommandContext) (*CommandResult, error) {
 				sender, _ := cc.Source.Entity.(*entity.Player)
 				target := cc.Args.GetEntityTarget("target")
@@ -49,13 +49,6 @@ func registerKill(s *server.Server) {
 				return &CommandResult{Success: 1, Result: count}, nil
 			})
 	})
-}
-
-func entityDisplayName(e entity.Entity) tc.Component {
-	if player, ok := e.(*entity.Player); ok {
-		return tc.PlayerName(player.Name)
-	}
-	return tc.Text(e.Base().ID.DisplayName())
 }
 
 func deathCause(target entity.Entity, killer *entity.Player) tc.Component {

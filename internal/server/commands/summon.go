@@ -15,7 +15,7 @@ func registerSummon(s *server.Server) {
 	s.Commander.RegisterBuilders(func() {
 		Build("/summon <entity> [<pos>] [<nbt>]",
 			parsers.Resource(entity.Registry), parsers.Vec3, parsers.NbtCompoundTag,
-		).Executes(func(cc *CommandContext) (*CommandResult, error) {
+		).Requires(2).Executes(func(cc *CommandContext) (*CommandResult, error) {
 			sender := cc.Source.Entity.(*entity.Player)
 
 			pos := sender.Position

@@ -20,7 +20,7 @@ func registerTeleport(s *server.Server) {
 	s.Commander.RegisterBuilders(func() {
 		Build("/teleport <destination>",
 			parsers.Entity.Single(true)).
-			Requires(2).Executes(teleportToEntity(s))
+			Aliases("tp").Requires(2).Executes(teleportToEntity(s))
 		Build("/teleport <location>",
 			parsers.Vec3).
 			Requires(2).Executes(teleportToLocation(s))
@@ -43,8 +43,6 @@ func registerTeleport(s *server.Server) {
 			parsers.Entity, parsers.Vec3, parsers.Entity.Single(true)).
 			Requires(2).Executes(teleportToLocation(s))
 	})
-
-	s.Commander.Register(Literal("tp").Redirects(s.Commander.Resolve("teleport")))
 }
 
 func teleportTargets(s *server.Server, cc *CommandContext) []entity.Entity {

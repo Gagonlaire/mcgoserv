@@ -61,7 +61,7 @@ func setGamemode(s *server.Server) Command {
 				cc.SendMessage(tc.Translatable(mcdata.CommandsGamemodeSuccessOther, tc.PlayerName(p.Name), modeComp))
 			}
 		}
-		return &CommandResult{Success: len(targets), Result: len(targets)}, nil
+		return &CommandResult{Success: 1, Result: len(targets)}, nil
 	}
 }
 

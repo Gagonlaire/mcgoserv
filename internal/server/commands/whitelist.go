@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Gagonlaire/mcgoserv/internal/api"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -64,49 +63,12 @@ func registerWhitelist(s *server.Server) {
 func whitelistAdd(s *server.Server) Command {
 	return func(cc *CommandContext) (*CommandResult, error) {
 		target := cc.Args.GetEntityTarget("targets")
-
-		type whitelistTarget struct {
-			UUID uuid.UUID
-			Name string
-		}
-		var targets []whitelistTarget
-
-		switch target.Type {
-		case mc.TargetTypeUUID:
-			if s.Config.Security.OnlineMode {
-				name, err := api.GetProfileNameByUUID(target.UUID)
-				if err != nil {
-					cc.SendMessage(tc.Translatable(mcdata.ArgumentPlayerUnknown))
-					return &CommandResult{Success: 0, Result: 0}, nil
-				}
-				targets = append(targets, whitelistTarget{target.UUID, name})
-			} else {
-				targets = append(targets, whitelistTarget{target.UUID, "Unknown"})
-			}
-		case mc.TargetTypePlayerName:
-			if s.Config.Security.OnlineMode {
-				u, realName, err := api.GetUserUUID(target.Name)
-				if err != nil {
-					cc.SendMessage(tc.Translatable(mcdata.ArgumentPlayerUnknown))
-					return &CommandResult{Success: 0, Result: 0}, nil
-				}
-				targets = append(targets, whitelistTarget{u, realName})
-			} else {
-				offlineUUID := api.OfflineUUID(target.Name)
-				targets = append(targets, whitelistTarget{offlineUUID, target.Name})
-			}
-		case mc.TargetTypeSelector:
-			sourceUUID, sourcePos := commandSource(cc)
-			resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
-			for _, p := range resolved {
-				targets = append(targets, whitelistTarget{uuid.UUID(p.UUID), p.Name})
-			}
-			if len(resolved) == 0 {
-				return &CommandResult{Success: 0, Result: 0}, nil
-			}
+		targets := resolveProfileTargets(s, cc, target)
+		if len(targets) == 0 {
+			return &CommandResult{Success: 0, Result: 0}, nil
 		}
 
-		success := 0
+		affected := 0
 		for _, t := range targets {
 			if s.PlayerRegistry.IsWhitelisted(t.UUID) {
 				cc.SendMessage(tc.Translatable(mcdata.CommandsWhitelistAddFailed))
@@ -114,14 +76,17 @@ func whitelistAdd(s *server.Server) Command {
 			}
 			s.PlayerRegistry.AddWhitelist(t.UUID, t.Name)
 			cc.SendMessage(tc.Translatable(mcdata.CommandsWhitelistAddSuccess, tc.Text(t.Name)))
-			success++
+			affected++
 		}
 
-		if success > 0 && s.Config.Security.Whitelist.Enforce {
+		if affected > 0 && s.Config.Security.Whitelist.Enforce {
 			enforceWhitelist(s)
 		}
 
-		return &CommandResult{Success: success, Result: 0}, nil
+		if affected == 0 {
+			return &CommandResult{Success: 0, Result: 0}, nil
+		}
+		return &CommandResult{Success: 1, Result: affected}, nil
 	}
 }
 
@@ -151,8 +116,7 @@ func whitelistRemove(s *server.Server) Command {
 			sourceUUID, sourcePos := commandSource(cc)
 			resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
 			for _, p := range resolved {
-				entry, ok := s.PlayerRegistry.RemoveWhitelistByUUID(uuid.UUID(p.UUID).String())
-				if ok {
+				if entry, ok := s.PlayerRegistry.RemoveWhitelistByUUID(uuid.UUID(p.UUID).String()); ok {
 					removals = append(removals, removedInfo{entry.UUID, entry.Name})
 				}
 			}
@@ -170,7 +134,7 @@ func whitelistRemove(s *server.Server) Command {
 			}
 		}
 
-		return &CommandResult{Success: len(removals), Result: 0}, nil
+		return &CommandResult{Success: 1, Result: len(removals)}, nil
 	}
 }
 

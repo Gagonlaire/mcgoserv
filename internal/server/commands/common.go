@@ -1,9 +1,8 @@
 package commands
 
 import (
-	"fmt"
-
-	"github.com/Gagonlaire/mcgoserv/internal/logger"
+	"github.com/Gagonlaire/mcgoserv/internal/api"
+	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -12,7 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// todo: maybe export to a package of reusable code blocks
+// ProfileTarget is a flattened (UUID, Name) pair derived from an EntityTarget.
+type ProfileTarget struct {
+	UUID uuid.UUID
+	Name string
+}
+
+// commandSource returns the canonical (UUID, position) of the command's executor.
+// Non-player sources yield a zero UUID and zero position.
 func commandSource(cc *CommandContext) (uuid.UUID, [3]float64) {
 	if p, ok := cc.Source.Entity.(*entity.Player); ok {
 		return uuid.UUID(p.UUID), p.Position
@@ -20,112 +26,51 @@ func commandSource(cc *CommandContext) (uuid.UUID, [3]float64) {
 	return uuid.UUID{}, [3]float64{}
 }
 
-const repoURL = "https://github.com/Gagonlaire/mcgoserv"
-
-// Build metadata injected via -ldflags at build time. See Makefile.
-var (
-	BuildTime string
-	Stable    string
-	Branch    string
-)
-
-func isStable() bool {
-	return Stable == "true"
-}
-
-func branchValue() string {
-	if Branch == "" {
-		return "unknown"
+func actorName(cc *CommandContext) string {
+	if p, ok := cc.Source.Entity.(*entity.Player); ok {
+		return p.Name
 	}
-	return Branch
+	return "Server"
 }
 
-func versionLine(label, value string) tc.Component {
-	return tc.Container(
-		tc.Text(label).SetColor(tc.ColorGold),
-		tc.Text(value).SetColor(tc.ColorWhite),
-	)
-}
-
-func seriesComponent() tc.Component {
-	branch := branchValue()
-	branchComp := tc.Text(branch).SetColor(tc.ColorWhite)
-
-	if branch != "unknown" {
-		branchURL := repoURL + "/tree/" + branch
-		branchComp = branchComp.
-			OpenURL(branchURL).
-			ShowText(tc.Text("Open branch on GitHub"))
+func entityDisplayName(e entity.Entity) tc.Component {
+	if player, ok := e.(*entity.Player); ok {
+		return tc.PlayerName(player.Name)
 	}
-
-	return tc.Container(
-		tc.Text("series: ").SetColor(tc.ColorGold),
-		branchComp,
-	)
+	return tc.Text(e.Base().ID.DisplayName())
 }
 
-func stableComponent() tc.Component {
-	if isStable() {
-		return tc.Text("yes").SetColor(tc.ColorGreen)
+// resolveProfileTargets flattens a parsed GameProfile/EntitySelector target into a list of {UUID, Name} pairs.
+func resolveProfileTargets(s *server.Server, cc *CommandContext, target *mc.EntityTarget) []ProfileTarget {
+	switch target.Type {
+	case mc.TargetTypeUUID:
+		if s.Config.Security.OnlineMode {
+			name, err := api.GetProfileNameByUUID(target.UUID)
+			if err != nil {
+				cc.SendMessage(tc.Translatable(mcdata.ArgumentPlayerUnknown))
+				return nil
+			}
+			return []ProfileTarget{{target.UUID, name}}
+		}
+		return []ProfileTarget{{target.UUID, "Unknown"}}
+	case mc.TargetTypePlayerName:
+		if s.Config.Security.OnlineMode {
+			u, realName, err := api.GetUserUUID(target.Name)
+			if err != nil {
+				cc.SendMessage(tc.Translatable(mcdata.ArgumentPlayerUnknown))
+				return nil
+			}
+			return []ProfileTarget{{u, realName}}
+		}
+		return []ProfileTarget{{api.OfflineUUID(target.Name), target.Name}}
+	case mc.TargetTypeSelector:
+		sourceUUID, sourcePos := commandSource(cc)
+		resolved := s.World.ResolvePlayers(target, sourceUUID, sourcePos)
+		out := make([]ProfileTarget, 0, len(resolved))
+		for _, p := range resolved {
+			out = append(out, ProfileTarget{uuid.UUID(p.UUID), p.Name})
+		}
+		return out
 	}
-	return tc.Text("no").SetColor(tc.ColorRed)
-}
-
-func buildTimeValue() string {
-	if BuildTime == "" {
-		return "unknown"
-	}
-	return BuildTime
-}
-
-func registerStop(s *server.Server) {
-	s.Commander.RegisterBuilders(func() {
-		Build("/stop").Requires(4).Executes(func(cc *CommandContext) (*CommandResult, error) {
-			logger.Component(logger.INFO, tc.Text("Stopping the server"))
-			s.Stop()
-
-			return &CommandResult{Success: 1, Result: 0}, nil
-		})
-	})
-}
-
-func registerVersion(s *server.Server) {
-	s.Commander.RegisterBuilders(func() {
-		Build("/version").Executes(func(cc *CommandContext) (*CommandResult, error) {
-			header := tc.Container(
-				tc.Text("McGoServ").SetColor(tc.ColorGreen).SetBold(true),
-				tc.Text(" — ").SetColor(tc.ColorDarkGray),
-				tc.Text("A Minecraft server written in Go").SetColor(tc.ColorGray).SetItalic(true),
-			)
-			link := tc.Container(
-				tc.Text(repoURL).
-					SetColor(tc.ColorAqua).SetUnderlined(true).
-					OpenURL(repoURL).
-					ShowText(tc.Text("Open repository on GitHub")),
-			)
-
-			cc.SendMessage(tc.Container(
-				tc.Text("\n"),
-				header,
-				tc.Text("\n"),
-				link,
-				tc.Text("\n\n"),
-				versionLine("version: ", mcdata.GameVersion),
-				tc.Text("\n"),
-				versionLine("protocol: ", fmt.Sprintf("%d (0x%X)", mcdata.ProtocolVersion, mcdata.ProtocolVersion)),
-				tc.Text("\n"),
-				seriesComponent(),
-				tc.Text("\n"),
-				versionLine("build_time: ", buildTimeValue()),
-				tc.Text("\n"),
-				tc.Container(
-					tc.Text("stable: ").SetColor(tc.ColorGold),
-					stableComponent(),
-				),
-				tc.Text("\n"),
-			))
-
-			return &CommandResult{Success: 1, Result: 0}, nil
-		})
-	})
+	return nil
 }

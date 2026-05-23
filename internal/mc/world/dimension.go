@@ -61,6 +61,7 @@ func (d *Dimension) tick() {
 
 }
 
+// todo: use a generator for world specific data
 var (
 	DefaultDimensionsType = map[string]DimensionType{
 		"minecraft:overworld": {
