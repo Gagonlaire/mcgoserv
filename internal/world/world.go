@@ -5,7 +5,6 @@ import (
 	"iter"
 	"math"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/google/uuid"
 )
@@ -43,15 +42,15 @@ func NewWorld() *World {
 		Dimensions: map[DimensionID]*Dimension{
 			"minecraft:overworld": {
 				Type:   DefaultDimensionsType["minecraft:overworld"],
-				Chunks: make(map[uint64]*mc.Chunk),
+				Chunks: make(map[uint64]*Chunk),
 			},
 			"minecraft:the_nether": {
 				Type:   DefaultDimensionsType["minecraft:the_nether"],
-				Chunks: make(map[uint64]*mc.Chunk),
+				Chunks: make(map[uint64]*Chunk),
 			},
 			"minecraft:the_end": {
 				Type:   DefaultDimensionsType["minecraft:the_end"],
-				Chunks: make(map[uint64]*mc.Chunk),
+				Chunks: make(map[uint64]*Chunk),
 			},
 		},
 		EntitiesByID:   make(map[EntityID]entity.Entity),

@@ -7,12 +7,12 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (c *Connection) HandleServerboundKnownPacks(knownPacks *proto.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]) {
@@ -126,7 +126,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 			pos := mc.ChunkPos{X: x, Z: z}
 			chunk := dimension.GetChunk(x, z)
 
-			_ = c.SendSync(c.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk))
+			_ = c.SendSync(c.NewPacket(packet.PlayClientboundLevelChunkWithLight, encoders.NewChunkData(chunk)))
 
 			chunk.Watchers[c.Player.EntityID] = struct{}{}
 			c.Player.Movement.VisibleChunks[pos] = struct{}{}

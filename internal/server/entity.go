@@ -2,10 +2,10 @@ package server
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (s *Server) SpawnEntity(entity entity.Entity) error {

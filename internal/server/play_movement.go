@@ -7,12 +7,12 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 const (
@@ -339,7 +339,7 @@ func (c *Connection) updateChunkView(force bool) {
 				continue
 			}
 			chunk := dim.GetChunk(x, z)
-			chunkPkt := c.NewPacket(packet.PlayClientboundLevelChunkWithLight, chunk)
+			chunkPkt := c.NewPacket(packet.PlayClientboundLevelChunkWithLight, encoders.NewChunkData(chunk))
 			c.Send(chunkPkt)
 			c.SendChunkEntities(chunk)
 			chunk.Watchers[selfID] = struct{}{}

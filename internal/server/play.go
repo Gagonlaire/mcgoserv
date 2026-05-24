@@ -15,6 +15,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (c *Connection) HandleKeepAlive(id *proto.Long) {
@@ -48,7 +49,7 @@ func (c *Connection) SendSpawnEntity(entity entity.Entity) {
 }
 
 // SendChunkEntities spawns every entity already present in the chunk for this connection, skipping self.
-func (c *Connection) SendChunkEntities(chunk *mc.Chunk) {
+func (c *Connection) SendChunkEntities(chunk *world.Chunk) {
 	selfID := c.Player.EntityID
 	for entityID := range chunk.Entities {
 		if entityID == selfID {
