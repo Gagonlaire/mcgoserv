@@ -3,8 +3,10 @@ package entity
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/container"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/layers"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
@@ -18,15 +20,15 @@ const (
 
 //meta:encode mode=entity parents=LivingEntity,AvatarData nbt=getters
 type Player struct {
-	Leash               struct{}            `nbt:"-"`
-	DropChances         struct{}            `nbt:"-"`
-	CustomName          struct{}            `nbt:"-"`
-	CustomNameVisible   struct{}            `nbt:"-"`
-	Glowing             struct{}            `nbt:"-"`
-	CanPickUpLoot       struct{}            `nbt:"-"`
-	LeftHanded          struct{}            `nbt:"-"`
-	PersistenceRequired struct{}            `nbt:"-"`
-	Inventory           *mc.PlayerInventory `nbt:"-"` // todo: implement inventories (containers)
+	Leash               struct{}                   `nbt:"-"`
+	DropChances         struct{}                   `nbt:"-"`
+	CustomName          struct{}                   `nbt:"-"`
+	CustomNameVisible   struct{}                   `nbt:"-"`
+	Glowing             struct{}                   `nbt:"-"`
+	CanPickUpLoot       struct{}                   `nbt:"-"`
+	LeftHanded          struct{}                   `nbt:"-"`
+	PersistenceRequired struct{}                   `nbt:"-"`
+	Inventory           *container.PlayerInventory `nbt:"-"` // todo: implement inventories nbt encoding/decoding
 	layers.AvatarData
 	Name              string               `nbt:"-"`
 	Dimension         string               // todo: should be a identifier (ex: minecraft:overworld)
@@ -35,17 +37,16 @@ type Player struct {
 	Information       mc.ClientInformation `nbt:"-"`
 	Movement          MovementTracker      `nbt:"-"`
 	LivingEntity
-	ChatSession                          mc.ChatSession                             `nbt:"-"`
-	CurrentExplosionImpactPos            [3]float64                                 `nbt:"current_explosion_impact_pos"`
-	EnteredNetherPos                     [3]float64                                 `nbt:"entered_nether_pos"`
-	PermissionLevel                      int                                        `nbt:"-"`
-	LeftShoulder                         mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"` // todo: create a nbt encode function
-	RightShoulder                        mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
-	FoodExhaustionLevel                  float32                                    `nbt:"foodExhaustionLevel"`
+	ChatSession                          mc.ChatSession                                      `nbt:"-"`
+	CurrentExplosionImpactPos            [3]float64                                          `nbt:"current_explosion_impact_pos"`
+	EnteredNetherPos                     [3]float64                                          `nbt:"entered_nether_pos"`
+	PermissionLevel                      int                                                 `nbt:"-"`
+	LeftShoulder                         proto.PrefixedOptional[proto.VarInt, *proto.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"` // todo: create a nbt encode function
+	RightShoulder                        proto.PrefixedOptional[proto.VarInt, *proto.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
+	FoodExhaustionLevel                  float32                                             `nbt:"foodExhaustionLevel"`
 	XpP                                  float32
 	FoodLevel                            int32 `nbt:"foodLevel"`
 	FoodTickTimer                        int32 `nbt:"foodTickTimer"`
-	SelectedItemSlot                     int32
 	DataVersion                          int32
 	XpLevel                              int32
 	XpSeed                               int32
@@ -94,7 +95,7 @@ func NewPlayer(
 			},
 			Health: 20.0,
 		},
-		Inventory:         mc.NewPlayerInventory(),
+		Inventory:         container.NewPlayerInventory(),
 		Name:              name,
 		Loaded:            false,
 		PermissionLevel:   permissionLevel,
@@ -104,7 +105,7 @@ func NewPlayer(
 	}
 	player.Movement.LastTickY = player.Position[1]
 	player.Movement.VisibleChunks = make(map[mc.ChunkPos]struct{})
-	player.Information.ViewDistance = mc.Byte(cfg.Performance.MaxViewDistance)
+	player.Information.ViewDistance = proto.Byte(cfg.Performance.MaxViewDistance)
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
 

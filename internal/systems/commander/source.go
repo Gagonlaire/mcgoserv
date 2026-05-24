@@ -3,8 +3,8 @@ package commander
 import (
 	"context"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type EntityAnchor uint8
@@ -23,7 +23,7 @@ type CommandSource struct {
 	Entity          entity.Entity
 	SendMessage     func(msg any)
 	ResultConsumer  ResultConsumer
-	Dimension       mc.Identifier
+	Dimension       proto.Identifier
 	Position        [3]float64
 	Rotation        [2]float32
 	PermissionLevel int
@@ -81,7 +81,7 @@ func (s *CommandSource) WithAnchor(a EntityAnchor) *CommandSource {
 	return &cp
 }
 
-func (s *CommandSource) WithDimension(d mc.Identifier) *CommandSource {
+func (s *CommandSource) WithDimension(d proto.Identifier) *CommandSource {
 	cp := *s
 	cp.Dimension = d
 	return &cp

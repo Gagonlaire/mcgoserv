@@ -2,10 +2,10 @@ package server
 
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
 
@@ -47,15 +47,15 @@ func (s *Server) killPlayer(player *entity.Player, killer entity.Entity, cause t
 
 	healthPkt := c.NewPacket(
 		packet.PlayClientboundSetHealth,
-		mc.Float(0),
-		mc.VarInt(player.FoodLevel),
-		mc.Float(player.FoodSaturationLevel),
+		proto.Float(0),
+		proto.VarInt(player.FoodLevel),
+		proto.Float(player.FoodSaturationLevel),
 	)
 	c.Send(healthPkt)
 
 	combatPkt := c.NewPacket(
 		packet.PlayClientboundPlayerCombatKill,
-		mc.VarInt(player.EntityID),
+		proto.VarInt(player.EntityID),
 		cause,
 	)
 	c.Send(combatPkt)
@@ -97,8 +97,8 @@ func (s *Server) Respawn(player *entity.Player) {
 		DimensionType:    0,
 		DimensionName:    "overworld",
 		HashedSeed:       1,
-		GameMode:         mc.UnsignedByte(player.GameMode),
-		PreviousGameMode: mc.Byte(player.PreviousGameMode),
+		GameMode:         proto.UnsignedByte(player.GameMode),
+		PreviousGameMode: proto.Byte(player.PreviousGameMode),
 		IsDebug:          false,
 		IsFlat:           false,
 		HasDeathLocation: false,
@@ -110,16 +110,16 @@ func (s *Server) Respawn(player *entity.Player) {
 
 	healthPkt := c.NewPacket(
 		packet.PlayClientboundSetHealth,
-		mc.Float(20),
-		mc.VarInt(player.FoodLevel),
-		mc.Float(player.FoodSaturationLevel),
+		proto.Float(20),
+		proto.VarInt(player.FoodLevel),
+		proto.Float(player.FoodSaturationLevel),
 	)
 	_ = c.SendSync(healthPkt)
 
 	chunkWaitPkt := c.NewPacket(
 		packet.PlayClientboundGameEvent,
-		mc.UnsignedByte(13),
-		mc.Float(0.0),
+		proto.UnsignedByte(13),
+		proto.Float(0.0),
 	)
 	_ = c.SendSync(chunkWaitPkt)
 
@@ -132,8 +132,8 @@ func (s *Server) Respawn(player *entity.Player) {
 func (s *Server) broadcastEntityStatus(e entity.Entity, status byte) {
 	pkt, err := packet.NewPacket(
 		packet.PlayClientboundEntityEvent,
-		mc.Int(e.GetID()),
-		mc.Byte(status),
+		proto.Int(e.GetID()),
+		proto.Byte(status),
 	)
 	if err != nil {
 		return

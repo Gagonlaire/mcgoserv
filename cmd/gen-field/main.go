@@ -1,6 +1,9 @@
 // gen-field generates ReadFrom(io.Reader) and/or WriteTo(io.Writer) methods
 //
-// Usage: go run ./cmd/gen-field <directory>
+// Usage: invoke from a //go:generate directive in any source file of the
+// target package:
+//
+//	//go:generate go run <path>/cmd/gen-field
 //
 // Directive (placed above a struct):
 //
@@ -45,12 +48,12 @@ type StructData struct {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: gen-field <directory>\n")
+	if os.Getenv("GOFILE") == "" {
+		fmt.Fprintf(os.Stderr, "gen-field: GOFILE not set; invoke via //go:generate\n")
 		os.Exit(1)
 	}
-	dir := os.Args[1]
 
+	dir := "."
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), "_gen.go")
@@ -62,7 +65,6 @@ func main() {
 
 	var pkgName string
 	var structs []StructData
-
 	for _, pkg := range pkgs {
 		pkgName = pkg.Name
 		for _, file := range pkg.Files {
@@ -70,11 +72,13 @@ func main() {
 		}
 	}
 
+	outPath := filepath.Join(dir, "field_gen.go")
+
 	if len(structs) == 0 {
+		_ = os.Remove(outPath)
 		return
 	}
 
-	outPath := filepath.Join(dir, "field_gen.go")
 	out, err := os.Create(outPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create output: %v\n", err)

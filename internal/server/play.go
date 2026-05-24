@@ -12,11 +12,13 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
-func (c *Connection) HandleKeepAlive(id *mc.Long) {
+func (c *Connection) HandleKeepAlive(id *proto.Long) {
 	if !c.acceptKeepAlive(int64(*id)) {
 		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectInvalidPacket))
 	}
@@ -47,7 +49,7 @@ func (c *Connection) SendSpawnEntity(entity entity.Entity) {
 }
 
 // SendChunkEntities spawns every entity already present in the chunk for this connection, skipping self.
-func (c *Connection) SendChunkEntities(chunk *mc.Chunk) {
+func (c *Connection) SendChunkEntities(chunk *world.Chunk) {
 	selfID := c.Player.EntityID
 	for entityID := range chunk.Entities {
 		if entityID == selfID {
@@ -74,11 +76,11 @@ func (c *Connection) SendKeepAlive() {
 	c.LastKeepAliveID = now.UnixMilli()
 	c.LastKeepAliveSent = now
 	c.KeepAlivePending = true
-	pkt := c.NewPacket(packetId, mc.Long(c.LastKeepAliveID))
+	pkt := c.NewPacket(packetId, proto.Long(c.LastKeepAliveID))
 	c.Send(pkt)
 }
 
-func (c *Connection) HandlePlayerInput(flags *mc.UnsignedByte) {
+func (c *Connection) HandlePlayerInput(flags *proto.UnsignedByte) {
 	c.Player.Input = byte(*flags)
 
 	// NOTE mainly used for vehicle control
@@ -96,7 +98,7 @@ func (c *Connection) HandlePlayerLoaded(_ *packet.InboundPacket) {
 	c.Player.Loaded = true
 }
 
-func (c *Connection) HandleClientCommand(action *mc.VarInt) {
+func (c *Connection) HandleClientCommand(action *proto.VarInt) {
 	switch *action {
 	case 0:
 		c.Server.Respawn(c.Player)
@@ -113,7 +115,7 @@ func (c *Connection) HandlePlayerCommand(data *decoders.PlayerCommand) {
 	c.Server.World.EnqueueDirty(c.Player)
 }
 
-func (c *Connection) HandleSwingArm(hand *mc.VarInt) {
+func (c *Connection) HandleSwingArm(hand *proto.VarInt) {
 	var animationID int
 
 	if *hand == 0 {
@@ -127,7 +129,7 @@ func (c *Connection) HandleSwingArm(hand *mc.VarInt) {
 
 func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 	switch data.Status {
-	case mc.VarInt(mc.ActionStartDigging):
+	case proto.VarInt(mc.ActionStartDigging):
 		if c.Player.GameMode == 1 {
 			dim := c.Server.World.GetEntityDimension(c.Player)
 			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
@@ -136,23 +138,23 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 			pkt := c.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				data.Location,
-				mc.VarInt(0),
+				proto.VarInt(0),
 			)
 			eventPkt := c.NewPacket(
 				packet.PlayClientboundLevelEvent,
-				mc.Int(2001),
+				proto.Int(2001),
 				data.Location,
-				mc.Int(blockState),
-				mc.Boolean(false),
+				proto.Int(blockState),
+				proto.Boolean(false),
 			)
 			c.Server.BroadcastOthers(c, eventPkt)
 			c.Server.BroadcastAll(pkt)
 		}
-	case mc.VarInt(mc.ActionFinishDigging):
+	case proto.VarInt(mc.ActionFinishDigging):
 		pkt := c.NewPacket(
 			packet.PlayClientboundBlockUpdate,
 			data.Location,
-			mc.VarInt(0),
+			proto.VarInt(0),
 		)
 		c.Server.BroadcastAll(pkt)
 	}
@@ -164,23 +166,22 @@ func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
 func (c *Connection) AnimateEntity(animationID int) {
 	pkt := c.NewPacket(
 		packet.PlayClientboundAnimate,
-		mc.VarInt(c.Player.EntityID),
-		mc.UnsignedByte(animationID),
+		proto.VarInt(c.Player.EntityID),
+		proto.UnsignedByte(animationID),
 	)
 	c.Server.BroadcastViewers(c, pkt)
 }
 
-func (c *Connection) HandleSetHeldItem(slot *mc.Short) {
-	c.Player.SelectedItemSlot = int32(*slot)
-	inventoryId := mc.HotbarToInternal(int(*slot))
-	item := c.Player.Inventory.Get(inventoryId)
-	if item.Count > 0 {
+func (c *Connection) HandleSetHeldItem(slot *proto.Short) {
+	c.Player.Inventory.SelectedHotbar = int32(*slot)
+	held := c.Player.Inventory.Held()
+	if held.Count > 0 {
 		pkt := c.NewPacket(
 			packet.PlayClientboundSetEquipment,
-			mc.VarInt(c.Player.EntityID),
+			proto.VarInt(c.Player.EntityID),
 			// todo: check item slot to know if main or off hand
-			mc.UnsignedByte(0),
-			&item,
+			proto.UnsignedByte(0),
+			&held,
 		)
 		c.Server.BroadcastViewers(c, pkt)
 	}
@@ -206,8 +207,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 		data.Location.X++
 	}
 
-	var slotId = mc.HotbarToInternal(int(c.Player.SelectedItemSlot))
-	var slotData = c.Player.Inventory.Get(slotId)
+	slotData := c.Player.Inventory.Held()
 
 	if slotData.Count > 0 {
 		itemID, ok := item.FromID(int(slotData.ItemID))
@@ -220,26 +220,27 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 			pkt := c.NewPacket(
 				packet.PlayClientboundBlockUpdate,
 				data.Location,
-				mc.VarInt(blockID.DefaultStateID()),
+				proto.VarInt(blockID.DefaultStateID()),
 			)
 			c.Server.BroadcastAll(pkt)
 
-			// todo: fix to handle sound groups
 			// todo: check if faster rand exist
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			// todo: sounds weird, tweak values
 			pitch := 0.5 + r.Float64()*(2-0.5)
-			if soundId, ok := blockID.Sounds()["place"]; ok {
+			// todo: verify vanilla behavior when a block has no place sound
+			if soundID, ok := blockID.SoundGroup().Place(); ok {
+				// TODO(packet): check vanilla behavior
 				soundPkt := c.NewPacket(
 					packet.PlayClientboundSound,
-					mc.VarInt(soundId+1),
-					mc.VarInt(4),
-					mc.Int(data.Location.X*8),
-					mc.Int(data.Location.Y*8),
-					mc.Int(data.Location.Z*8),
-					mc.Float(1),
-					mc.Float(pitch),
-					mc.Long(0),
+					proto.VarInt(int(soundID)+1),
+					proto.VarInt(4),
+					proto.Int(data.Location.X*8),
+					proto.Int(data.Location.Y*8),
+					proto.Int(data.Location.Z*8),
+					proto.Float(1),
+					proto.Float(pitch),
+					proto.Long(0),
 				)
 				c.Server.BroadcastOthers(c, soundPkt)
 			}
@@ -255,11 +256,11 @@ func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entity.
 	if err != nil {
 		return nil, err
 	}
-	playerCount := mc.VarInt(len(players))
+	playerCount := proto.VarInt(len(players))
 
-	_ = pkt.Encode(mc.UnsignedByte(actions), playerCount)
+	_ = pkt.Encode(proto.UnsignedByte(actions), playerCount)
 	for _, player := range players {
-		_ = pkt.Encode(mc.UUID(player.UUID))
+		_ = pkt.Encode(proto.UUID(player.UUID))
 
 		for bit := 0; bit < 8; bit++ {
 			currentAction := mc.PlayerListAction(1 << bit)
@@ -267,22 +268,22 @@ func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entity.
 			if actions&currentAction != 0 {
 				switch currentAction {
 				case mc.ListActionAddPlayer:
-					_ = pkt.Encode(mc.String(player.Name), mc.VarInt(len(player.ProfileProperties)))
+					_ = pkt.Encode(proto.String(player.Name), proto.VarInt(len(player.ProfileProperties)))
 					for _, prop := range player.ProfileProperties {
 						_ = pkt.Encode(prop)
 					}
 				case mc.ListActionInitializeChat:
-					_ = pkt.Encode(mc.Boolean(player.ChatSession.Signed))
+					_ = pkt.Encode(proto.Boolean(player.ChatSession.Signed))
 					if player.ChatSession.Signed {
 						pubKeyBytes, err := x509.MarshalPKIXPublicKey(player.ChatSession.PublicKey)
 						if err != nil {
 							pubKeyBytes = []byte{}
 						}
-						pArrayPublicKey := mc.NewPrefixedByteArray(pubKeyBytes)
-						pArraySignature := mc.NewPrefixedByteArray(player.ChatSession.KeySignature)
+						pArrayPublicKey := proto.NewPrefixedByteArray(pubKeyBytes)
+						pArraySignature := proto.NewPrefixedByteArray(player.ChatSession.KeySignature)
 						_ = pkt.Encode(
-							mc.UUID(player.ChatSession.ID),
-							mc.Long(player.ChatSession.ExpiresAt),
+							proto.UUID(player.ChatSession.ID),
+							proto.Long(player.ChatSession.ExpiresAt),
 							pArrayPublicKey,
 							pArraySignature,
 						)

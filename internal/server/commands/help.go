@@ -14,7 +14,7 @@ import (
 func registerHelp(s *server.Server) {
 	s.Commander.RegisterBuilders(func() {
 		Build("/help [<command>]", parsers.String.Behavior(parsers.GreedyPhrase)).
-			Aliases("?").ExecutesEach(helpAll(s), helpFor(s))
+			ExecutesEach(helpAll(s), helpFor(s))
 	})
 }
 

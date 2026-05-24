@@ -1,11 +1,11 @@
 package server
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
 func (s *Server) SpawnEntity(entity entity.Entity) error {
@@ -43,7 +43,7 @@ func (s *Server) broadcastSpawn(entity entity.Entity) {
 }
 
 func (s *Server) broadcastDespawn(entity entity.Entity) {
-	pkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(entity.GetID()))
+	pkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, proto.VarInt(1), proto.VarInt(entity.GetID()))
 	if err != nil {
 		return
 	}

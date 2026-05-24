@@ -18,6 +18,7 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/google/uuid"
@@ -43,9 +44,9 @@ func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRe
 		resp := c.NewPacket(
 			packet.PlayClientboundCommandSuggestions,
 			data.TransactionID,
-			mc.VarInt(0),
-			mc.VarInt(0),
-			mc.VarInt(0),
+			proto.VarInt(0),
+			proto.VarInt(0),
+			proto.VarInt(0),
 		)
 		c.Send(resp)
 		return
@@ -56,13 +57,13 @@ func (c *Connection) HandleCommandSuggestion(data *decoders.CommandSuggestionsRe
 	resp := c.NewPacket(
 		packet.PlayClientboundCommandSuggestions,
 		data.TransactionID,
-		mc.VarInt(startIndex),
-		mc.VarInt(ctx.Length),
-		mc.VarInt(len(entries)),
+		proto.VarInt(startIndex),
+		proto.VarInt(ctx.Length),
+		proto.VarInt(len(entries)),
 	)
 	if resp != nil {
 		for _, entry := range entries {
-			_ = resp.Encode(mc.String(entry.Text), mc.Boolean(entry.Tooltip != nil))
+			_ = resp.Encode(proto.String(entry.Text), proto.Boolean(entry.Tooltip != nil))
 			if entry.Tooltip != nil {
 				_ = resp.Encode(entry.Tooltip)
 			}
@@ -120,7 +121,7 @@ func (c *Connection) HandlePlayerSession(data *decoders.PlayerSession) {
 	c.Server.BroadcastAll(pkt)
 }
 
-func (c *Connection) HandleChatCommand(command *mc.String) {
+func (c *Connection) HandleChatCommand(command *proto.String) {
 	// todo: commands should maybe ran in a separate routine
 	src := c.playerSource()
 	_, err := c.Server.Commander.ExecuteInput(
@@ -212,7 +213,7 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 			unsignedErrorPkt := c.NewPacket(
 				packet.PlayClientboundSystemChat,
 				tc.Text("The server refused to deliver an unsigned message. You can enable chat signing by changing your signing mode or through a prompt screen").SetColor(tc.ColorRed),
-				mc.Boolean(false),
+				proto.Boolean(false),
 			)
 			c.Send(unsignedErrorPkt)
 			return
@@ -248,25 +249,25 @@ func (c *Connection) HandleChatMessage(data *decoders.ChatMessage) {
 
 // SendSignedMessage todo: change chat type to accept inline def
 func (c *Connection) SendSignedMessage(target *Connection, message string, unsignedMessage mc.Optional[tc.Component], signature []byte, signed *commander.SignedData, chatType int32) {
-	var sig mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
+	var sig proto.PrefixedOptional[proto.ByteArray, *proto.ByteArray]
 	isSigned := len(signature) > 0
 	if isSigned {
-		sigArray := mc.NewByteArray(256)
+		sigArray := proto.NewByteArray(256)
 		sigArray.Data = signature
-		sig = mc.NewPrefixedOptional[mc.ByteArray, *mc.ByteArray](sigArray)
+		sig = proto.NewPrefixedOptional[proto.ByteArray, *proto.ByteArray](sigArray)
 	}
 
 	sendSignedChatPacket(
 		c, target,
-		mc.String256(message),
+		proto.String256(message),
 		unsignedMessage,
-		mc.Long(signed.Timestamp), mc.Long(signed.Salt),
+		proto.Long(signed.Timestamp), proto.Long(signed.Salt),
 		sig, signature, signed.LastSeenSignatures,
 		isSigned, chatType,
 	)
 }
 
-func advanceSession(session *mc.ChatSession, acknowledged *mc.FixedBitSet) [][]byte {
+func advanceSession(session *mc.ChatSession, acknowledged *proto.FixedBitSet) [][]byte {
 	session.LastSeenCount = 0
 	session.Index++
 	return getLastSeenSignatures(session, acknowledged)
@@ -290,10 +291,10 @@ func validateSessionTiming(session *mc.ChatSession, timestampMillis int64) mcdat
 func sendSignedChatPacket(
 	sender *Connection,
 	target *Connection,
-	message mc.String256,
+	message proto.String256,
 	unsignedMessage mc.Optional[tc.Component],
-	timestamp, salt mc.Long,
-	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
+	timestamp, salt proto.Long,
+	signature proto.PrefixedOptional[proto.ByteArray, *proto.ByteArray],
 	signatureBytes []byte,
 	lastSeenSignatures [][]byte,
 	isSigned bool,
@@ -304,9 +305,9 @@ func sendSignedChatPacket(
 	targetSession.GlobalIndex++
 	outPkt := sender.NewPacket(
 		packet.PlayClientboundPlayerChat,
-		mc.VarInt(globalIndex),
-		mc.UUID(sender.Player.UUID),
-		mc.VarInt(sender.Player.ChatSession.Index),
+		proto.VarInt(globalIndex),
+		proto.UUID(sender.Player.UUID),
+		proto.VarInt(sender.Player.ChatSession.Index),
 		signature,
 		message,
 		timestamp,
@@ -321,7 +322,7 @@ func sendSignedChatPacket(
 		pm := &targetSession.PreviousMessages
 		messageID := int32(pm.Len())
 
-		_ = outPkt.Encode(mc.VarInt(len(lastSeenSignatures)))
+		_ = outPkt.Encode(proto.VarInt(len(lastSeenSignatures)))
 		for _, sig := range lastSeenSignatures {
 			clientMessageID := int32(-1)
 			for j := 0; j < pm.Len(); j++ {
@@ -331,9 +332,9 @@ func sendSignedChatPacket(
 				}
 			}
 
-			_ = outPkt.Encode(mc.VarInt(clientMessageID + 1))
+			_ = outPkt.Encode(proto.VarInt(clientMessageID + 1))
 			if clientMessageID == -1 {
-				bArray := mc.ByteArray{Data: sig[:256]}
+				bArray := proto.ByteArray{Data: sig[:256]}
 				_ = outPkt.Encode(bArray)
 			}
 		}
@@ -350,27 +351,27 @@ func sendSignedChatPacket(
 			pm.Add(mc.PreviousMessage{MessageID: messageID, Signature: signatureBytes})
 		}
 	} else {
-		_ = outPkt.Encode(mc.VarInt(0))
+		_ = outPkt.Encode(proto.VarInt(0))
 	}
 	// Unsigned Content is sent when you want to have a styled message <-- todo: verify that
 	// todo: use Prefixed optional for the target, as this is not used every time
 	// todo: implement better chat type handling, with inline support
 	// todo: chat type should be IDOrX (inline support)
 	if unsignedMessage.Present {
-		_ = outPkt.Encode(mc.Boolean(true), unsignedMessage.Value)
+		_ = outPkt.Encode(proto.Boolean(true), unsignedMessage.Value)
 	} else {
-		_ = outPkt.Encode(mc.Boolean(false))
+		_ = outPkt.Encode(proto.Boolean(false))
 	}
-	_ = outPkt.Encode(mc.VarInt(0), mc.VarInt(chatType), tc.PlayerName(sender.Player.Name), mc.Boolean(true), tc.PlayerName(target.Player.Name))
+	_ = outPkt.Encode(proto.VarInt(0), proto.VarInt(chatType), tc.PlayerName(sender.Player.Name), proto.Boolean(true), tc.PlayerName(target.Player.Name))
 	target.Send(outPkt)
 }
 
 func broadcastChatMessage(
 	sender *Connection,
-	message mc.String256,
+	message proto.String256,
 	unsignedMessage mc.Optional[tc.Component],
-	timestamp, salt mc.Long,
-	signature mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray],
+	timestamp, salt proto.Long,
+	signature proto.PrefixedOptional[proto.ByteArray, *proto.ByteArray],
 	signatureBytes []byte,
 	lastSeenSignatures [][]byte,
 	isSigned bool,
@@ -385,7 +386,7 @@ func broadcastChatMessage(
 	})
 }
 
-func getLastSeenSignatures(session *mc.ChatSession, acknowledged *mc.FixedBitSet) [][]byte {
+func getLastSeenSignatures(session *mc.ChatSession, acknowledged *proto.FixedBitSet) [][]byte {
 	lastSeenSigs := make([][]byte, 0, 20)
 	n := session.PreviousMessages.Len()
 	for j := n - 1; j >= 0; j-- {
@@ -397,13 +398,13 @@ func getLastSeenSignatures(session *mc.ChatSession, acknowledged *mc.FixedBitSet
 	return lastSeenSigs
 }
 
-func computeLastSeenChecksum(signatures [][]byte) mc.Byte {
+func computeLastSeenChecksum(signatures [][]byte) proto.Byte {
 	var result int32 = 1
 	for _, sig := range signatures {
 		sigChecksum := arrayHash(sig)
 		result = 31*result + sigChecksum
 	}
-	checksum := mc.Byte(byte(result))
+	checksum := proto.Byte(byte(result))
 	if checksum == 0 {
 		return 1
 	}
@@ -474,7 +475,7 @@ func (c *Connection) playerSource() *commander.CommandSource {
 		Rotation:        c.Player.Rotation,
 		SendMessage: func(msg any) {
 			if comp, ok := msg.(tc.Component); ok {
-				pkt := c.NewPacket(packet.PlayClientboundSystemChat, comp, mc.Boolean(false))
+				pkt := c.NewPacket(packet.PlayClientboundSystemChat, comp, proto.Boolean(false))
 				c.Send(pkt)
 			}
 		},

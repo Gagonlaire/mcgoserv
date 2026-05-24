@@ -1,14 +1,10 @@
 package world
 
-import (
-	"fmt"
-
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
-)
+import "fmt"
 
 type Dimension struct {
 	World  *World
-	Chunks map[uint64]*mc.Chunk
+	Chunks map[uint64]*Chunk
 	Type   DimensionType
 }
 
@@ -22,13 +18,13 @@ type DimensionType struct {
 	HasFixedTime    bool
 }
 
-func (d *Dimension) GetChunk(x, z int) *mc.Chunk {
+func (d *Dimension) GetChunk(x, z int) *Chunk {
 	key := (uint64(x) << 32) | (uint64(z) & 0xFFFFFFFF)
 	if chunk, ok := d.Chunks[key]; ok {
 		return chunk
 	}
 
-	chunk := mc.CreateChunk(x, z)
+	chunk := generatePlaceholderChunk(x, z, d.Type.MinY, d.Type.Height)
 	d.Chunks[key] = chunk
 	return chunk
 }
@@ -42,7 +38,7 @@ func (d *Dimension) GetBlock(x, y, z int) (int32, error) {
 	chunkZ := z >> 4
 	chunk := d.GetChunk(chunkX, chunkZ)
 
-	return chunk.GetBlock(x&15, y, z&15, d.Type.MinY)
+	return chunk.GetBlock(x&15, y, z&15)
 }
 
 func (d *Dimension) SetBlock(x, y, z int, blockState int32) error {
@@ -54,14 +50,24 @@ func (d *Dimension) SetBlock(x, y, z int, blockState int32) error {
 	chunkZ := z >> 4
 	chunk := d.GetChunk(chunkX, chunkZ)
 
-	return chunk.SetBlock(x&15, y, z&15, d.Type.MinY, blockState)
+	return chunk.SetBlock(x&15, y, z&15, blockState)
 }
 
-func (d *Dimension) tick() {
+func (d *Dimension) tick() {}
 
+// TODO: replace with real world generation.
+// TODO: remove one section to match vanilla sea height
+func generatePlaceholderChunk(x, z, minY, height int) *Chunk {
+	numSections := height >> 4
+	chunk := NewChunk(x, z, numSections, minY)
+	const placeholderState = 9
+	for i := 0; i < 9 && i < numSections; i++ {
+		chunk.Fill(i, placeholderState)
+	}
+	return chunk
 }
 
-// todo: use a generator for world specific data
+// DefaultDimensionsType todo: use a generator for world specific data
 var (
 	DefaultDimensionsType = map[string]DimensionType{
 		"minecraft:overworld": {

@@ -1,6 +1,9 @@
 package block
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/mc/sound"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type ID uint16
 
@@ -72,8 +75,8 @@ func (id ID) States() []StateProperty {
 	return registry[id].States
 }
 
-func (id ID) Sounds() map[string]int {
-	return registry[id].Sounds
+func (id ID) SoundGroup() sound.Group {
+	return registry[id].SoundGroup
 }
 
 func (id ID) Raw() Properties {
@@ -108,8 +111,8 @@ type registryImpl struct{}
 // Registry exposes the block registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "block" }
+func (registryImpl) WireName() proto.Identifier { return "block" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

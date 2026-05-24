@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
-	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
+	"github.com/Gagonlaire/mcgoserv/internal/world"
 	"github.com/google/uuid"
 )
 

@@ -3,14 +3,14 @@ package parsers
 import (
 	"io"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
 // ResourceSelector todo: replace Pattern with a parsed selector when wildcard implemented
 type ResourceSelector struct {
-	Registry mc.Identifier
-	Pattern  mc.Identifier
+	Registry proto.Identifier
+	Pattern  proto.Identifier
 }
 
 type ResourceSelectorType struct {

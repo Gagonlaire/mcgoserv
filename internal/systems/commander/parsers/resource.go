@@ -3,9 +3,9 @@ package parsers
 import (
 	"io"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -37,5 +37,5 @@ func (t ResourceType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (t ResourceType) WriteTo(w io.Writer) (int64, error) {
-	return mc.Identifier(t.registry.WireName()).WriteTo(w)
+	return proto.Identifier(t.registry.WireName()).WriteTo(w)
 }

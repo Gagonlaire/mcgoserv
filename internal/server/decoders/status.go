@@ -1,12 +1,12 @@
 package decoders
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
-func DecodePing(pkt *packet.InboundPacket) (*mc.Long, error) {
-	var timestamp mc.Long
+func DecodePing(pkt *packet.InboundPacket) (*proto.Long, error) {
+	var timestamp proto.Long
 	if err := pkt.Decode(&timestamp); err != nil {
 		return nil, err
 	}

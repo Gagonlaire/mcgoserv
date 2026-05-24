@@ -3,9 +3,9 @@ package server
 import (
 	"encoding/json"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/google/uuid"
 )
 
@@ -57,11 +57,11 @@ func (c *Connection) HandleStatusRequest(_ *packet.InboundPacket) {
 	data.EnforceSecureChat = false
 	jsonData, _ := json.Marshal(data)
 
-	pkt := c.NewPacket(packet.StatusClientboundStatusResponse, mc.String(jsonData))
+	pkt := c.NewPacket(packet.StatusClientboundStatusResponse, proto.String(jsonData))
 	c.SendSync(pkt)
 }
 
-func (c *Connection) HandlePing(timestamp *mc.Long) {
+func (c *Connection) HandlePing(timestamp *proto.Long) {
 	pkt := c.NewPacket(packet.StatusClientboundPongResponse, timestamp)
 	c.SendSync(pkt)
 	c.close()

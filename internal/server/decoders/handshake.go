@@ -1,20 +1,20 @@
 package decoders
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type Handshake struct {
-	ServerAddress   mc.BoundedString
-	ProtocolVersion mc.VarInt
-	Intent          mc.VarInt
-	ServerPort      mc.UnsignedShort
+	ServerAddress   proto.BoundedString
+	ProtocolVersion proto.VarInt
+	Intent          proto.VarInt
+	ServerPort      proto.UnsignedShort
 }
 
 func DecodeHandshake(pkt *packet.InboundPacket) (*Handshake, error) {
 	data := &Handshake{
-		ServerAddress: mc.BoundedString{MaxLength: 255},
+		ServerAddress: proto.BoundedString{MaxLength: 255},
 	}
 
 	if err := pkt.Decode(&data.ProtocolVersion, &data.ServerAddress, &data.ServerPort, &data.Intent); err != nil {

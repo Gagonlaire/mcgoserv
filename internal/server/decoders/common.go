@@ -1,12 +1,12 @@
 package decoders
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
-func DecodeKeepAlive(pkt *packet.InboundPacket) (*mc.Long, error) {
-	var id mc.Long
+func DecodeKeepAlive(pkt *packet.InboundPacket) (*proto.Long, error) {
+	var id proto.Long
 	if err := pkt.Decode(&id); err != nil {
 		return nil, err
 	}

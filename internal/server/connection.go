@@ -11,10 +11,12 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/container"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type QueuedPacket struct {
@@ -24,14 +26,20 @@ type QueuedPacket struct {
 }
 
 type Connection struct {
-	Conn                 net.Conn
-	ctx                  context.Context
-	ContextData          map[string]interface{}
-	Player               *entity.Player
-	Server               *Server
-	InboundPackets       chan QueuedPacket
-	OutboundPackets      chan *packet.OutboundPacket
-	cancel               context.CancelFunc
+	Conn            net.Conn
+	ctx             context.Context
+	ContextData     map[string]interface{}
+	Player          *entity.Player
+	Server          *Server
+	InboundPackets  chan QueuedPacket
+	OutboundPackets chan *packet.OutboundPacket
+	cancel          context.CancelFunc
+	// Cursor is the drag-in-flight item stack, transient per-window UI state.
+	// TODO: wire ClickContainer handler to mutate Cursor on click/drag.
+	// TODO: on CloseContainer (client or server initiated), drop Cursor into the world as an item entity, then zero it.
+	// TODO: on disconnect (close()), drop Cursor into the world as an item entity before connection teardown.
+	// TODO: on window open, defensively zero Cursor to prevent leakage between containers.
+	Cursor               container.Slot
 	State                mc.State
 	CompressionThreshold int
 	LastKeepAliveID      int64
@@ -198,9 +206,9 @@ func (c *Connection) Disconnect(reason tc.Component) {
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt = c.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.LoginClientboundLoginDisconnect, proto.String(reason.ToJSON()))
 	case mc.StateConfiguration:
-		pkt = c.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.ConfigurationClientboundDisconnect, proto.String(reason.ToJSON()))
 	case mc.StatePlay:
 		pkt = c.NewPacket(packet.PlayClientboundDisconnect, reason)
 	default:
@@ -221,12 +229,12 @@ func (c *Connection) close() {
 		if c.Player != nil {
 			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
 			c.Server.ConnectionsByEID.Delete(c.Player.EntityID)
-			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
+			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, proto.VarInt(1), proto.UUID(c.Player.UUID))
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
 				tc.PlayerName(c.Player.Name),
 			).SetColor(tc.ColorYellow)
-			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
+			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, proto.Boolean(false))
 
 			c.Server.BroadcastOthers(c, infoRemove)
 			c.Server.BroadcastOthers(c, systemChat)

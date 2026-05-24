@@ -1,6 +1,8 @@
 package sound
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type ID uint16
 
@@ -29,8 +31,8 @@ type registryImpl struct{}
 // Registry exposes the sound-event registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "sound_event" }
+func (registryImpl) WireName() proto.Identifier { return "sound_event" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

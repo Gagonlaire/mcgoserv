@@ -10,6 +10,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/nbtpath"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Tnze/go-mc/nbt"
 	"github.com/google/uuid"
@@ -124,7 +125,7 @@ func (e EntityType) WriteTo(w io.Writer) (int64, error) {
 	if e.playersOnly {
 		flags |= EntityTargetFlagPlayersOnly
 	}
-	return mc.Byte(flags).WriteTo(w)
+	return proto.Byte(flags).WriteTo(w)
 }
 
 func (e EntityType) Single(v bool) EntityType {
@@ -452,7 +453,7 @@ func parseSelectorType(r *commander.CommandReader, sel *mc.Selector, keyStart in
 
 	valueStart := r.Cursor()
 	raw := readOptionValue(r)
-	id, err := mc.ParseIdentifier(raw)
+	id, err := proto.ParseIdentifier(raw)
 	if err != nil {
 		return commander.NewParsingErrorAt(
 			r,

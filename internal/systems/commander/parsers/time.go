@@ -5,9 +5,9 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -69,5 +69,5 @@ func (t TimeType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (t TimeType) WriteTo(w io.Writer) (int64, error) {
-	return mc.Int(t.min).WriteTo(w)
+	return proto.Int(t.min).WriteTo(w)
 }

@@ -3,10 +3,11 @@ package decoders
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
-func DecodeServerboundKnownPacks(pkt *packet.InboundPacket) (*mc.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier], error) {
-	var knownPacks mc.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]
+func DecodeServerboundKnownPacks(pkt *packet.InboundPacket) (*proto.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier], error) {
+	var knownPacks proto.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]
 	if err := pkt.Decode(&knownPacks); err != nil {
 		return nil, err
 	}

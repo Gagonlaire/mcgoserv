@@ -1,6 +1,8 @@
 package attribute
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type Instance struct {
 	modifiers   []Modifier
@@ -36,7 +38,7 @@ func (i *Instance) Reset() {
 	i.SetBase(i.DefaultBase)
 }
 
-func (i *Instance) indexOfModifier(id mc.Identifier) int {
+func (i *Instance) indexOfModifier(id proto.Identifier) int {
 	for idx := range i.modifiers {
 		if i.modifiers[idx].ID == id {
 			return idx
@@ -54,7 +56,7 @@ func (i *Instance) AddModifier(m Modifier) bool {
 	return true
 }
 
-func (i *Instance) RemoveModifier(id mc.Identifier) bool {
+func (i *Instance) RemoveModifier(id proto.Identifier) bool {
 	idx := i.indexOfModifier(id)
 	if idx < 0 {
 		return false
@@ -68,7 +70,7 @@ func (i *Instance) RemoveModifier(id mc.Identifier) bool {
 }
 
 // Modifier returns the modifier with the given ID, if present.
-func (i *Instance) Modifier(id mc.Identifier) (Modifier, bool) {
+func (i *Instance) Modifier(id proto.Identifier) (Modifier, bool) {
 	if idx := i.indexOfModifier(id); idx >= 0 {
 		return i.modifiers[idx], true
 	}
