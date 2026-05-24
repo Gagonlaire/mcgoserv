@@ -29,6 +29,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/player-registry"
@@ -350,7 +351,7 @@ func updateTime(s *Server) {
 	}
 
 	if s.World.Time >= s.World.NextTimeUpdate {
-		timePacket, err := packet.NewPacket(packet.PlayClientboundSetTime, mc.Long(s.World.Time), mc.Long(s.World.DayTime), mc.Boolean(true))
+		timePacket, err := packet.NewPacket(packet.PlayClientboundSetTime, proto.Long(s.World.Time), proto.Long(s.World.DayTime), proto.Boolean(true))
 		if err != nil {
 			logger.Error("error encoding time packet: %v", err)
 			return
@@ -417,7 +418,7 @@ func reapDyingEntities(s *Server) {
 			kept = append(kept, e)
 			continue
 		}
-		removePkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(e.GetID()))
+		removePkt, err := packet.NewPacket(packet.PlayClientboundRemoveEntities, proto.VarInt(1), proto.VarInt(e.GetID()))
 		if err == nil {
 			s.BroadcastEntityViewers(e, removePkt)
 		}
@@ -435,13 +436,13 @@ func flushEntityMetadata(s *Server) {
 			continue
 		}
 
-		pkt, err := packet.NewPacket(packet.PlayClientboundSetEntityData, mc.VarInt(entity.GetID()))
+		pkt, err := packet.NewPacket(packet.PlayClientboundSetEntityData, proto.VarInt(entity.GetID()))
 		if err != nil {
 			entity.ClearMetaChanges()
 			continue
 		}
 		entity.EncodeMetadata(pkt)
-		_ = pkt.Encode(mc.UnsignedByte(0xFF))
+		_ = pkt.Encode(proto.UnsignedByte(0xFF))
 
 		s.BroadcastEntityViewers(entity, pkt)
 		entity.ClearMetaChanges()

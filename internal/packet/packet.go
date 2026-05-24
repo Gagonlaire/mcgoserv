@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/klauspost/compress/zlib"
 )
 
@@ -22,14 +22,14 @@ const (
 type InboundPacket struct {
 	data     []byte
 	reader   bytes.Reader
-	ID       mc.VarInt
+	ID       proto.VarInt
 	refCount int32
 	err      error
 }
 
 type OutboundPacket struct {
 	Buffer   *bytes.Buffer
-	ID       mc.VarInt
+	ID       proto.VarInt
 	refCount int32
 	err      error
 }
@@ -68,7 +68,7 @@ var zlibWriterPool = sync.Pool{
 
 func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
 	p := &OutboundPacket{
-		ID:       mc.VarInt(ID),
+		ID:       proto.VarInt(ID),
 		Buffer:   bufferPool.Get().(*bytes.Buffer),
 		refCount: 1,
 	}
@@ -81,9 +81,9 @@ func NewPacket(ID int, fields ...io.WriterTo) (*OutboundPacket, error) {
 }
 
 func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
-	var frameLength mc.VarInt
+	var frameLength proto.VarInt
 	if _, err := frameLength.ReadFrom(conn); err != nil {
-		return nil, mc.WrapIOErr(err, "error reading frame length")
+		return nil, proto.WrapIOErr(err, "error reading frame length")
 	}
 
 	if int(frameLength) > MaxFrameSize || frameLength < 0 {
@@ -97,14 +97,14 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 		}
 	}()
 	if _, err := io.CopyN(rawBuf, conn, int64(frameLength)); err != nil {
-		return nil, mc.WrapIOErr(err, "error reading frame body")
+		return nil, proto.WrapIOErr(err, "error reading frame body")
 	}
 	var bodyBuf = rawBuf
 
 	if threshold >= 0 {
-		var dataLength mc.VarInt
+		var dataLength proto.VarInt
 		if _, err := dataLength.ReadFrom(rawBuf); err != nil {
-			return nil, mc.WrapIOErr(err, "error reading data length")
+			return nil, proto.WrapIOErr(err, "error reading data length")
 		}
 
 		if dataLength != 0 {
@@ -130,15 +130,15 @@ func Receive(conn net.Conn, threshold int) (*InboundPacket, error) {
 			}()
 
 			if _, err := io.Copy(decompBuf, zlibReader); err != nil {
-				return nil, mc.WrapIOErr(err, "error reading compressed data")
+				return nil, proto.WrapIOErr(err, "error reading compressed data")
 			}
 			bodyBuf = decompBuf
 		}
 	}
 
-	var packetID mc.VarInt
+	var packetID proto.VarInt
 	if _, err := packetID.ReadFrom(bodyBuf); err != nil {
-		return nil, mc.WrapIOErr(err, "error reading packet ID")
+		return nil, proto.WrapIOErr(err, "error reading packet ID")
 	}
 
 	p := &InboundPacket{
@@ -172,7 +172,7 @@ func (p *InboundPacket) Forward(conn net.Conn, threshold int) error {
 
 func (p *InboundPacket) Err() error { return p.err }
 
-func (p *InboundPacket) Decode(fields ...mc.Field) error {
+func (p *InboundPacket) Decode(fields ...proto.Field) error {
 	if p.err != nil {
 		return p.err
 	}
@@ -202,7 +202,7 @@ func (p *OutboundPacket) ResetWith(ID int, fields ...io.WriterTo) error {
 	if p.err != nil {
 		return p.err
 	}
-	p.ID = mc.VarInt(ID)
+	p.ID = proto.VarInt(ID)
 	p.Buffer.Reset()
 
 	return p.Encode(fields...)
@@ -284,7 +284,7 @@ func getZlibWriter(w io.Writer) *zlib.Writer {
 	return writer
 }
 
-func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, threshold int) error {
+func writeFramedPacket(conn net.Conn, packetID proto.VarInt, payload []byte, threshold int) error {
 	frame := bufferPool.Get().(*bytes.Buffer)
 	frame.Reset()
 	defer func() {
@@ -299,7 +299,7 @@ func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, thresh
 	}
 
 	if threshold >= 0 && uncompressedSize >= threshold {
-		dataLength := mc.VarInt(uncompressedSize)
+		dataLength := proto.VarInt(uncompressedSize)
 		compBuf := bufferPool.Get().(*bytes.Buffer)
 		compBuf.Reset()
 		defer func() {
@@ -314,20 +314,20 @@ func writeFramedPacket(conn net.Conn, packetID mc.VarInt, payload []byte, thresh
 		_ = writer.Close()
 		zlibWriterPool.Put(writer)
 
-		packetLength := mc.VarInt(dataLength.Len() + compBuf.Len())
+		packetLength := proto.VarInt(dataLength.Len() + compBuf.Len())
 		_, _ = packetLength.WriteTo(frame)
 		_, _ = dataLength.WriteTo(frame)
 		_, _ = compBuf.WriteTo(frame)
 	} else {
 		packetLengthValue := uncompressedSize
 		if threshold >= 0 {
-			packetLengthValue += mc.VarInt(0).Len()
+			packetLengthValue += proto.VarInt(0).Len()
 		}
 
-		packetLength := mc.VarInt(packetLengthValue)
+		packetLength := proto.VarInt(packetLengthValue)
 		_, _ = packetLength.WriteTo(frame)
 		if threshold >= 0 {
-			_, _ = mc.VarInt(0).WriteTo(frame)
+			_, _ = proto.VarInt(0).WriteTo(frame)
 		}
 		_, _ = packetID.WriteTo(frame)
 		_, _ = frame.Write(payload)

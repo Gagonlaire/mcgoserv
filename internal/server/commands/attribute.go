@@ -3,11 +3,11 @@ package commands
 import (
 	"strconv"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
@@ -100,7 +100,7 @@ func attributeName(id attribute.ID) tc.Component {
 	return tc.Text("minecraft:" + id.String())
 }
 
-func modifierName(id mc.Identifier) tc.Component {
+func modifierName(id proto.Identifier) tc.Component {
 	return tc.Text(string(id))
 }
 
@@ -173,7 +173,7 @@ func attrModifierAdd(s *server.Server, op attribute.Operation) Command {
 			return &CommandResult{Success: 0}, nil
 		}
 		id := GetArgument[attribute.ID](cc.Args, "attribute")
-		modID := GetArgument[mc.Identifier](cc.Args, "id")
+		modID := GetArgument[proto.Identifier](cc.Args, "id")
 		value := GetArgument[float64](cc.Args, "value")
 		inst := set.GetOrCreate(id)
 		if !inst.AddModifier(attribute.Modifier{ID: modID, Amount: value, Operation: op}) {
@@ -194,7 +194,7 @@ func attrModifierRemove(s *server.Server) Command {
 			return &CommandResult{Success: 0}, nil
 		}
 		id := GetArgument[attribute.ID](cc.Args, "attribute")
-		modID := GetArgument[mc.Identifier](cc.Args, "id")
+		modID := GetArgument[proto.Identifier](cc.Args, "id")
 		inst := set.Get(id)
 		if inst == nil || !inst.RemoveModifier(modID) {
 			cc.SendMessage(tc.Translatable(mcdata.CommandsAttributeFailedNoModifier,
@@ -214,7 +214,7 @@ func attrModifierValueGet(s *server.Server, withScale bool) Command {
 			return &CommandResult{Success: 0}, nil
 		}
 		id := GetArgument[attribute.ID](cc.Args, "attribute")
-		modID := GetArgument[mc.Identifier](cc.Args, "id")
+		modID := GetArgument[proto.Identifier](cc.Args, "id")
 		var modifier attribute.Modifier
 		if inst := set.Get(id); inst != nil {
 			modifier, ok = inst.Modifier(modID)

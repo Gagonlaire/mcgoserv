@@ -5,9 +5,9 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -151,13 +151,13 @@ func (f FloatType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (f FloatType) WriteTo(w io.Writer) (int64, error) {
-	n, _ := mc.Byte(f.flags).WriteTo(w)
+	n, _ := proto.Byte(f.flags).WriteTo(w)
 	if f.flags&FlagMin != 0 {
-		nn, _ := mc.Float(f.min).WriteTo(w)
+		nn, _ := proto.Float(f.min).WriteTo(w)
 		n += nn
 	}
 	if f.flags&FlagMax != 0 {
-		nn, _ := mc.Float(f.max).WriteTo(w)
+		nn, _ := proto.Float(f.max).WriteTo(w)
 		n += nn
 	}
 	return n, nil
@@ -210,13 +210,13 @@ func (d DoubleType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (d DoubleType) WriteTo(w io.Writer) (int64, error) {
-	n, _ := mc.Byte(d.flags).WriteTo(w)
+	n, _ := proto.Byte(d.flags).WriteTo(w)
 	if d.flags&FlagMin != 0 {
-		nn, _ := mc.Double(d.min).WriteTo(w)
+		nn, _ := proto.Double(d.min).WriteTo(w)
 		n += nn
 	}
 	if d.flags&FlagMax != 0 {
-		nn, _ := mc.Double(d.max).WriteTo(w)
+		nn, _ := proto.Double(d.max).WriteTo(w)
 		n += nn
 	}
 	return n, nil
@@ -270,13 +270,13 @@ func (i IntType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (i IntType) WriteTo(w io.Writer) (int64, error) {
-	n, _ := mc.Byte(i.flags).WriteTo(w)
+	n, _ := proto.Byte(i.flags).WriteTo(w)
 	if i.flags&FlagMin != 0 {
-		nn, _ := mc.Int(i.min).WriteTo(w)
+		nn, _ := proto.Int(i.min).WriteTo(w)
 		n += nn
 	}
 	if i.flags&FlagMax != 0 {
-		nn, _ := mc.Int(i.max).WriteTo(w)
+		nn, _ := proto.Int(i.max).WriteTo(w)
 		n += nn
 	}
 	return n, nil
@@ -329,13 +329,13 @@ func (l LongType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (l LongType) WriteTo(w io.Writer) (int64, error) {
-	n, _ := mc.Byte(l.flags).WriteTo(w)
+	n, _ := proto.Byte(l.flags).WriteTo(w)
 	if l.flags&FlagMin != 0 {
-		nn, _ := mc.Long(l.min).WriteTo(w)
+		nn, _ := proto.Long(l.min).WriteTo(w)
 		n += nn
 	}
 	if l.flags&FlagMax != 0 {
-		nn, _ := mc.Long(l.max).WriteTo(w)
+		nn, _ := proto.Long(l.max).WriteTo(w)
 		n += nn
 	}
 	return n, nil
@@ -376,5 +376,5 @@ func (s StringType) Parse(r *commander.CommandReader) (any, error) {
 }
 
 func (s StringType) WriteTo(w io.Writer) (int64, error) {
-	return mc.VarInt(s.behavior).WriteTo(w)
+	return proto.VarInt(s.behavior).WriteTo(w)
 }

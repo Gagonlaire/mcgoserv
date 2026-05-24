@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
@@ -34,7 +34,7 @@ func TestCommandSource_WithBuildersAreIndependent(t *testing.T) {
 	if mod.Anchor != AnchorEyes {
 		t.Fatalf("modified anchor wrong: %v", mod.Anchor)
 	}
-	if mod.Dimension != mc.Identifier("minecraft:the_nether") {
+	if mod.Dimension != proto.Identifier("minecraft:the_nether") {
 		t.Fatalf("modified dimension wrong: %q", mod.Dimension)
 	}
 	// Rotation is unchanged on mod — should still carry the base value.

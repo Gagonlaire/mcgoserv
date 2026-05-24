@@ -15,6 +15,7 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type QueuedPacket struct {
@@ -198,9 +199,9 @@ func (c *Connection) Disconnect(reason tc.Component) {
 
 	switch c.State {
 	case mc.StateLogin:
-		pkt = c.NewPacket(packet.LoginClientboundLoginDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.LoginClientboundLoginDisconnect, proto.String(reason.ToJSON()))
 	case mc.StateConfiguration:
-		pkt = c.NewPacket(packet.ConfigurationClientboundDisconnect, mc.String(reason.ToJSON()))
+		pkt = c.NewPacket(packet.ConfigurationClientboundDisconnect, proto.String(reason.ToJSON()))
 	case mc.StatePlay:
 		pkt = c.NewPacket(packet.PlayClientboundDisconnect, reason)
 	default:
@@ -221,12 +222,12 @@ func (c *Connection) close() {
 		if c.Player != nil {
 			logger.Info("%s lost connection: Disconnected", logger.Identity(c.Player.Name))
 			c.Server.ConnectionsByEID.Delete(c.Player.EntityID)
-			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, mc.VarInt(1), mc.UUID(c.Player.UUID))
+			infoRemove := c.NewPacket(packet.PlayClientboundPlayerInfoRemove, proto.VarInt(1), proto.UUID(c.Player.UUID))
 			leftMessage := tc.Translatable(
 				mcdata.MultiplayerPlayerLeft,
 				tc.PlayerName(c.Player.Name),
 			).SetColor(tc.ColorYellow)
-			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, mc.Boolean(false))
+			systemChat := c.NewPacket(packet.PlayClientboundSystemChat, leftMessage, proto.Boolean(false))
 
 			c.Server.BroadcastOthers(c, infoRemove)
 			c.Server.BroadcastOthers(c, systemChat)

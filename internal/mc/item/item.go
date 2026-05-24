@@ -1,6 +1,8 @@
 package item
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type ID uint16
 
@@ -79,8 +81,8 @@ type registryImpl struct{}
 // Registry exposes the item registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "item" }
+func (registryImpl) WireName() proto.Identifier { return "item" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

@@ -10,11 +10,12 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
-func (c *Connection) HandleServerboundKnownPacks(knownPacks *mc.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]) {
+func (c *Connection) HandleServerboundKnownPacks(knownPacks *proto.PrefixedArray[mc.DataPackIdentifier, *mc.DataPackIdentifier]) {
 	for _, registryData := range mc.RegistriesData {
 		pkt := c.NewPacket(packet.ConfigurationClientboundRegistryData, &registryData)
 		c.Send(pkt)
@@ -47,29 +48,29 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	// todo: hash world seed
 	// todo: get the correct has death location value
 	_ = c.SendSync(c.NewPacket(packet.PlayClientboundLogin, &encoders.Login{
-		EntityID:            mc.Int(c.Player.EntityID),
-		IsHardcore:          mc.Boolean(c.Server.Config.Server.Hardcore),
-		DimensionNames:      mc.NewPrefixedArray[mc.Identifier, *mc.Identifier]([]mc.Identifier{"overworld", "the_nether", "the_end"}),
-		MaxPlayers:          mc.VarInt(c.Server.Config.Server.MaxPlayers),
-		ViewDistance:        mc.VarInt(c.Server.Config.Performance.MaxViewDistance),
-		SimulationDistance:  mc.VarInt(c.Server.Config.Performance.SimulationDistance),
+		EntityID:            proto.Int(c.Player.EntityID),
+		IsHardcore:          proto.Boolean(c.Server.Config.Server.Hardcore),
+		DimensionNames:      proto.NewPrefixedArray[proto.Identifier, *proto.Identifier]([]proto.Identifier{"overworld", "the_nether", "the_end"}),
+		MaxPlayers:          proto.VarInt(c.Server.Config.Server.MaxPlayers),
+		ViewDistance:        proto.VarInt(c.Server.Config.Performance.MaxViewDistance),
+		SimulationDistance:  proto.VarInt(c.Server.Config.Performance.SimulationDistance),
 		ReducedDebugInfo:    false,
 		EnableRespawnScreen: true,
 		DoLimitedCrafting:   false,
 		DimensionType:       0,
 		DimensionName:       "overworld",
 		HashedSeed:          1,
-		GameMode:            mc.UnsignedByte(c.Player.GameMode),
-		PreviousGameMode:    mc.Byte(c.Player.PreviousGameMode),
+		GameMode:            proto.UnsignedByte(c.Player.GameMode),
+		PreviousGameMode:    proto.Byte(c.Player.PreviousGameMode),
 		IsDebug:             false,
 		IsFlat:              false,
 		HasDeathLocation:    false,
 		PortalCooldown:      100,
 		SeaLevel:            64,
-		EnforceSecureChat:   mc.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
+		EnforceSecureChat:   proto.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
 	}))
 
-	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetHeldSlot, mc.VarInt(c.Player.SelectedItemSlot)))
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetHeldSlot, proto.VarInt(c.Player.SelectedItemSlot)))
 
 	if err := c.Server.SendCommands(c); err != nil {
 		logger.Error("Player disconnected during configuration: %v", err)
@@ -79,12 +80,12 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundPlayerPosition,
-		mc.VarInt(0),
-		mc.NewCoordinate(c.Player.Position),
-		mc.NewCoordinate(c.Player.Motion),
-		mc.Float(c.Player.Rotation[0]),
-		mc.Float(c.Player.Rotation[1]),
-		mc.Int(0),
+		proto.VarInt(0),
+		proto.NewCoordinate(c.Player.Position),
+		proto.NewCoordinate(c.Player.Motion),
+		proto.Float(c.Player.Rotation[0]),
+		proto.Float(c.Player.Rotation[1]),
+		proto.Int(0),
 	))
 
 	// todo: all the following packet must be sent in response of the Confirm Teleportation packet sent by the client after the previous Sync position packet
@@ -103,19 +104,19 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundSetTime,
-		mc.Long(c.Server.World.Time),
-		mc.Long(c.Server.World.DayTime),
-		mc.Boolean(true),
+		proto.Long(c.Server.World.Time),
+		proto.Long(c.Server.World.DayTime),
+		proto.Boolean(true),
 	))
 
 	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundGameEvent,
-		mc.UnsignedByte(13),
-		mc.Float(0.0),
+		proto.UnsignedByte(13),
+		proto.Float(0.0),
 	))
 
 	cx, cz := world.GetChunkPosition(c.Player.Position[0], c.Player.Position[2])
-	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz)))
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, proto.VarInt(cx), proto.VarInt(cz)))
 
 	dimension := c.Server.World.GetEntityDimension(c.Player)
 	loadRadius := int(c.Player.Information.ViewDistance) + 1
@@ -142,14 +143,14 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		mcdata.MultiplayerPlayerJoined,
 		tc.PlayerName(c.Player.Name),
 	).SetColor(tc.ColorYellow)
-	pkt := c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, mc.Boolean(false))
+	pkt := c.NewPacket(packet.PlayClientboundSystemChat, joinMessage, proto.Boolean(false))
 	c.Server.BroadcastOthers(c, pkt)
 	logger.Component(logger.INFO, joinMessage)
 }
 
 func (s *Server) SendCommands(c *Connection) error {
 	flattenGraph, idMap, filteredChildren := s.Commander.FlattenGraph(c.Player.PermissionLevel)
-	pkt := c.NewPacket(packet.PlayClientboundCommands, mc.VarInt(len(flattenGraph)))
+	pkt := c.NewPacket(packet.PlayClientboundCommands, proto.VarInt(len(flattenGraph)))
 	if pkt == nil {
 		return fmt.Errorf("failed to create commands packet")
 	}
@@ -158,27 +159,27 @@ func (s *Server) SendCommands(c *Connection) error {
 		flags := node.GetFlags()
 		children := filteredChildren[node]
 
-		_ = pkt.Encode(mc.Byte(flags), mc.VarInt(len(children)))
+		_ = pkt.Encode(proto.Byte(flags), proto.VarInt(len(children)))
 		for _, child := range children {
-			_ = pkt.Encode(mc.VarInt(idMap[child]))
+			_ = pkt.Encode(proto.VarInt(idMap[child]))
 		}
 
 		if node.Redirect != nil {
-			_ = pkt.Encode(mc.VarInt(idMap[node.Redirect]))
+			_ = pkt.Encode(proto.VarInt(idMap[node.Redirect]))
 		}
 		if node.Kind == commander.LiteralNode || node.Kind == commander.ArgumentNode {
-			_ = pkt.Encode(mc.String(node.Name))
+			_ = pkt.Encode(proto.String(node.Name))
 
 			if node.Kind == commander.ArgumentNode {
-				_ = pkt.Encode(mc.VarInt(node.Parser.ID()))
+				_ = pkt.Encode(proto.VarInt(node.Parser.ID()))
 				_, _ = node.Parser.WriteTo(pkt.Buffer)
 			}
 		}
 		if node.Suggestion != commander.SuggestNothing {
-			_ = pkt.Encode(mc.String(node.Suggestion))
+			_ = pkt.Encode(proto.String(node.Suggestion))
 		}
 	}
-	_ = pkt.Encode(mc.VarInt(0))
+	_ = pkt.Encode(proto.VarInt(0))
 	err := pkt.Err()
 	_ = c.SendSync(pkt)
 	return err
@@ -192,7 +193,7 @@ func (c *Connection) HandleClientInformation(information *mc.ClientInformation) 
 	case information.ViewDistance < 2:
 		information.ViewDistance = 2
 	case int(information.ViewDistance) > c.Server.Config.Performance.MaxViewDistance:
-		information.ViewDistance = mc.Byte(c.Server.Config.Performance.MaxViewDistance)
+		information.ViewDistance = proto.Byte(c.Server.Config.Performance.MaxViewDistance)
 	}
 
 	if c.State == mc.StatePlay {
@@ -204,7 +205,7 @@ func (c *Connection) HandleClientInformation(information *mc.ClientInformation) 
 
 	if shouldUpdateChunks {
 		logger.Debug("%s changed view distance to %d", c.Player.Name, information.ViewDistance)
-		pkt := c.NewPacket(packet.PlayClientboundSetChunkCacheRadius, mc.VarInt(information.ViewDistance))
+		pkt := c.NewPacket(packet.PlayClientboundSetChunkCacheRadius, proto.VarInt(information.ViewDistance))
 
 		c.Send(pkt)
 		c.updateChunkView(true)

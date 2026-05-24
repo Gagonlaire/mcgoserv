@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 const (
@@ -32,14 +32,14 @@ type LivingEntity struct {
 	SleepingPos []int32 `nbt:"sleeping_pos,omitempty"`
 	HomePos     []int32 `nbt:"home_pos,omitempty"`
 	BaseEntity
-	BedLocation                mc.PrefixedOptional[mc.Position, *mc.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
-	Health                     float32                                        `meta:"IndexHealth,Float,default=1"`
-	HomeRadius                 float32                                        `nbt:"home_radius,omitempty"`
-	TicksSinceLastHurtByMob    int32                                          `nbt:"ticks_since_last_hurt_by_mob,omitempty"`
-	PotionEffectColor          int32                                          `meta:"IndexPotionColor,VarInt" nbt:"-"`
-	LastHurtByPlayerMemoryTime int32                                          `nbt:"last_hurt_by_player_memory_time,omitempty"`
-	ArrowsInEntity             int32                                          `meta:"IndexArrowsInEntity,VarInt" nbt:"-"`
-	BeeStingersInEntity        int32                                          `meta:"IndexBeeStingers,VarInt" nbt:"-"`
+	BedLocation                proto.PrefixedOptional[proto.Position, *proto.Position] `meta:"IndexBedLocation,OptPosition" nbt:"-"`
+	Health                     float32                                                 `meta:"IndexHealth,Float,default=1"`
+	HomeRadius                 float32                                                 `nbt:"home_radius,omitempty"`
+	TicksSinceLastHurtByMob    int32                                                   `nbt:"ticks_since_last_hurt_by_mob,omitempty"`
+	PotionEffectColor          int32                                                   `meta:"IndexPotionColor,VarInt" nbt:"-"`
+	LastHurtByPlayerMemoryTime int32                                                   `nbt:"last_hurt_by_player_memory_time,omitempty"`
+	ArrowsInEntity             int32                                                   `meta:"IndexArrowsInEntity,VarInt" nbt:"-"`
+	BeeStingersInEntity        int32                                                   `meta:"IndexBeeStingers,VarInt" nbt:"-"`
 	HurtByTimestamp            int32
 	AbsorptionAmount           float32
 	HurtTime                   int16

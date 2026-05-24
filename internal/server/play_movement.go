@@ -10,6 +10,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/world"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 )
@@ -20,7 +21,7 @@ const (
 	minDelta             = -32768
 )
 
-func (c *Connection) HandleConfirmTeleportation(teleportID *mc.VarInt) {
+func (c *Connection) HandleConfirmTeleportation(teleportID *proto.VarInt) {
 	if int32(*teleportID) == c.Player.Movement.PendingTeleport {
 		c.Player.Movement.PendingTeleport = 0
 	}
@@ -49,7 +50,7 @@ func (c *Connection) HandleSetPlayerRotation(data *decoders.SetPlayerRotation) {
 	}
 }
 
-func (c *Connection) HandleSetPlayerMovementFlags(flags *mc.Byte) {
+func (c *Connection) HandleSetPlayerMovementFlags(flags *proto.Byte) {
 	if c.Player.Movement.PendingTeleport != 0 {
 		return
 	}
@@ -98,29 +99,29 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 		return
 	}
 
-	yaw := mc.DegreesToAngle(c.Player.Rotation[0])
-	pitch := mc.DegreesToAngle(c.Player.Rotation[1])
+	yaw := proto.DegreesToAngle(c.Player.Rotation[0])
+	pitch := proto.DegreesToAngle(c.Player.Rotation[1])
 	var pkt *packet.OutboundPacket
 
 	switch {
 	case posChanged && rotChanged:
 		pkt = c.NewPacket(packet.PlayClientboundMoveEntityPosRot,
-			mc.VarInt(c.Player.EntityID),
-			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
+			proto.VarInt(c.Player.EntityID),
+			proto.Short(deltaX), proto.Short(deltaY), proto.Short(deltaZ),
 			yaw, pitch,
-			mc.Boolean(c.Player.OnGround),
+			proto.Boolean(c.Player.OnGround),
 		)
 	case posChanged:
 		pkt = c.NewPacket(packet.PlayClientboundMoveEntityPos,
-			mc.VarInt(c.Player.EntityID),
-			mc.Short(deltaX), mc.Short(deltaY), mc.Short(deltaZ),
-			mc.Boolean(c.Player.OnGround),
+			proto.VarInt(c.Player.EntityID),
+			proto.Short(deltaX), proto.Short(deltaY), proto.Short(deltaZ),
+			proto.Boolean(c.Player.OnGround),
 		)
 	case rotChanged:
 		pkt = c.NewPacket(packet.PlayClientboundMoveEntityRot,
-			mc.VarInt(c.Player.EntityID),
+			proto.VarInt(c.Player.EntityID),
 			yaw, pitch,
-			mc.Boolean(c.Player.OnGround),
+			proto.Boolean(c.Player.OnGround),
 		)
 	}
 
@@ -128,7 +129,7 @@ func (c *Connection) syncMovement(oldX, oldY, oldZ float64, posChanged, rotChang
 
 	if rotChanged {
 		pktHead := c.NewPacket(packet.PlayClientboundRotateHead,
-			mc.VarInt(c.Player.EntityID),
+			proto.VarInt(c.Player.EntityID),
 			yaw,
 		)
 		c.Server.BroadcastViewers(c, pktHead)
@@ -221,11 +222,11 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 	c.Player.Movement.PendingTeleport = teleportID
 	pkt := c.NewPacket(
 		packet.PlayClientboundPlayerPosition,
-		mc.VarInt(teleportID),
-		mc.Double(x), mc.Double(y), mc.Double(z),
-		mc.Double(0), mc.Double(0), mc.Double(0),
-		mc.Float(yaw), mc.Float(pitch),
-		mc.Int(flags),
+		proto.VarInt(teleportID),
+		proto.Double(x), proto.Double(y), proto.Double(z),
+		proto.Double(0), proto.Double(0), proto.Double(0),
+		proto.Float(yaw), proto.Float(pitch),
+		proto.Int(flags),
 	)
 	c.Send(pkt)
 	c.Server.World.UpdateEntityChunk(c.Player.EntityID, oldX, oldZ, x, z)
@@ -259,7 +260,7 @@ func (c *Connection) Teleport(x, y, z float64, yaw, pitch float32, flags mc.Tele
 			if logger.IsDebug() {
 				logger.Debug("%s left %s's view (teleport)", c.Player.Name, target.Player.Name)
 			}
-			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
+			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, proto.VarInt(1), proto.VarInt(selfID))
 			target.Send(removePkt)
 		}
 	}
@@ -308,7 +309,7 @@ func (c *Connection) updateChunkView(force bool) {
 		}
 	}
 
-	centerPkt := c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, mc.VarInt(cx), mc.VarInt(cz))
+	centerPkt := c.NewPacket(packet.PlayClientboundSetChunkCacheCenter, proto.VarInt(cx), proto.VarInt(cz))
 	c.Send(centerPkt)
 	selfID := c.Player.EntityID
 
@@ -318,17 +319,17 @@ func (c *Connection) updateChunkView(force bool) {
 		}
 		chunk := dim.GetChunk(pos.X, pos.Z)
 		if count := len(chunk.Entities); count > 0 {
-			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(count))
+			removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, proto.VarInt(count))
 			if removePkt != nil {
 				for entityID := range chunk.Entities {
-					_ = removePkt.Encode(mc.VarInt(entityID))
+					_ = removePkt.Encode(proto.VarInt(entityID))
 				}
 				c.Send(removePkt)
 			}
 		}
 		delete(chunk.Watchers, selfID)
 		delete(c.Player.Movement.VisibleChunks, pos)
-		forgetPkt := c.NewPacket(packet.PlayClientboundForgetLevelChunk, mc.Int(pos.Z), mc.Int(pos.X))
+		forgetPkt := c.NewPacket(packet.PlayClientboundForgetLevelChunk, proto.Int(pos.Z), proto.Int(pos.X))
 		c.Send(forgetPkt)
 	}
 	for x := cx - loadRadius; x <= cx+loadRadius; x++ {
@@ -349,7 +350,7 @@ func (c *Connection) updateChunkView(force bool) {
 	oldChunk := dim.GetChunk(c.Player.Movement.LastChunkX, c.Player.Movement.LastChunkZ)
 	newChunk := dim.GetChunk(cx, cz)
 	selfEntity := c.Player
-	removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, mc.VarInt(1), mc.VarInt(selfID))
+	removePkt := c.NewPacket(packet.PlayClientboundRemoveEntities, proto.VarInt(1), proto.VarInt(selfID))
 	if removePkt != nil {
 		for watcherID := range oldChunk.Watchers {
 			if watcherID == selfID {

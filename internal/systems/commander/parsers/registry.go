@@ -1,15 +1,15 @@
 package parsers
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
 type Registry interface {
-	WireName() mc.Identifier
-	Lookup(path mc.Identifier) (any, bool)
+	WireName() proto.Identifier
+	Lookup(path proto.Identifier) (any, bool)
 }
 
 // todo: add missing registries:
@@ -28,13 +28,13 @@ type Registry interface {
 //   - predicate       (minecraft:predicate)      — reloadable
 //   - damage_type     (minecraft:damage_type)    — reloadable
 
-func readIdentifier(r *commander.CommandReader) (mc.Identifier, int, error) {
+func readIdentifier(r *commander.CommandReader) (proto.Identifier, int, error) {
 	start := r.Cursor()
 	raw := r.ReadWord()
 	if raw == "" {
 		return "", start, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)), start)
 	}
-	id, err := mc.ParseIdentifier(raw)
+	id, err := proto.ParseIdentifier(raw)
 	if err != nil {
 		r.SetCursor(start)
 		return "", start, commander.NewParsingErrorAt(r, tc.Translatable(mcdata.ArgumentIdInvalid, tc.Text(raw)), start)

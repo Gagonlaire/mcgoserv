@@ -1,8 +1,11 @@
 package mc
 
-import "github.com/google/uuid"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+	"github.com/google/uuid"
+)
 
-type TargetType VarInt
+type TargetType proto.VarInt
 
 // todo: shorter names
 const (

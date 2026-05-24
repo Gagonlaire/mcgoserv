@@ -1,27 +1,30 @@
 package mc
 
-import "github.com/Gagonlaire/mcgoserv/internal/mcdata"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 //field:encode mode=both
 type DataPackIdentifier struct {
-	Namespace String
-	ID        String
-	Version   String
+	Namespace proto.String
+	ID        proto.String
+	Version   proto.String
 }
 
 //field:encode mode=both
 type RegistryDataEntry struct {
-	ID   String
-	Data PrefixedOptional[Byte, *Byte]
+	ID   proto.String
+	Data proto.PrefixedOptional[proto.Byte, *proto.Byte]
 }
 
 //field:encode mode=both
 type RegistryData struct {
-	ID      String
-	Entries PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
+	ID      proto.String
+	Entries proto.PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
 }
 
-var ServerDataPacks = NewPrefixedArray[DataPackIdentifier, *DataPackIdentifier]([]DataPackIdentifier{
+var ServerDataPacks = proto.NewPrefixedArray[DataPackIdentifier, *DataPackIdentifier]([]DataPackIdentifier{
 	{
 		Namespace: "minecraft",
 		ID:        "core",

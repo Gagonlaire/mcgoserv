@@ -7,39 +7,40 @@ import (
 	"testing"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/google/uuid"
 )
 
 func ptr[T any](v T) *T { return &v }
 
 var (
-	testPacketID    = mc.VarInt(0x03)
-	benchPrimitives = []mc.Field{
-		ptr(mc.Boolean(true)),
-		ptr(mc.Byte(127)),
-		ptr(mc.Short(32000)),
-		ptr(mc.Int(2147483647)),
-		ptr(mc.Long(9223372036854775807)),
-		ptr(mc.Float(3.14159)),
-		ptr(mc.Double(2.718281828459)),
-		ptr(mc.Position{X: 100, Y: 64, Z: -100}), // Packed 64-bit int
+	testPacketID    = proto.VarInt(0x03)
+	benchPrimitives = []proto.Field{
+		ptr(proto.Boolean(true)),
+		ptr(proto.Byte(127)),
+		ptr(proto.Short(32000)),
+		ptr(proto.Int(2147483647)),
+		ptr(proto.Long(9223372036854775807)),
+		ptr(proto.Float(3.14159)),
+		ptr(proto.Double(2.718281828459)),
+		ptr(proto.Position{X: 100, Y: 64, Z: -100}), // Packed 64-bit int
 	}
-	benchVariable = []mc.Field{
-		ptr(mc.VarInt(0)),          // 1 byte fast path
-		ptr(mc.VarInt(2147483647)), // 5 byte slow path
-		ptr(mc.String("Short")),
-		ptr(mc.String("A significantly longer string that forces the buffer to allocate and copy more memory during encoding and decoding.")),
+	benchVariable = []proto.Field{
+		ptr(proto.VarInt(0)),          // 1 byte fast path
+		ptr(proto.VarInt(2147483647)), // 5 byte slow path
+		ptr(proto.String("Short")),
+		ptr(proto.String("A significantly longer string that forces the buffer to allocate and copy more memory during encoding and decoding.")),
 	}
-	longSlice    = []mc.Long{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-	benchComplex = []mc.Field{
-		ptr(mc.UUID(uuid.New())),
-		ptr(mc.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
+	longSlice    = []proto.Long{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	benchComplex = []proto.Field{
+		ptr(proto.UUID(uuid.New())),
+		ptr(proto.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
 		ptr(mc.Slot{Count: 64, ItemID: 1}),
-		&mc.PrefixedArray[mc.Long, *mc.Long]{Data: longSlice},
+		&proto.PrefixedArray[proto.Long, *proto.Long]{Data: longSlice},
 	}
 )
 
-func fieldsToWriters(fields []mc.Field) []io.WriterTo {
+func fieldsToWriters(fields []proto.Field) []io.WriterTo {
 	out := make([]io.WriterTo, len(fields))
 	for i, f := range fields {
 		out[i] = f
@@ -106,7 +107,7 @@ func TestPacket_RoundTrip(t *testing.T) {
 func BenchmarkEncode(b *testing.B) {
 	benchmarks := []struct {
 		name   string
-		fields []mc.Field
+		fields []proto.Field
 	}{
 		{"Primitives", benchPrimitives},
 		{"Variable", benchVariable},
@@ -135,7 +136,7 @@ func BenchmarkEncode(b *testing.B) {
 func BenchmarkDecode(b *testing.B) {
 	benchmarks := []struct {
 		name   string
-		fields []mc.Field
+		fields []proto.Field
 	}{
 		{"Primitives", benchPrimitives},
 		{"Variable", benchVariable},

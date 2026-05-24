@@ -1,6 +1,8 @@
 package attribute
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type Operation int
 
@@ -14,7 +16,7 @@ const (
 )
 
 type Modifier struct {
-	ID        mc.Identifier
+	ID        proto.Identifier
 	Amount    float64
 	Operation Operation
 }
@@ -51,8 +53,8 @@ type registryImpl struct{}
 // Registry exposes the attribute registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "attribute" }
+func (registryImpl) WireName() proto.Identifier { return "attribute" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
@@ -72,6 +72,6 @@ func applyGameMode(s *server.Server, p *entity.Player, mode int32) {
 		c := conn.(*server.Connection)
 		// todo: it must also update the player tab for everyone
 		c.Send(c.NewPacket(packet.PlayClientboundGameEvent,
-			mc.UnsignedByte(gameEventChangeGameMode), mc.Float(mode)))
+			proto.UnsignedByte(gameEventChangeGameMode), proto.Float(mode)))
 	}
 }

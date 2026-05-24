@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"io"
 
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/google/uuid"
 )
 
@@ -12,7 +13,7 @@ const (
 	TicksPerDay    = 24000
 )
 
-type State VarInt
+type State proto.VarInt
 
 const (
 	StateHandshake State = iota
@@ -40,7 +41,7 @@ func GetStateName(state State) string {
 	}
 }
 
-type PlayerAction VarInt
+type PlayerAction proto.VarInt
 
 const (
 	ActionStartDigging PlayerAction = iota
@@ -53,7 +54,7 @@ const (
 )
 
 // https://minecraft.wiki/w/Java_Edition_protocol/Packets#Player_Info_Update
-type PlayerListAction UnsignedByte
+type PlayerListAction proto.UnsignedByte
 
 const (
 	ListActionAddPlayer          PlayerListAction = 1 << 0
@@ -66,7 +67,7 @@ const (
 	ListActionUpdateHat          PlayerListAction = 1 << 7
 )
 
-type PlayerCommand VarInt
+type PlayerCommand proto.VarInt
 
 const (
 	CommandLeaveBed PlayerCommand = iota
@@ -78,7 +79,7 @@ const (
 	CommandFlyingWithElytra
 )
 
-type PlayerInput UnsignedByte
+type PlayerInput proto.UnsignedByte
 
 const (
 	InputForward PlayerInput = 1 << 0
@@ -90,7 +91,7 @@ const (
 	InputSprint  PlayerInput = 1 << 6
 )
 
-type TeleportationFlags Int
+type TeleportationFlags proto.Int
 
 const (
 	TeleportationFlagsRelativeX         TeleportationFlags = 1 << 0
@@ -124,42 +125,42 @@ func (p *ProfileProperty) ReadFrom(_ io.Reader) (int64, error) {
 }
 
 func (p ProfileProperty) WriteTo(w io.Writer) (n int64, err error) {
-	nn, err := String(p.Name).WriteTo(w)
+	nn, err := proto.String(p.Name).WriteTo(w)
 	n += nn
 	if err != nil {
 		return n, err
 	}
-	nn, err = String(p.Value).WriteTo(w)
+	nn, err = proto.String(p.Value).WriteTo(w)
 	n += nn
 	if err != nil {
 		return n, err
 	}
 	if p.Signature != "" {
-		nn, err = Boolean(true).WriteTo(w)
+		nn, err = proto.Boolean(true).WriteTo(w)
 		n += nn
 		if err != nil {
 			return n, err
 		}
-		nn, err = String(p.Signature).WriteTo(w)
+		nn, err = proto.String(p.Signature).WriteTo(w)
 		n += nn
 		return n, err
 	}
-	nn, err = Boolean(false).WriteTo(w)
+	nn, err = proto.Boolean(false).WriteTo(w)
 	n += nn
 	return n, err
 }
 
 //field:encode mode=both
 type ClientInformation struct {
-	Locale              String16
-	ViewDistance        Byte
-	ChatMode            VarInt
-	ChatColors          Boolean // Unused by vanilla server
-	DisplayedSkinParts  UnsignedByte
-	MainHand            VarInt
-	EnableTextFiltering Boolean
-	AllowServerListings Boolean
-	ParticleStatus      VarInt
+	Locale              proto.String16
+	ViewDistance        proto.Byte
+	ChatMode            proto.VarInt
+	ChatColors          proto.Boolean // Unused by vanilla server
+	DisplayedSkinParts  proto.UnsignedByte
+	MainHand            proto.VarInt
+	EnableTextFiltering proto.Boolean
+	AllowServerListings proto.Boolean
+	ParticleStatus      proto.VarInt
 }
 
 type PreviousMessage struct {

@@ -1,9 +1,11 @@
-//go:generate go run ../../cmd/gen-field .
+//go:generate go run ../../cmd/gen-field
 
 package mc
 
 import (
 	"fmt"
+
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type EntityID = int32
@@ -15,46 +17,46 @@ type ChunkPos struct {
 
 //field:encode mode=both
 type Chunk struct {
-	X                   Int
-	Z                   Int
+	X                   proto.Int
+	Z                   proto.Int
 	Entities            map[EntityID]struct{} `field:"-"`
 	Watchers            map[EntityID]struct{} `field:"-"`
-	HeightMaps          PrefixedArray[HeightMap, *HeightMap]
-	Size                VarInt
-	Data                Array[ChunkSection, *ChunkSection]
-	BlockEntities       PrefixedArray[BlockEntity, *BlockEntity]
-	SkyLightMask        BitSet
-	BlockLightMask      BitSet
-	EmptySkyLightMask   BitSet
-	EmptyBlockLightMask BitSet
-	SkyLightArrays      PrefixedArray[PrefixedByteArray, *PrefixedByteArray]
-	BlockLightArrays    PrefixedArray[PrefixedByteArray, *PrefixedByteArray]
+	HeightMaps          proto.PrefixedArray[HeightMap, *HeightMap]
+	Size                proto.VarInt
+	Data                proto.Array[ChunkSection, *ChunkSection]
+	BlockEntities       proto.PrefixedArray[BlockEntity, *BlockEntity]
+	SkyLightMask        proto.BitSet
+	BlockLightMask      proto.BitSet
+	EmptySkyLightMask   proto.BitSet
+	EmptyBlockLightMask proto.BitSet
+	SkyLightArrays      proto.PrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray]
+	BlockLightArrays    proto.PrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray]
 }
 
 //field:encode mode=both
 type HeightMap struct {
-	Type VarInt
-	Data PrefixedArray[Long, *Long]
+	Type proto.VarInt
+	Data proto.PrefixedArray[proto.Long, *proto.Long]
 }
 
 //field:encode mode=both
 type ChunkSection struct {
-	BlockCount  Short
-	BlockStates PalettedContainer
-	Biomes      PalettedContainer
+	BlockCount  proto.Short
+	BlockStates proto.PalettedContainer
+	Biomes      proto.PalettedContainer
 }
 
 //field:encode mode=both
 type BlockEntity struct {
-	PackedXZ UnsignedByte
-	Y        Short
-	Type     VarInt
+	PackedXZ proto.UnsignedByte
+	Y        proto.Short
+	Type     proto.VarInt
 	//Data     pkt.NBTField todo: implement NBTField
 }
 
 func CreateChunk(x int, z int) *Chunk {
 	// todo: implement generations
-	emptyPalette := NewPalettedContainer(0)
+	emptyPalette := proto.NewPalettedContainer(0)
 	air := ChunkSection{
 		BlockCount:  0,
 		BlockStates: *emptyPalette,
@@ -62,7 +64,7 @@ func CreateChunk(x int, z int) *Chunk {
 	}
 	dirt := ChunkSection{
 		BlockCount:  4096,
-		BlockStates: *NewPalettedContainer(9),
+		BlockStates: *proto.NewPalettedContainer(9),
 		Biomes:      *emptyPalette,
 	}
 	sections := make([]ChunkSection, 24)
@@ -77,41 +79,41 @@ func CreateChunk(x int, z int) *Chunk {
 		dataSize += 2 + sections[i].BlockStates.Size() + sections[i].Biomes.Size()
 	}
 
-	skyMaskSlice := []Long{0}
+	skyMaskSlice := []proto.Long{0}
 	for i := 0; i < len(sections); i++ {
 		skyMaskSlice[0] |= 1 << i
 	}
 
-	skyMask := BitSet{
-		PrefixedArray: PrefixedArray[Long, *Long]{
+	skyMask := proto.BitSet{
+		PrefixedArray: proto.PrefixedArray[proto.Long, *proto.Long]{
 			Data: skyMaskSlice,
 		},
 	}
 
-	arrays := make([]PrefixedByteArray, len(sections))
+	arrays := make([]proto.PrefixedByteArray, len(sections))
 	for i := range arrays {
 		data := make([]byte, 2048)
 		for j := range data {
 			data[j] = 0xFF
 		}
-		arrays[i] = PrefixedByteArray{Data: data}
+		arrays[i] = proto.PrefixedByteArray{Data: data}
 	}
 
 	return &Chunk{
-		X: Int(x),
-		Z: Int(z),
+		X: proto.Int(x),
+		Z: proto.Int(z),
 
 		Entities: make(map[EntityID]struct{}),
 		Watchers: make(map[EntityID]struct{}),
 
-		HeightMaps:    NewPrefixedArray[HeightMap, *HeightMap]([]HeightMap{}),
-		BlockEntities: NewPrefixedArray[BlockEntity, *BlockEntity]([]BlockEntity{}),
+		HeightMaps:    proto.NewPrefixedArray[HeightMap, *HeightMap]([]HeightMap{}),
+		BlockEntities: proto.NewPrefixedArray[BlockEntity, *BlockEntity]([]BlockEntity{}),
 
-		Size:             VarInt(dataSize),
-		Data:             Array[ChunkSection, *ChunkSection]{Data: sections},
+		Size:             proto.VarInt(dataSize),
+		Data:             proto.Array[ChunkSection, *ChunkSection]{Data: sections},
 		SkyLightMask:     skyMask,
-		SkyLightArrays:   NewPrefixedArray[PrefixedByteArray, *PrefixedByteArray](arrays),
-		BlockLightArrays: NewPrefixedArray[PrefixedByteArray, *PrefixedByteArray]([]PrefixedByteArray{}),
+		SkyLightArrays:   proto.NewPrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray](arrays),
+		BlockLightArrays: proto.NewPrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray]([]proto.PrefixedByteArray{}),
 	}
 }
 
@@ -165,5 +167,5 @@ func (c *Chunk) ComputeSize() {
 		totalSize += section.BlockStates.Size()
 		totalSize += section.Biomes.Size()
 	}
-	c.Size = VarInt(totalSize)
+	c.Size = proto.VarInt(totalSize)
 }

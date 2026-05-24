@@ -13,9 +13,9 @@ func ({{.Recv}} *{{.Struct}}) EncodeAllMetadata(pkt *packet.OutboundPacket) {
 	if {{$.Recv}}.{{.FieldName}} != {{zeroExpr .}} {
 {{- end }}
 {{- if .Raw }}
-		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), {{$.Recv}}.{{.FieldName}})
+		_ = pkt.Encode(proto.UnsignedByte({{.Index}}), proto.VarInt(metadata.Type{{.MetaType}}), {{$.Recv}}.{{.FieldName}})
 {{- else }}
-		_ = pkt.Encode(mc.UnsignedByte({{.Index}}), mc.VarInt(metadata.Type{{.MetaType}}), mc.{{.Cast}}({{$.Recv}}.{{.FieldName}}))
+		_ = pkt.Encode(proto.UnsignedByte({{.Index}}), proto.VarInt(metadata.Type{{.MetaType}}), proto.{{.Cast}}({{$.Recv}}.{{.FieldName}}))
 {{- end }}
 	}
 {{- end }}

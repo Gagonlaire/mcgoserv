@@ -5,6 +5,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc/attribute"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/layers"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/google/uuid"
 )
@@ -35,13 +36,13 @@ type Player struct {
 	Information       mc.ClientInformation `nbt:"-"`
 	Movement          MovementTracker      `nbt:"-"`
 	LivingEntity
-	ChatSession                          mc.ChatSession                             `nbt:"-"`
-	CurrentExplosionImpactPos            [3]float64                                 `nbt:"current_explosion_impact_pos"`
-	EnteredNetherPos                     [3]float64                                 `nbt:"entered_nether_pos"`
-	PermissionLevel                      int                                        `nbt:"-"`
-	LeftShoulder                         mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"` // todo: create a nbt encode function
-	RightShoulder                        mc.PrefixedOptional[mc.VarInt, *mc.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
-	FoodExhaustionLevel                  float32                                    `nbt:"foodExhaustionLevel"`
+	ChatSession                          mc.ChatSession                                      `nbt:"-"`
+	CurrentExplosionImpactPos            [3]float64                                          `nbt:"current_explosion_impact_pos"`
+	EnteredNetherPos                     [3]float64                                          `nbt:"entered_nether_pos"`
+	PermissionLevel                      int                                                 `nbt:"-"`
+	LeftShoulder                         proto.PrefixedOptional[proto.VarInt, *proto.VarInt] `meta:"IndexLeftShoulderEntryData,OptVarInt"` // todo: create a nbt encode function
+	RightShoulder                        proto.PrefixedOptional[proto.VarInt, *proto.VarInt] `meta:"IndexRightShoulderEntryData,OptVarInt"`
+	FoodExhaustionLevel                  float32                                             `nbt:"foodExhaustionLevel"`
 	XpP                                  float32
 	FoodLevel                            int32 `nbt:"foodLevel"`
 	FoodTickTimer                        int32 `nbt:"foodTickTimer"`
@@ -104,7 +105,7 @@ func NewPlayer(
 	}
 	player.Movement.LastTickY = player.Position[1]
 	player.Movement.VisibleChunks = make(map[mc.ChunkPos]struct{})
-	player.Information.ViewDistance = mc.Byte(cfg.Performance.MaxViewDistance)
+	player.Information.ViewDistance = proto.Byte(cfg.Performance.MaxViewDistance)
 	player.Information.AllowServerListings = true
 	player.ChatSession.Signed = false
 

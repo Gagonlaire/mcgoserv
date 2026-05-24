@@ -1,4 +1,6 @@
-package mc
+//go:generate go run ../../cmd/gen-field
+
+package proto
 
 import (
 	"io"

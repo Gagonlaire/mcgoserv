@@ -3,9 +3,9 @@ package entity
 //go:generate go run ../../../cmd/gen-meta .
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity/metadata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type Entity interface {
@@ -77,9 +77,9 @@ const (
 //meta:encode mode=entity nbt=accessors
 type BaseEntity struct {
 	metadata.DirtyTracker `nbt:"-"`
-	DimensionID           string              `nbt:"-"`                                         // todo: change to a numeric id
-	CustomName            mc.OptTextComponent `meta:"IndexCustomName,OptTextComponent" nbt:"-"` // todo: add text component ntb encoding
-	CustomNameVisible     bool                `meta:"IndexCustomNameVisible,Boolean" nbt:"CustomNameVisible,omitempty"`
+	DimensionID           string                 `nbt:"-"`                                         // todo: change to a numeric id
+	CustomName            proto.OptTextComponent `meta:"IndexCustomName,OptTextComponent" nbt:"-"` // todo: add text component ntb encoding
+	CustomNameVisible     bool                   `meta:"IndexCustomNameVisible,Boolean" nbt:"CustomNameVisible,omitempty"`
 	Motion                [3]float64
 	Position              [3]float64 `nbt:"Pos"`
 	ID                    ID         `nbt:"-"`

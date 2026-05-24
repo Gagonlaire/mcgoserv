@@ -3,20 +3,20 @@ package encoders
 import (
 	"io"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type AddEntity struct {
-	EntityID mc.VarInt
-	UUID     mc.UUID
-	TypeID   mc.VarInt
-	Pos      mc.Coordinate
-	Motion   mc.LpVec3
-	Pitch    mc.Angle
-	Yaw      mc.Angle
-	HeadYaw  mc.Angle
-	Data     mc.VarInt
+	EntityID proto.VarInt
+	UUID     proto.UUID
+	TypeID   proto.VarInt
+	Pos      proto.Coordinate
+	Motion   proto.LpVec3
+	Pitch    proto.Angle
+	Yaw      proto.Angle
+	HeadYaw  proto.Angle
+	Data     proto.VarInt
 }
 
 func (a *AddEntity) WriteTo(w io.Writer) (n int64, err error) {
@@ -39,26 +39,26 @@ func (a *AddEntity) WriteTo(w io.Writer) (n int64, err error) {
 func NewAddEntity(entity entity.Entity) *AddEntity {
 	rot := entity.GetRot()
 	motion := entity.GetMotion()
-	yaw := mc.DegreesToAngle(rot[0])
+	yaw := proto.DegreesToAngle(rot[0])
 	return &AddEntity{
-		EntityID: mc.VarInt(entity.GetID()),
-		UUID:     mc.UUID(entity.GetUUID()),
-		TypeID:   mc.VarInt(entity.GetType()),
-		Pos:      mc.NewCoordinate(entity.GetPos()),
-		Motion:   mc.LpVec3{X: motion[0], Y: motion[1], Z: motion[2]},
-		Pitch:    mc.DegreesToAngle(rot[1]),
+		EntityID: proto.VarInt(entity.GetID()),
+		UUID:     proto.UUID(entity.GetUUID()),
+		TypeID:   proto.VarInt(entity.GetType()),
+		Pos:      proto.NewCoordinate(entity.GetPos()),
+		Motion:   proto.LpVec3{X: motion[0], Y: motion[1], Z: motion[2]},
+		Pitch:    proto.DegreesToAngle(rot[1]),
 		Yaw:      yaw,
 		HeadYaw:  yaw,
 	}
 }
 
 type TeleportEntity struct {
-	EntityID mc.VarInt
-	Position mc.Coordinate
-	Velocity mc.Coordinate
-	Yaw      mc.Float
-	Pitch    mc.Float
-	OnGround mc.Boolean
+	EntityID proto.VarInt
+	Position proto.Coordinate
+	Velocity proto.Coordinate
+	Yaw      proto.Float
+	Pitch    proto.Float
+	OnGround proto.Boolean
 }
 
 func (t *TeleportEntity) WriteTo(w io.Writer) (n int64, err error) {
@@ -81,35 +81,35 @@ func (t *TeleportEntity) WriteTo(w io.Writer) (n int64, err error) {
 func NewTeleportEntity(entityID int32, pos [3]float64, rot [2]float32, onGround bool) *TeleportEntity {
 	// todo: create a helper for float angle conversion
 	return &TeleportEntity{
-		EntityID: mc.VarInt(entityID),
-		Position: mc.NewCoordinate(pos),
-		Yaw:      mc.Float(rot[0] * 256 / 360),
-		Pitch:    mc.Float(rot[1] * 256 / 360),
-		OnGround: mc.Boolean(onGround),
+		EntityID: proto.VarInt(entityID),
+		Position: proto.NewCoordinate(pos),
+		Yaw:      proto.Float(rot[0] * 256 / 360),
+		Pitch:    proto.Float(rot[1] * 256 / 360),
+		OnGround: proto.Boolean(onGround),
 	}
 }
 
 type Login struct {
-	EntityID            mc.Int
-	IsHardcore          mc.Boolean
-	DimensionNames      mc.PrefixedArray[mc.Identifier, *mc.Identifier]
-	MaxPlayers          mc.VarInt
-	ViewDistance        mc.VarInt
-	SimulationDistance  mc.VarInt
-	ReducedDebugInfo    mc.Boolean
-	EnableRespawnScreen mc.Boolean
-	DoLimitedCrafting   mc.Boolean
-	DimensionType       mc.VarInt
-	DimensionName       mc.Identifier
-	HashedSeed          mc.Long
-	GameMode            mc.UnsignedByte
-	PreviousGameMode    mc.Byte
-	IsDebug             mc.Boolean
-	IsFlat              mc.Boolean
-	HasDeathLocation    mc.Boolean
-	PortalCooldown      mc.VarInt
-	SeaLevel            mc.VarInt
-	EnforceSecureChat   mc.Boolean
+	EntityID            proto.Int
+	IsHardcore          proto.Boolean
+	DimensionNames      proto.PrefixedArray[proto.Identifier, *proto.Identifier]
+	MaxPlayers          proto.VarInt
+	ViewDistance        proto.VarInt
+	SimulationDistance  proto.VarInt
+	ReducedDebugInfo    proto.Boolean
+	EnableRespawnScreen proto.Boolean
+	DoLimitedCrafting   proto.Boolean
+	DimensionType       proto.VarInt
+	DimensionName       proto.Identifier
+	HashedSeed          proto.Long
+	GameMode            proto.UnsignedByte
+	PreviousGameMode    proto.Byte
+	IsDebug             proto.Boolean
+	IsFlat              proto.Boolean
+	HasDeathLocation    proto.Boolean
+	PortalCooldown      proto.VarInt
+	SeaLevel            proto.VarInt
+	EnforceSecureChat   proto.Boolean
 }
 
 func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
@@ -135,17 +135,17 @@ func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 type Respawn struct {
-	DimensionType    mc.VarInt
-	DimensionName    mc.Identifier
-	HashedSeed       mc.Long
-	GameMode         mc.UnsignedByte
-	PreviousGameMode mc.Byte
-	IsDebug          mc.Boolean
-	IsFlat           mc.Boolean
-	HasDeathLocation mc.Boolean
-	PortalCooldown   mc.VarInt
-	SeaLevel         mc.VarInt
-	DataKept         mc.Byte
+	DimensionType    proto.VarInt
+	DimensionName    proto.Identifier
+	HashedSeed       proto.Long
+	GameMode         proto.UnsignedByte
+	PreviousGameMode proto.Byte
+	IsDebug          proto.Boolean
+	IsFlat           proto.Boolean
+	HasDeathLocation proto.Boolean
+	PortalCooldown   proto.VarInt
+	SeaLevel         proto.VarInt
+	DataKept         proto.Byte
 }
 
 func (r *Respawn) WriteTo(w io.Writer) (n int64, err error) {

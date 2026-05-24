@@ -3,7 +3,7 @@ package entity
 import (
 	"fmt"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type ID uint16
@@ -49,8 +49,8 @@ type registryImpl struct{}
 // Registry exposes the entity-type registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "entity_type" }
+func (registryImpl) WireName() proto.Identifier { return "entity_type" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

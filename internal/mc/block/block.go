@@ -1,6 +1,8 @@
 package block
 
-import "github.com/Gagonlaire/mcgoserv/internal/mc"
+import (
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
+)
 
 type ID uint16
 
@@ -108,8 +110,8 @@ type registryImpl struct{}
 // Registry exposes the block registry to the command parsers
 var Registry registryImpl
 
-func (registryImpl) WireName() mc.Identifier { return "block" }
+func (registryImpl) WireName() proto.Identifier { return "block" }
 
-func (registryImpl) Lookup(path mc.Identifier) (any, bool) {
+func (registryImpl) Lookup(path proto.Identifier) (any, bool) {
 	return FromString(string(path))
 }

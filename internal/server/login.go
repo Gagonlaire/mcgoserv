@@ -20,6 +20,7 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server/decoders"
 	"github.com/google/uuid"
 )
@@ -43,14 +44,14 @@ func (c *Connection) HandleLoginStart(data *decoders.LoginStart) {
 	}
 	c.ContextData["verifyToken"] = verifyToken
 
-	pArrayPublicKey := mc.NewPrefixedByteArray(c.Server.Keys.EncodedPublicKey)
-	pArrayVerifyToken := mc.NewPrefixedByteArray(verifyToken)
+	pArrayPublicKey := proto.NewPrefixedByteArray(c.Server.Keys.EncodedPublicKey)
+	pArrayVerifyToken := proto.NewPrefixedByteArray(verifyToken)
 	pkt := c.NewPacket(
 		packet.LoginClientboundHello,
-		mc.String(c.Server.ID),
+		proto.String(c.Server.ID),
 		pArrayPublicKey,
 		pArrayVerifyToken,
-		mc.Boolean(true),
+		proto.Boolean(true),
 	)
 	c.SendSync(pkt)
 }
@@ -134,7 +135,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	if ok, opEntry := c.Server.PlayerRegistry.IsOp(c.ContextData["loginUUID"].(uuid.UUID)); ok {
 		permissionLevel = opEntry.Level
 	}
-	pArraySession := mc.MapToPrefixedArray[mc.ProfileProperty, *mc.ProfileProperty](properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
+	pArraySession := proto.MapToPrefixedArray[mc.ProfileProperty, *mc.ProfileProperty](properties, func(p api.MojangSessionProperty) mc.ProfileProperty {
 		return mc.ProfileProperty{
 			Name:      p.Name,
 			Value:     p.Value,
@@ -155,15 +156,15 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 
 	if c.Server.Config.Network.Compression.Enabled {
 		logger.Debug("Enabling compression (threshold=%d) for %s", c.Server.Config.Network.Compression.Threshold, loginName)
-		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, mc.VarInt(c.Server.Config.Network.Compression.Threshold))
+		pkt := c.NewPacket(packet.LoginClientboundLoginCompression, proto.VarInt(c.Server.Config.Network.Compression.Threshold))
 		c.SendSync(pkt)
 		c.SetCompressionThreshold(c.Server.Config.Network.Compression.Threshold)
 	}
 
 	pkt := c.NewPacket(
 		packet.LoginClientboundLoginFinished,
-		mc.UUID(loginUUID),
-		mc.String(loginName),
+		proto.UUID(loginUUID),
+		proto.String(loginName),
 		pArraySession,
 	)
 	c.SendSync(pkt)

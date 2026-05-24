@@ -3,95 +3,96 @@ package decoders
 import (
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
 type SetPlayerPosition struct {
-	X, Y, Z mc.Double
-	Flags   mc.Byte
+	X, Y, Z proto.Double
+	Flags   proto.Byte
 }
 type SetPlayerRotation struct {
-	Yaw, Pitch mc.Float
-	Flags      mc.Byte
+	Yaw, Pitch proto.Float
+	Flags      proto.Byte
 }
 
 type SetPlayerPositionAndRotation struct {
-	X, Y, Z    mc.Double
-	Yaw, Pitch mc.Float
-	Flags      mc.Byte
+	X, Y, Z    proto.Double
+	Yaw, Pitch proto.Float
+	Flags      proto.Byte
 }
 
 type CommandSuggestionsRequest struct {
-	Text          mc.BoundedString
-	TransactionID mc.VarInt
+	Text          proto.BoundedString
+	TransactionID proto.VarInt
 }
 
 type ChatMessage struct {
-	Signature    mc.PrefixedOptional[mc.ByteArray, *mc.ByteArray]
-	Acknowledged mc.FixedBitSet
-	Message      mc.String256
-	Timestamp    mc.Long
-	Salt         mc.Long
-	MessageCount mc.VarInt
-	Checksum     mc.Byte
+	Signature    proto.PrefixedOptional[proto.ByteArray, *proto.ByteArray]
+	Acknowledged proto.FixedBitSet
+	Message      proto.String256
+	Timestamp    proto.Long
+	Salt         proto.Long
+	MessageCount proto.VarInt
+	Checksum     proto.Byte
 }
 
 type PlayerSession struct {
-	PublicKey    mc.PrefixedByteArray
-	KeySignature mc.PrefixedByteArray
-	ExpiresAt    mc.Long
-	SessionId    mc.UUID
+	PublicKey    proto.PrefixedByteArray
+	KeySignature proto.PrefixedByteArray
+	ExpiresAt    proto.Long
+	SessionId    proto.UUID
 }
 
 type ArgumentSignature struct {
-	ArgumentName mc.String16
-	Signature    mc.ByteArray
+	ArgumentName proto.String16
+	Signature    proto.ByteArray
 }
 
 type SignedChatCommand struct {
-	Acknowledged       mc.FixedBitSet
-	Command            mc.String
+	Acknowledged       proto.FixedBitSet
+	Command            proto.String
 	ArgumentSignatures []ArgumentSignature
-	Timestamp          mc.Long
-	Salt               mc.Long
-	MessageCount       mc.VarInt
-	Checksum           mc.Byte
+	Timestamp          proto.Long
+	Salt               proto.Long
+	MessageCount       proto.VarInt
+	Checksum           proto.Byte
 }
 
 type PlayerCommand struct {
-	EntityID, ActionID, JumpBoost mc.VarInt
+	EntityID, ActionID, JumpBoost proto.VarInt
 }
 
 type PlayerAction struct {
-	Status   mc.VarInt
-	Location mc.Position
-	Face     mc.Byte
-	Sequence mc.VarInt
+	Status   proto.VarInt
+	Location proto.Position
+	Face     proto.Byte
+	Sequence proto.VarInt
 }
 
 type SetCreativeModeSlot struct {
 	ClickedItem mc.Slot
-	Slot        mc.Short
+	Slot        proto.Short
 }
 
 type UseItemOn struct {
-	Hand                               mc.VarInt
-	Location                           mc.Position
-	Face                               mc.VarInt
-	CursorPosX, CursorPosY, CursorPosZ mc.Float
-	InsideBlock, WorldBorderHit        mc.Boolean
-	Sequence                           mc.VarInt
+	Hand                               proto.VarInt
+	Location                           proto.Position
+	Face                               proto.VarInt
+	CursorPosX, CursorPosY, CursorPosZ proto.Float
+	InsideBlock, WorldBorderHit        proto.Boolean
+	Sequence                           proto.VarInt
 }
 
-func DecodeConfirmTeleportation(pkt *packet.InboundPacket) (*mc.VarInt, error) {
-	var teleportId mc.VarInt
+func DecodeConfirmTeleportation(pkt *packet.InboundPacket) (*proto.VarInt, error) {
+	var teleportId proto.VarInt
 	if err := pkt.Decode(&teleportId); err != nil {
 		return nil, err
 	}
 	return &teleportId, nil
 }
 
-func DecodeSetPlayerMovementFlags(pkt *packet.InboundPacket) (*mc.Byte, error) {
-	var flags mc.Byte
+func DecodeSetPlayerMovementFlags(pkt *packet.InboundPacket) (*proto.Byte, error) {
+	var flags proto.Byte
 	if err := pkt.Decode(&flags); err != nil {
 		return nil, err
 	}
@@ -128,7 +129,7 @@ func DecodeSetPlayerPositionAndRotation(pkt *packet.InboundPacket) (*SetPlayerPo
 
 func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggestionsRequest, error) {
 	data := &CommandSuggestionsRequest{
-		Text: mc.BoundedString{MaxLength: 32500},
+		Text: proto.BoundedString{MaxLength: 32500},
 	}
 	if err := pkt.Decode(&data.TransactionID, &data.Text); err != nil {
 		return nil, err
@@ -138,8 +139,8 @@ func DecodeCommandSuggestionsRequest(pkt *packet.InboundPacket) (*CommandSuggest
 
 func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
 	data := &ChatMessage{
-		Signature:    mc.NewPrefixedOptional[mc.ByteArray, *mc.ByteArray](mc.NewByteArray(256)),
-		Acknowledged: mc.NewFixedBitSet(20),
+		Signature:    proto.NewPrefixedOptional[proto.ByteArray, *proto.ByteArray](proto.NewByteArray(256)),
+		Acknowledged: proto.NewFixedBitSet(20),
 	}
 	if err := pkt.Decode(
 		&data.Message,
@@ -157,8 +158,8 @@ func DecodeChatMessage(pkt *packet.InboundPacket) (*ChatMessage, error) {
 
 func DecodePlayerSession(pkt *packet.InboundPacket) (*PlayerSession, error) {
 	data := &PlayerSession{
-		PublicKey:    mc.PrefixedByteArray{MaxLength: 512},
-		KeySignature: mc.PrefixedByteArray{MaxLength: 4096},
+		PublicKey:    proto.PrefixedByteArray{MaxLength: 512},
+		KeySignature: proto.PrefixedByteArray{MaxLength: 4096},
 	}
 	if err := pkt.Decode(
 		&data.SessionId,
@@ -171,8 +172,8 @@ func DecodePlayerSession(pkt *packet.InboundPacket) (*PlayerSession, error) {
 	return data, nil
 }
 
-func DecodeChatCommand(pkt *packet.InboundPacket) (*mc.String, error) {
-	var command mc.String
+func DecodeChatCommand(pkt *packet.InboundPacket) (*proto.String, error) {
+	var command proto.String
 	if err := pkt.Decode(&command); err != nil {
 		return nil, err
 	}
@@ -181,9 +182,9 @@ func DecodeChatCommand(pkt *packet.InboundPacket) (*mc.String, error) {
 
 func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, error) {
 	data := &SignedChatCommand{
-		Acknowledged: mc.NewFixedBitSet(20),
+		Acknowledged: proto.NewFixedBitSet(20),
 	}
-	var signaturesCount mc.VarInt
+	var signaturesCount proto.VarInt
 
 	_ = pkt.Decode(&data.Command, &data.Timestamp, &data.Salt, &signaturesCount)
 	if err := pkt.Err(); err != nil {
@@ -192,8 +193,8 @@ func DecodeSignedChatCommand(pkt *packet.InboundPacket) (*SignedChatCommand, err
 
 	data.ArgumentSignatures = make([]ArgumentSignature, signaturesCount)
 	for i := 0; i < int(signaturesCount); i++ {
-		var argName mc.String16
-		var signature = mc.NewByteArray(256)
+		var argName proto.String16
+		var signature = proto.NewByteArray(256)
 		_ = pkt.Decode(&argName, &signature)
 		data.ArgumentSignatures[i] = ArgumentSignature{
 			ArgumentName: argName,
@@ -216,8 +217,8 @@ func DecodePlayerCommand(pkt *packet.InboundPacket) (*PlayerCommand, error) {
 	return data, nil
 }
 
-func DecodePlayerInput(pkt *packet.InboundPacket) (*mc.UnsignedByte, error) {
-	var flags mc.UnsignedByte
+func DecodePlayerInput(pkt *packet.InboundPacket) (*proto.UnsignedByte, error) {
+	var flags proto.UnsignedByte
 	if err := pkt.Decode(&flags); err != nil {
 		return nil, err
 	}
@@ -237,16 +238,16 @@ func DecodePlayerAction(pkt *packet.InboundPacket) (*PlayerAction, error) {
 	return data, nil
 }
 
-func DecodeSwingArm(pkt *packet.InboundPacket) (*mc.VarInt, error) {
-	var hand mc.VarInt
+func DecodeSwingArm(pkt *packet.InboundPacket) (*proto.VarInt, error) {
+	var hand proto.VarInt
 	if err := pkt.Decode(&hand); err != nil {
 		return nil, err
 	}
 	return &hand, nil
 }
 
-func DecodeSetHeldItem(pkt *packet.InboundPacket) (*mc.Short, error) {
-	var slot mc.Short
+func DecodeSetHeldItem(pkt *packet.InboundPacket) (*proto.Short, error) {
+	var slot proto.Short
 	if err := pkt.Decode(&slot); err != nil {
 		return nil, err
 	}
@@ -261,8 +262,8 @@ func DecodeSetCreativeModeSlot(pkt *packet.InboundPacket) (*SetCreativeModeSlot,
 	return data, nil
 }
 
-func DecodeClientCommand(pkt *packet.InboundPacket) (*mc.VarInt, error) {
-	var action mc.VarInt
+func DecodeClientCommand(pkt *packet.InboundPacket) (*proto.VarInt, error) {
+	var action proto.VarInt
 	if err := pkt.Decode(&action); err != nil {
 		return nil, err
 	}

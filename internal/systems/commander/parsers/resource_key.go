@@ -3,13 +3,13 @@ package parsers
 import (
 	"io"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 )
 
 type ResourceKey struct {
-	Registry mc.Identifier
-	Path     mc.Identifier
+	Registry proto.Identifier
+	Path     proto.Identifier
 }
 
 type ResourceKeyType struct {
