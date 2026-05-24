@@ -23,3 +23,28 @@ var idByName = map[string]ID{
 	"{{ .Name }}": {{ .PascalName }},
 {{- end }}
 }
+
+type Group uint8
+
+const (
+{{- range .Groups }}
+	{{ .PascalName }} Group = {{ .Index }}
+{{- end }}
+)
+
+type groupSoundSet struct {
+	Sounds [5]ID
+	Has    uint8
+}
+
+var groupSounds = [...]groupSoundSet{
+{{- range .Groups }}
+	{{ .PascalName }}: { Sounds: [5]ID{ {{ index .Sounds 0 }}, {{ index .Sounds 1 }}, {{ index .Sounds 2 }}, {{ index .Sounds 3 }}, {{ index .Sounds 4 }} }, Has: {{ .Has }} },
+{{- end }}
+}
+
+func (g Group) Place() (ID, bool) { e := groupSounds[g]; return e.Sounds[0], e.Has&0x01 != 0 }
+func (g Group) Break() (ID, bool) { e := groupSounds[g]; return e.Sounds[1], e.Has&0x02 != 0 }
+func (g Group) Step() (ID, bool)  { e := groupSounds[g]; return e.Sounds[2], e.Has&0x04 != 0 }
+func (g Group) Hit() (ID, bool)   { e := groupSounds[g]; return e.Sounds[3], e.Has&0x08 != 0 }
+func (g Group) Fall() (ID, bool)  { e := groupSounds[g]; return e.Sounds[4], e.Has&0x10 != 0 }

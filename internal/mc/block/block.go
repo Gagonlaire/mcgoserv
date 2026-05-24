@@ -1,6 +1,7 @@
 package block
 
 import (
+	"github.com/Gagonlaire/mcgoserv/internal/mc/sound"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
 
@@ -74,8 +75,8 @@ func (id ID) States() []StateProperty {
 	return registry[id].States
 }
 
-func (id ID) Sounds() map[string]int {
-	return registry[id].Sounds
+func (id ID) SoundGroup() sound.Group {
+	return registry[id].SoundGroup
 }
 
 func (id ID) Raw() Properties {

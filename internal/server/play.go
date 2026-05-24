@@ -225,15 +225,16 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 			)
 			c.Server.BroadcastAll(pkt)
 
-			// todo: fix to handle sound groups
 			// todo: check if faster rand exist
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			// todo: sounds weird, tweak values
 			pitch := 0.5 + r.Float64()*(2-0.5)
-			if soundId, ok := blockID.Sounds()["place"]; ok {
+			// todo: verify vanilla behavior when a block has no place sound
+			if soundID, ok := blockID.SoundGroup().Place(); ok {
+				// TODO(packet): check vanilla behavior
 				soundPkt := c.NewPacket(
 					packet.PlayClientboundSound,
-					proto.VarInt(soundId+1),
+					proto.VarInt(int(soundID)+1),
 					proto.VarInt(4),
 					proto.Int(data.Location.X*8),
 					proto.Int(data.Location.Y*8),

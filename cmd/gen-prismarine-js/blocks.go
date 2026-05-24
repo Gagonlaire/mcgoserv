@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
+
 	"text/template"
 )
 
@@ -44,26 +44,26 @@ type GenProperty struct {
 }
 
 type GenBlock struct {
-	PascalName     string
-	ID             int
-	Name           string
-	DisplayName    string
-	Hardness       float32
-	Resistance     float32
-	StackSize      int
-	Diggable       bool
-	Material       string
-	Transparent    bool
-	EmitLight      int
-	FilterLight    int
-	BoundingBox    string
-	Drops          []int
-	HarvestTools   map[string]bool
-	MinStateID     int
-	MaxStateID     int
-	DefaultStateID int
-	States         []GenProperty
-	Sounds         map[string]int
+	PascalName       string
+	ID               int
+	Name             string
+	DisplayName      string
+	Hardness         float32
+	Resistance       float32
+	StackSize        int
+	Diggable         bool
+	Material         string
+	Transparent      bool
+	EmitLight        int
+	FilterLight      int
+	BoundingBox      string
+	Drops            []int
+	HarvestTools     map[string]bool
+	MinStateID       int
+	MaxStateID       int
+	DefaultStateID   int
+	States           []GenProperty
+	SoundGroupPascal string
 }
 
 type BlockTemplateData struct {
@@ -84,10 +84,9 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 		return err
 	}
 
-	allSounds := data["sounds"].([]SoundDefinition)
-	soundLookup := make(map[string]int)
-	for _, s := range allSounds {
-		soundLookup[s.Name] = s.ID
+	blockGroupPascal, ok := data["blockGroupPascal"].(map[string]string)
+	if !ok {
+		return fmt.Errorf("blockGroupPascal missing from generator data; sounds generator must run first")
 	}
 
 	blockIDMap := make(map[string]int)
@@ -99,7 +98,6 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 	for _, b := range blockDefinitions {
 		blockIDMap[b.Name] = b.ID
 
-		// states
 		pName := toPascalCase(b.Name)
 		genStates := make([]GenProperty, len(b.States))
 		currentStride := 1
@@ -120,45 +118,33 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 			maxStateID = b.MaxStateID
 		}
 
-		processedBlocks = append(processedBlocks, GenBlock{
-			PascalName:     pName + "ID",
-			ID:             b.ID,
-			Name:           b.Name,
-			DisplayName:    b.DisplayName,
-			Hardness:       b.Hardness,
-			Resistance:     b.Resistance,
-			StackSize:      b.StackSize,
-			Diggable:       b.Diggable,
-			Material:       b.Material,
-			Transparent:    b.Transparent,
-			EmitLight:      b.EmitLight,
-			FilterLight:    b.FilterLight,
-			BoundingBox:    b.BoundingBox,
-			Drops:          b.Drops,
-			HarvestTools:   b.HarvestTools,
-			MinStateID:     b.MinStateID,
-			MaxStateID:     b.MaxStateID,
-			DefaultStateID: b.Default,
-			States:         genStates,
-		})
-	}
-
-	for _, sound := range allSounds {
-		if strings.HasPrefix(sound.Name, "block.") {
-			parts := strings.SplitN(sound.Name, ".", 3)
-			if len(parts) == 3 {
-				blockName := parts[1]
-				if blockID, ok := blockIDMap[blockName]; ok {
-					if _, exists := processedBlocks[blockID].Sounds[sound.Name]; !exists {
-						if processedBlocks[blockID].Sounds == nil {
-							processedBlocks[blockID].Sounds = make(map[string]int)
-						}
-
-						processedBlocks[blockID].Sounds[parts[2]] = sound.ID
-					}
-				}
-			}
+		groupPascal, ok := blockGroupPascal[b.Name]
+		if !ok {
+			return fmt.Errorf("block %q has no entry in blockToGroup; add one in cmd/gen-prismarine-js/sounds.go", b.Name)
 		}
+
+		processedBlocks = append(processedBlocks, GenBlock{
+			PascalName:       pName + "ID",
+			ID:               b.ID,
+			Name:             b.Name,
+			DisplayName:      b.DisplayName,
+			Hardness:         b.Hardness,
+			Resistance:       b.Resistance,
+			StackSize:        b.StackSize,
+			Diggable:         b.Diggable,
+			Material:         b.Material,
+			Transparent:      b.Transparent,
+			EmitLight:        b.EmitLight,
+			FilterLight:      b.FilterLight,
+			BoundingBox:      b.BoundingBox,
+			Drops:            b.Drops,
+			HarvestTools:     b.HarvestTools,
+			MinStateID:       b.MinStateID,
+			MaxStateID:       b.MaxStateID,
+			DefaultStateID:   b.Default,
+			States:           genStates,
+			SoundGroupPascal: groupPascal,
+		})
 	}
 
 	outFile, err := os.Create(outputFile)
