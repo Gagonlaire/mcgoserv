@@ -1,7 +1,7 @@
 package decoders
 
 import (
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/container"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
@@ -70,7 +70,7 @@ type PlayerAction struct {
 }
 
 type SetCreativeModeSlot struct {
-	ClickedItem mc.Slot
+	ClickedItem container.Slot
 	Slot        proto.Short
 }
 

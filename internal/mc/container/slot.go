@@ -1,7 +1,8 @@
-package mc
+package container
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 )
@@ -11,6 +12,21 @@ type Slot struct {
 	RemoveList *[]int32
 	Count      int32
 	ItemID     int32
+}
+
+// StacksWith reports whether s and other are mergeable (same ItemID + equal components).
+// todo: RemoveList equality uses reflect.DeepEqual which is order-sensitive, refactor to a set
+func (s Slot) StacksWith(other Slot) bool {
+	if s.Count <= 0 || other.Count <= 0 {
+		return false
+	}
+	if s.ItemID != other.ItemID {
+		return false
+	}
+	if s.Components == nil && other.Components == nil && s.RemoveList == nil && other.RemoveList == nil {
+		return true
+	}
+	return reflect.DeepEqual(s.Components, other.Components) && reflect.DeepEqual(s.RemoveList, other.RemoveList)
 }
 
 func (s *Slot) ReadFrom(r io.Reader) (n int64, err error) {

@@ -172,16 +172,15 @@ func (c *Connection) AnimateEntity(animationID int) {
 }
 
 func (c *Connection) HandleSetHeldItem(slot *proto.Short) {
-	c.Player.SelectedItemSlot = int32(*slot)
-	inventoryId := mc.HotbarToInternal(int(*slot))
-	item := c.Player.Inventory.Get(inventoryId)
-	if item.Count > 0 {
+	c.Player.Inventory.SelectedHotbar = int32(*slot)
+	held := c.Player.Inventory.Held()
+	if held.Count > 0 {
 		pkt := c.NewPacket(
 			packet.PlayClientboundSetEquipment,
 			proto.VarInt(c.Player.EntityID),
 			// todo: check item slot to know if main or off hand
 			proto.UnsignedByte(0),
-			&item,
+			&held,
 		)
 		c.Server.BroadcastViewers(c, pkt)
 	}
@@ -207,8 +206,7 @@ func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
 		data.Location.X++
 	}
 
-	var slotId = mc.HotbarToInternal(int(c.Player.SelectedItemSlot))
-	var slotData = c.Player.Inventory.Get(slotId)
+	slotData := c.Player.Inventory.Held()
 
 	if slotData.Count > 0 {
 		itemID, ok := item.FromID(int(slotData.ItemID))

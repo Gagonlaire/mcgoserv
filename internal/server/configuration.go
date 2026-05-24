@@ -70,7 +70,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		EnforceSecureChat:   proto.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
 	}))
 
-	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetHeldSlot, proto.VarInt(c.Player.SelectedItemSlot)))
+	_ = c.SendSync(c.NewPacket(packet.PlayClientboundSetHeldSlot, proto.VarInt(c.Player.Inventory.SelectedHotbar)))
 
 	if err := c.Server.SendCommands(c); err != nil {
 		logger.Error("Player disconnected during configuration: %v", err)

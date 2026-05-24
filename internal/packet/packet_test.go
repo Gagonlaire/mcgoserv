@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/container"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/google/uuid"
 )
@@ -35,7 +35,7 @@ var (
 	benchComplex = []proto.Field{
 		ptr(proto.UUID(uuid.New())),
 		ptr(proto.LpVec3{X: 1.5, Y: 2.5, Z: 3.5}),
-		ptr(mc.Slot{Count: 64, ItemID: 1}),
+		ptr(container.Slot{Count: 64, ItemID: 1}),
 		&proto.PrefixedArray[proto.Long, *proto.Long]{Data: longSlice},
 	}
 )

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/logger"
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/container"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
@@ -25,14 +26,20 @@ type QueuedPacket struct {
 }
 
 type Connection struct {
-	Conn                 net.Conn
-	ctx                  context.Context
-	ContextData          map[string]interface{}
-	Player               *entity.Player
-	Server               *Server
-	InboundPackets       chan QueuedPacket
-	OutboundPackets      chan *packet.OutboundPacket
-	cancel               context.CancelFunc
+	Conn            net.Conn
+	ctx             context.Context
+	ContextData     map[string]interface{}
+	Player          *entity.Player
+	Server          *Server
+	InboundPackets  chan QueuedPacket
+	OutboundPackets chan *packet.OutboundPacket
+	cancel          context.CancelFunc
+	// Cursor is the drag-in-flight item stack, transient per-window UI state.
+	// TODO: wire ClickContainer handler to mutate Cursor on click/drag.
+	// TODO: on CloseContainer (client or server initiated), drop Cursor into the world as an item entity, then zero it.
+	// TODO: on disconnect (close()), drop Cursor into the world as an item entity before connection teardown.
+	// TODO: on window open, defensively zero Cursor to prevent leakage between containers.
+	Cursor               container.Slot
 	State                mc.State
 	CompressionThreshold int
 	LastKeepAliveID      int64
