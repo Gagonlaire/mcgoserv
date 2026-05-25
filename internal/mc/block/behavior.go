@@ -1,22 +1,16 @@
 package block
 
+import "github.com/Gagonlaire/mcgoserv/internal/world"
+
 type Behavior interface {
 	ID() ID
-	OnPlace(ctx *PlaceContext) bool
-	OnBreak(ctx *BreakContext)
-	OnInteract(ctx *InteractContext) InteractResult
-	OnNeighborChange(ctx *NeighborContext)
-	OnRandomTick(ctx *TickContext)
-	OnScheduledTick(ctx *TickContext)
+	OnPlace(ctx world.PlaceContext) world.PlaceResult
+	OnBreak(ctx world.BreakContext) world.BreakResult
+	OnInteract(ctx world.InteractContext) world.InteractResult
+	OnNeighborChange(ctx world.NeighborContext) world.PlaceResult
+	OnRandomTick(ctx world.TickContext) world.PlaceResult
+	OnScheduledTick(ctx world.TickContext) world.PlaceResult
 }
-
-type InteractResult uint8
-
-const (
-	InteractPass InteractResult = iota
-	InteractSuccess
-	InteractConsume
-)
 
 type DefaultBlock struct {
 	id ID
@@ -28,19 +22,38 @@ func NewDefaultBlock(id ID) *DefaultBlock {
 
 func (d *DefaultBlock) ID() ID { return d.id }
 
-func (d *DefaultBlock) OnPlace(ctx *PlaceContext) bool {
-	ctx.Set(ctx.Pos(), int32(d.id.DefaultStateID()))
-	return true
+func (d *DefaultBlock) OnPlace(ctx world.PlaceContext) world.PlaceResult {
+	return world.PlaceResult{
+		OK: true,
+		Writes: []world.BlockChange{{
+			Pos:      ctx.Pos,
+			NewState: int32(d.id.DefaultStateID()),
+		}},
+	}
 }
 
-func (d *DefaultBlock) OnBreak(*BreakContext) {}
-
-func (d *DefaultBlock) OnInteract(*InteractContext) InteractResult {
-	return InteractPass
+func (d *DefaultBlock) OnBreak(ctx world.BreakContext) world.BreakResult {
+	return world.BreakResult{
+		OK: true,
+		Changes: []world.BlockChange{{
+			Pos:      ctx.Pos,
+			NewState: 0,
+		}},
+	}
 }
 
-func (d *DefaultBlock) OnNeighborChange(*NeighborContext) {}
+func (d *DefaultBlock) OnInteract(world.InteractContext) world.InteractResult {
+	return world.InteractPass
+}
 
-func (d *DefaultBlock) OnRandomTick(*TickContext) {}
+func (d *DefaultBlock) OnNeighborChange(world.NeighborContext) world.PlaceResult {
+	return world.PlaceResult{}
+}
 
-func (d *DefaultBlock) OnScheduledTick(*TickContext) {}
+func (d *DefaultBlock) OnRandomTick(world.TickContext) world.PlaceResult {
+	return world.PlaceResult{}
+}
+
+func (d *DefaultBlock) OnScheduledTick(world.TickContext) world.PlaceResult {
+	return world.PlaceResult{}
+}
