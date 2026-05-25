@@ -22,11 +22,7 @@ func (s *Server) DespawnEntity(entity entity.Entity) {
 }
 
 func (s *Server) SpawnPlayer(player *entity.Player, dimensionID world.DimensionID) error {
-	if err := s.World.AddPlayer(player, dimensionID); err != nil {
-		return err
-	}
-	s.broadcastSpawn(player)
-	return nil
+	return s.World.AddPlayer(player, dimensionID)
 }
 
 func (s *Server) DespawnPlayer(player *entity.Player) {

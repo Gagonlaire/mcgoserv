@@ -99,6 +99,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 	actions := mc.ListActionAddPlayer | mc.ListActionUpdateListed
 	pkt1, _ := buildPlayerInfoUpdatePacket(actions, me)
 	c.Server.BroadcastOthers(c, pkt1)
+	c.Server.broadcastSpawn(c.Player)
 	pkt1, _ = buildPlayerInfoUpdatePacket(actions|mc.ListActionInitializeChat, allPlayers)
 	_ = c.SendSync(pkt1)
 
