@@ -8,6 +8,7 @@ package main
 import (
 	"os"
 
+	"github.com/Gagonlaire/mcgoserv/internal/mc/block"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
 	"github.com/Gagonlaire/mcgoserv/internal/server/commands"
 )
@@ -15,6 +16,8 @@ import (
 func main() {
 	serv := server.NewServer()
 
+	// TODO: check if not breaking, as world load happens before block registration
+	block.RegisterAll()
 	commands.RegisterAll(serv)
 	serv.Start(os.Args[1:])
 }
