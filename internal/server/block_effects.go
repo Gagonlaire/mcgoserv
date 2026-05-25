@@ -39,7 +39,7 @@ func (c *Connection) applyBreakResult(primary world.BlockPos, result world.Break
 }
 
 func (c *Connection) broadcastBlockUpdate(dim *world.Dimension, pos world.BlockPos, state int32) {
-	// TODO: check packet
+	// TODO(packet 1.21.10)
 	pkt := c.NewPacket(
 		packet.PlayClientboundBlockUpdate,
 		toProtoPosition(pos),
@@ -60,7 +60,7 @@ func (c *Connection) broadcastPlaceSound(dim *world.Dimension, pos world.BlockPo
 	// TODO: pitch range/volume, verify vanilla constants
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	pitch := 0.5 + r.Float64()*1.5
-	// TODO: check packet
+	// TODO(packet 1.21.10)
 	pkt := c.NewPacket(
 		packet.PlayClientboundSound,
 		proto.VarInt(int(soundID)+1),
@@ -76,7 +76,7 @@ func (c *Connection) broadcastPlaceSound(dim *world.Dimension, pos world.BlockPo
 }
 
 func (c *Connection) broadcastBreakEvent(dim *world.Dimension, pos world.BlockPos, oldState int32) {
-	// TODO: check packet, replace hard coded event with helper for events
+	// TODO(packet 1.21.10): replace hard coded event with helper for events
 	pkt := c.NewPacket(
 		packet.PlayClientboundLevelEvent,
 		proto.Int(2001),
