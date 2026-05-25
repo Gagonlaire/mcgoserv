@@ -71,6 +71,38 @@ func (s *Server) BroadcastEntityViewers(entity entity.Entity, pkt *packet.Outbou
 	pkt.Free()
 }
 
+// BroadcastChunkWatchers sends a packet to every player tracking the chunk at (chunkX, chunkZ) in dim. Takes ownership of the packet.
+func (s *Server) BroadcastChunkWatchers(dim *world.Dimension, chunkX, chunkZ int, pkt *packet.OutboundPacket, filters ...Filter) {
+	if pkt == nil {
+		return
+	}
+	chunk := dim.GetChunk(chunkX, chunkZ)
+	for watcherID := range chunk.Watchers {
+		if v, ok := s.ConnectionsByEID.Load(watcherID); ok {
+			sendFiltered(v.(*Connection), pkt, filters)
+		}
+	}
+	pkt.Free()
+}
+
+// BroadcastChunkWatchersOthers is BroadcastChunkWatchers minus the sender. Takes ownership of the packet.
+func (s *Server) BroadcastChunkWatchersOthers(sender *Connection, dim *world.Dimension, chunkX, chunkZ int, pkt *packet.OutboundPacket, filters ...Filter) {
+	if pkt == nil {
+		return
+	}
+	chunk := dim.GetChunk(chunkX, chunkZ)
+	for watcherID := range chunk.Watchers {
+		if v, ok := s.ConnectionsByEID.Load(watcherID); ok {
+			conn := v.(*Connection)
+			if conn == sender {
+				continue
+			}
+			sendFiltered(conn, pkt, filters)
+		}
+	}
+	pkt.Free()
+}
+
 func sendFiltered(conn *Connection, pkt *packet.OutboundPacket, filters []Filter) {
 	for _, f := range filters {
 		if !f(conn) {

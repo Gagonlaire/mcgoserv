@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/x509"
-	"math/rand"
 	"time"
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
@@ -128,39 +127,44 @@ func (c *Connection) HandleSwingArm(hand *proto.VarInt) {
 }
 
 func (c *Connection) HandlePlayerAction(data *decoders.PlayerAction) {
+	shouldBreak := false
 	switch data.Status {
 	case proto.VarInt(mc.ActionStartDigging):
-		if c.Player.GameMode == 1 {
-			dim := c.Server.World.GetEntityDimension(c.Player)
-			blockState, _ := dim.GetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z))
-
-			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), 0)
-			pkt := c.NewPacket(
-				packet.PlayClientboundBlockUpdate,
-				data.Location,
-				proto.VarInt(0),
-			)
-			eventPkt := c.NewPacket(
-				packet.PlayClientboundLevelEvent,
-				proto.Int(2001),
-				data.Location,
-				proto.Int(blockState),
-				proto.Boolean(false),
-			)
-			c.Server.BroadcastOthers(c, eventPkt)
-			c.Server.BroadcastAll(pkt)
-		}
+		shouldBreak = c.Player.GameMode == 1
 	case proto.VarInt(mc.ActionFinishDigging):
-		pkt := c.NewPacket(
-			packet.PlayClientboundBlockUpdate,
-			data.Location,
-			proto.VarInt(0),
-		)
-		c.Server.BroadcastAll(pkt)
+		shouldBreak = true
+	}
+
+	if shouldBreak {
+		c.tryBreakBlock(data.Location)
 	}
 
 	pkt := c.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
+}
+
+func (c *Connection) tryBreakBlock(loc proto.Position) {
+	pos := world.BlockPos{X: int(loc.X), Y: int(loc.Y), Z: int(loc.Z)}
+	dim := c.Server.World.GetEntityDimension(c.Player)
+
+	state, _ := dim.GetState(pos)
+	blockID, ok := block.FromStateID(int(state))
+	if !ok {
+		return
+	}
+	behavior, ok := block.Lookup(blockID)
+	if !ok {
+		return
+	}
+
+	ctx := world.BreakContext{
+		Pos:     pos,
+		State:   state,
+		Breaker: c.Player,
+		Tool:    heldStack(c.Player),
+	}
+	result := dim.BreakBlock(behavior, &ctx)
+	c.applyBreakResult(pos, result)
 }
 
 func (c *Connection) AnimateEntity(animationID int) {
@@ -192,63 +196,58 @@ func (c *Connection) HandleSetCreativeModeSlot(data *decoders.SetCreativeModeSlo
 }
 
 func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
-	switch data.Face {
-	case 0: // Bottom
-		data.Location.Y--
-	case 1: // Top
-		data.Location.Y++
-	case 2: // North
-		data.Location.Z--
-	case 3: // South
-		data.Location.Z++
-	case 4: // West
-		data.Location.X--
-	case 5: // East
-		data.Location.X++
-	}
-
-	slotData := c.Player.Inventory.Held()
-
-	if slotData.Count > 0 {
-		itemID, ok := item.FromID(int(slotData.ItemID))
-
-		if ok && itemID.IsBlock() {
-			blockID, _ := block.FromID(itemID.BlockID())
-			dim := c.Server.World.GetEntityDimension(c.Player)
-			_ = dim.SetBlock(int(data.Location.X), int(data.Location.Y), int(data.Location.Z), int32(blockID.DefaultStateID()))
-
-			pkt := c.NewPacket(
-				packet.PlayClientboundBlockUpdate,
-				data.Location,
-				proto.VarInt(blockID.DefaultStateID()),
-			)
-			c.Server.BroadcastAll(pkt)
-
-			// todo: check if faster rand exist
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			// todo: sounds weird, tweak values
-			pitch := 0.5 + r.Float64()*(2-0.5)
-			// todo: verify vanilla behavior when a block has no place sound
-			if soundID, ok := blockID.SoundGroup().Place(); ok {
-				// TODO(packet): check vanilla behavior
-				soundPkt := c.NewPacket(
-					packet.PlayClientboundSound,
-					proto.VarInt(int(soundID)+1),
-					proto.VarInt(4),
-					proto.Int(data.Location.X*8),
-					proto.Int(data.Location.Y*8),
-					proto.Int(data.Location.Z*8),
-					proto.Float(1),
-					proto.Float(pitch),
-					proto.Long(0),
-				)
-				c.Server.BroadcastOthers(c, soundPkt)
-			}
-		}
-	}
+	c.tryPlaceBlock(data)
 
 	pkt := c.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
+}
+
+func (c *Connection) tryPlaceBlock(data *decoders.UseItemOn) {
+	face := world.Direction(data.Face)
+	target := faceOffset(data.Location, face)
+
+	held := c.Player.Inventory.Held()
+	if held.Count <= 0 {
+		return
+	}
+	itemID, ok := item.FromID(int(held.ItemID))
+	if !ok || !itemID.IsBlock() {
+		return
+	}
+	blockID, ok := block.FromID(itemID.BlockID())
+	if !ok {
+		return
+	}
+	behavior, ok := block.Lookup(blockID)
+	if !ok {
+		return
+	}
+
+	ctx := world.PlaceContext{
+		Pos:      target,
+		Face:     face,
+		Hit:      [3]float32{float32(data.CursorPosX), float32(data.CursorPosY), float32(data.CursorPosZ)},
+		Player:   c.Player,
+		Hand:     entity.Hand(data.Hand),
+		UsedItem: heldStack(c.Player),
+	}
+	dim := c.Server.World.GetEntityDimension(c.Player)
+	result := dim.PlaceBlock(behavior, &ctx)
+	c.applyPlaceResult(target, result)
+}
+
+func faceOffset(loc proto.Position, face world.Direction) world.BlockPos {
+	dx, dy, dz := face.Vector()
+	return world.BlockPos{
+		X: int(loc.X) + dx,
+		Y: int(loc.Y) + dy,
+		Z: int(loc.Z) + dz,
+	}
+}
+
+func heldStack(p *entity.Player) item.Stack {
+	s := p.Inventory.Held()
+	return item.Stack{ID: item.ID(s.ItemID), Count: int(s.Count)}
 }
 
 func buildPlayerInfoUpdatePacket(actions mc.PlayerListAction, players []*entity.Player) (*packet.OutboundPacket, error) {
