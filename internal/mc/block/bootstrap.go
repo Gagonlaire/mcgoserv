@@ -4,7 +4,7 @@ package block
 // Family registrations come first in alphabetical order, registerDefaultBlocks runs last
 // and backfills any ID no family claimed. See README.md ("Collision resolution").
 func RegisterAll() {
-	// TODO: registerDoors() DoorBlock family.
+	registerDoors()
 	registerDefaultBlocks()
 }
 

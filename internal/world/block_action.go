@@ -31,6 +31,13 @@ type PlaceResult struct {
 	Writes []BlockChange
 }
 
+func (ctx PlaceContext) PlayerFacing() Direction {
+	if ctx.Player == nil {
+		return ctx.Face
+	}
+	return CardinalFromYaw(ctx.Player.Rotation[0])
+}
+
 // BreakContext TODO: pool when neighbor/tick paths land.
 type BreakContext struct {
 	Pos     BlockPos

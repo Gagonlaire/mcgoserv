@@ -57,6 +57,38 @@ func (d Direction) Offset(p BlockPos) BlockPos {
 	return p.Offset(d)
 }
 
+// RotateCCW returns the next cardinal direction rotating counter-clockwise
+// when viewed from above (Mojang convention): N→W→S→E→N.
+func (d Direction) RotateCCW() Direction {
+	switch d {
+	case DirectionNorth:
+		return DirectionWest
+	case DirectionWest:
+		return DirectionSouth
+	case DirectionSouth:
+		return DirectionEast
+	case DirectionEast:
+		return DirectionNorth
+	}
+	return d
+}
+
+// RotateCW returns the next cardinal direction rotating clockwise when viewed
+// from above (Mojang convention): N→E→S→W→N.
+func (d Direction) RotateCW() Direction {
+	switch d {
+	case DirectionNorth:
+		return DirectionEast
+	case DirectionEast:
+		return DirectionSouth
+	case DirectionSouth:
+		return DirectionWest
+	case DirectionWest:
+		return DirectionNorth
+	}
+	return d
+}
+
 func CardinalFromYaw(yaw float32) Direction {
 	y := math.Mod(float64(yaw), 360)
 	if y < 0 {
