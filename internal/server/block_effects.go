@@ -35,6 +35,8 @@ func (c *Connection) applyBreakResult(primary world.BlockPos, result world.Break
 			primaryOldState = ch.OldState
 		}
 	}
+
+	// TODO: batch the BlockUpdates above into a SectionBlocksUpdate when ≥2 writes land in the same chunk section
 	c.broadcastBreakEvent(dim, primary, primaryOldState)
 }
 
