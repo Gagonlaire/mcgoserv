@@ -17,10 +17,19 @@ func (c *Connection) applyPlaceResult(primary world.BlockPos, result world.Place
 		c.broadcastBlockUpdate(dim, primary, state)
 		return
 	}
+	primaryHasWrite := false
 	for _, w := range result.Writes {
 		c.broadcastBlockUpdate(dim, w.Pos, w.NewState)
+		if w.Pos == primary {
+			primaryHasWrite = true
+		}
 	}
-	c.broadcastPlaceSound(dim, primary, primaryNewState(primary, result.Writes))
+	if !primaryHasWrite {
+		state, _ := dim.GetState(primary)
+		c.broadcastBlockUpdate(dim, primary, state)
+	}
+	soundPos, soundState := representativeWrite(primary, result.Writes)
+	c.broadcastPlaceSound(dim, soundPos, soundState)
 }
 
 func (c *Connection) applyBreakResult(primary world.BlockPos, result world.BreakResult) {
@@ -89,13 +98,16 @@ func (c *Connection) broadcastBreakEvent(dim *world.Dimension, pos world.BlockPo
 	c.Server.BroadcastChunkWatchersOthers(c, dim, pos.X>>4, pos.Z>>4, pkt)
 }
 
-func primaryNewState(primary world.BlockPos, writes []world.BlockChange) int32 {
+func representativeWrite(primary world.BlockPos, writes []world.BlockChange) (world.BlockPos, int32) {
 	for _, w := range writes {
 		if w.Pos == primary {
-			return w.NewState
+			return w.Pos, w.NewState
 		}
 	}
-	return 0
+	if len(writes) == 0 {
+		return primary, 0
+	}
+	return writes[0].Pos, writes[0].NewState
 }
 
 func toProtoPosition(p world.BlockPos) proto.Position {

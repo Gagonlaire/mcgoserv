@@ -103,15 +103,27 @@ writes.
 
 `world.PlaceContext`:
 
-| Field      | Type            | Notes                                     |
-|------------|-----------------|-------------------------------------------|
-| `Pos`      | `BlockPos`      | Target cell after face offset             |
-| `Face`     | `Direction`     | Face of the existing block that was hit   |
-| `Hit`      | `[3]float32`    | Cursor position within the face           |
-| `Player`   | `*entity.Player`| Placer                                    |
-| `Hand`     | `entity.Hand`   | Main / off hand                           |
-| `UsedItem` | `item.Stack`    | Item in the placing hand                  |
-| `View`     | `BlockView`     | Read-only state lookup (set by Dimension) |
+| Field        | Type            | Notes                                                       |
+|--------------|-----------------|-------------------------------------------------------------|
+| `Pos`        | `BlockPos`      | Target cell after face offset                               |
+| `ClickedPos` | `BlockPos`      | Originally clicked cell. Invariant: `Pos = ClickedPos + Face.Vector()` |
+| `Face`       | `Direction`     | Face of the existing block that was hit                     |
+| `Hit`        | `[3]float32`    | Cursor position within the face                             |
+| `Player`     | `*entity.Player`| Placer                                                      |
+| `Hand`       | `entity.Hand`   | Main / off hand                                             |
+| `UsedItem`   | `item.Stack`    | Item in the placing hand                                    |
+| `View`       | `BlockView`     | Read-only state lookup (set by Dimension)                   |
+
+#### Writing to the clicked cell instead of `Pos`
+
+Most behaviors emit writes at `ctx.Pos`. Some need to write into the originally
+clicked cell: slabs merging into a double, future replace-in-place blocks.
+Read `ctx.ClickedPos`, decide, emit writes there.
+
+When a behavior's writes do **not** include `ctx.Pos`, the server auto-broadcasts
+a corrective `BlockUpdate` at `ctx.Pos` to roll back the client's prediction. No
+need to emit a no-op write to "fix" the predicted cell. The place sound fires
+at the first write (or at the write that lands on `ctx.Pos`, when present).
 
 `world.BreakContext`: `{Pos, State, Breaker, Tool, View}`.
 

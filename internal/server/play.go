@@ -224,12 +224,13 @@ func (c *Connection) tryPlaceBlock(data *decoders.UseItemOn) {
 	}
 
 	ctx := world.PlaceContext{
-		Pos:      target,
-		Face:     face,
-		Hit:      [3]float32{float32(data.CursorPosX), float32(data.CursorPosY), float32(data.CursorPosZ)},
-		Player:   c.Player,
-		Hand:     entity.Hand(data.Hand),
-		UsedItem: heldStack(c.Player),
+		Pos:        target,
+		ClickedPos: world.BlockPos{X: int(data.Location.X), Y: int(data.Location.Y), Z: int(data.Location.Z)},
+		Face:       face,
+		Hit:        [3]float32{float32(data.CursorPosX), float32(data.CursorPosY), float32(data.CursorPosZ)},
+		Player:     c.Player,
+		Hand:       entity.Hand(data.Hand),
+		UsedItem:   heldStack(c.Player),
 	}
 	dim := c.Server.World.GetEntityDimension(c.Player)
 	result := dim.PlaceBlock(behavior, &ctx)

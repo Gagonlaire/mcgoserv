@@ -17,13 +17,14 @@ type BlockChange struct {
 
 // PlaceContext TODO: pool when neighbor/tick paths land.
 type PlaceContext struct {
-	Pos      BlockPos
-	Face     Direction
-	Hit      [3]float32
-	Player   *entity.Player
-	Hand     entity.Hand
-	UsedItem item.Stack
-	View     BlockView
+	Pos        BlockPos
+	ClickedPos BlockPos
+	Face       Direction
+	Hit        [3]float32
+	Player     *entity.Player
+	Hand       entity.Hand
+	UsedItem   item.Stack
+	View       BlockView
 }
 
 type PlaceResult struct {
