@@ -30,6 +30,7 @@ type PlaceContext struct {
 type PlaceResult struct {
 	OK     bool
 	Writes []BlockChange
+	BEAdds []BlockEntity
 }
 
 func (ctx PlaceContext) PlayerFacing() Direction {
@@ -116,6 +117,9 @@ func (d *Dimension) PlaceBlock(behavior BlockBehavior, ctx *PlaceContext) PlaceR
 			d.removeBlockEntity(w.Pos)
 		}
 	}
+	for _, be := range result.BEAdds {
+		d.addBlockEntity(be)
+	}
 	return result
 }
 
@@ -143,11 +147,22 @@ func (d *Dimension) BreakBlock(behavior BlockBehavior, ctx *BreakContext) BreakR
 
 func (d *Dimension) removeBlockEntity(pos BlockPos) {
 	chunk := d.GetChunk(pos.X>>4, pos.Z>>4)
-	localX, localZ := int8(pos.X&15), int8(pos.Z&15)
 	for i, be := range chunk.BlockEntities {
-		if be.X == localX && be.Y == int16(pos.Y) && be.Z == localZ {
+		if be.Pos() == pos {
 			chunk.BlockEntities = append(chunk.BlockEntities[:i], chunk.BlockEntities[i+1:]...)
 			return
 		}
 	}
+}
+
+func (d *Dimension) addBlockEntity(be BlockEntity) {
+	pos := be.Pos()
+	chunk := d.GetChunk(pos.X>>4, pos.Z>>4)
+	for i, existing := range chunk.BlockEntities {
+		if existing.Pos() == pos {
+			chunk.BlockEntities[i] = be
+			return
+		}
+	}
+	chunk.BlockEntities = append(chunk.BlockEntities, be)
 }

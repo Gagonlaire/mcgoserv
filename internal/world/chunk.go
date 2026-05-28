@@ -6,7 +6,7 @@ type Chunk struct {
 	X, Z          int
 	Sections      []*Section
 	Light         []*LightSection
-	BlockEntities []BlockEntity
+	BlockEntities []BlockEntity // interface slice
 	Entities      map[EntityID]struct{}
 	Watchers      map[EntityID]struct{}
 	minY          int
