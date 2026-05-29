@@ -405,6 +405,12 @@ func processIncomingPackets(s *Server) {
 	})
 }
 
+func tickWorld(s *Server) {
+	for _, dim := range s.World.Dimensions {
+		dim.Tick(s.World.Time)
+	}
+}
+
 func reapDyingEntities(s *Server) {
 	queue := s.World.DyingEntities
 	kept := queue[:0]

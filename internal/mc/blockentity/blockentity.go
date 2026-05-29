@@ -17,13 +17,10 @@ func FromString(name string) (Type, bool) {
 	return t, ok
 }
 
-// Ticker is implemented by BEs that need per-tick work (furnace, hopper, beacon, conduit).
-// TODO: write-back mechanism if a Ticker ever needs to schedule writes.
-// TODO: a ticker should be able to perform any action in the world
-type Ticker interface {
-	world.BlockEntity
-	Tick(ctx world.TickContext)
-}
+// Ticker is implemented by BEs that need per-tick work (furnace, hopper, beacon,
+// conduit). It aliases world.Ticker so world.Chunk can hold []Ticker without an
+// import cycle
+type Ticker = world.Ticker
 
 // Container is implemented by BEs that hold items (chest, furnace, hopper...).
 type Container interface {

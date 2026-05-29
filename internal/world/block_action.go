@@ -146,23 +146,10 @@ func (d *Dimension) BreakBlock(behavior BlockBehavior, ctx *BreakContext) BreakR
 }
 
 func (d *Dimension) removeBlockEntity(pos BlockPos) {
-	chunk := d.GetChunk(pos.X>>4, pos.Z>>4)
-	for i, be := range chunk.BlockEntities {
-		if be.Pos() == pos {
-			chunk.BlockEntities = append(chunk.BlockEntities[:i], chunk.BlockEntities[i+1:]...)
-			return
-		}
-	}
+	d.GetChunk(pos.X>>4, pos.Z>>4).RemoveBlockEntity(pos)
 }
 
 func (d *Dimension) addBlockEntity(be BlockEntity) {
 	pos := be.Pos()
-	chunk := d.GetChunk(pos.X>>4, pos.Z>>4)
-	for i, existing := range chunk.BlockEntities {
-		if existing.Pos() == pos {
-			chunk.BlockEntities[i] = be
-			return
-		}
-	}
-	chunk.BlockEntities = append(chunk.BlockEntities, be)
+	d.GetChunk(pos.X>>4, pos.Z>>4).SetBlockEntity(be)
 }
