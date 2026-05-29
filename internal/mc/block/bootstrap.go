@@ -5,6 +5,7 @@ package block
 // and backfills any ID no family claimed. See README.md ("Collision resolution").
 func RegisterAll() {
 	registerDoors()
+	registerFurnace()
 	registerSlabs()
 	registerDefaultBlocks()
 }

@@ -53,7 +53,13 @@ func (d *Dimension) SetBlock(x, y, z int, blockState int32) error {
 	return chunk.SetBlock(x&15, y, z&15, blockState)
 }
 
-func (d *Dimension) tick() {}
+func (d *Dimension) Tick(tick int64) {
+	// TODO: check order
+	ctx := &BETickContext{Dim: d, Tick: tick}
+	for _, chunk := range d.Chunks {
+		chunk.Tick(ctx)
+	}
+}
 
 // TODO: replace with real world generation.
 // TODO: remove one section to match vanilla sea height

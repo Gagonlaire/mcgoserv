@@ -1,10 +1,18 @@
 package world
 
-// BlockEntity todo: implement block entities
-type BlockEntity struct {
-	X    int8
-	Y    int16
-	Z    int8
-	Type int32
-	// TODO: NBT payload.
+type BEType uint8
+
+type BlockEntity interface {
+	Pos() BlockPos
+	Type() BEType
+}
+
+type BETickContext struct {
+	Dim  *Dimension
+	Tick int64
+}
+
+type Ticker interface {
+	BlockEntity
+	Tick(ctx *BETickContext)
 }

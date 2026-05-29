@@ -7,8 +7,10 @@ import (
 )
 
 func (s *Server) registerTickerSteps() {
+	// TODO: check order
 	s.Ticker.Register(func() { updateTime(s) })
 	s.Ticker.Register(func() { processIncomingPackets(s) })
+	s.Ticker.Register(func() { tickWorld(s) })
 	s.Ticker.Register(func() { reapDyingEntities(s) })
 	s.Ticker.Register(func() { flushEntityMetadata(s) })
 }
