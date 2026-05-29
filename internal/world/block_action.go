@@ -1,6 +1,8 @@
 package world
 
 import (
+	"fmt"
+
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
 )
@@ -109,13 +111,24 @@ func (d *Dimension) PlaceBlock(behavior BlockBehavior, ctx *PlaceContext) PlaceR
 	if !result.OK {
 		return result
 	}
+
+	if len(result.BEAdds) > 0 {
+		writeSet := make(map[BlockPos]struct{}, len(result.Writes))
+		for _, w := range result.Writes {
+			writeSet[w.Pos] = struct{}{}
+		}
+		for _, be := range result.BEAdds {
+			if _, ok := writeSet[be.Pos()]; !ok {
+				panic(fmt.Sprintf("world: BE spawn at %v is not in PlaceResult.Writes", be.Pos()))
+			}
+		}
+	}
 	for i := range result.Writes {
 		w := &result.Writes[i]
 		w.OldState, _ = d.GetState(w.Pos)
+		// TODO: replace this with methods on blocks, so they self clean BE
+		d.removeBlockEntity(w.Pos)
 		_ = d.SetBlock(w.Pos.X, w.Pos.Y, w.Pos.Z, w.NewState)
-		if w.NewState == 0 {
-			d.removeBlockEntity(w.Pos)
-		}
 	}
 	for _, be := range result.BEAdds {
 		d.addBlockEntity(be)
