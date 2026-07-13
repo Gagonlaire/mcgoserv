@@ -30,9 +30,10 @@ type PlaceContext struct {
 }
 
 type PlaceResult struct {
-	OK     bool
-	Writes []BlockChange
-	BEAdds []BlockEntity
+	OK           bool
+	Writes       []BlockChange
+	BEAdds       []BlockEntity
+	OpenSignEdit *BlockPos
 }
 
 func (ctx PlaceContext) PlayerFacing() Direction {

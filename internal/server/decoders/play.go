@@ -83,6 +83,25 @@ type UseItemOn struct {
 	Sequence                           proto.VarInt
 }
 
+type SignUpdate struct {
+	Location                   proto.Position
+	IsFrontText                proto.Boolean
+	Line1, Line2, Line3, Line4 proto.String
+}
+
+func DecodeSignUpdate(pkt *packet.InboundPacket) (*SignUpdate, error) {
+	// TODO(packet 1.21.10)
+	data := &SignUpdate{}
+	if err := pkt.Decode(
+		&data.Location,
+		&data.IsFrontText,
+		&data.Line1, &data.Line2, &data.Line3, &data.Line4,
+	); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func DecodeConfirmTeleportation(pkt *packet.InboundPacket) (*proto.VarInt, error) {
 	var teleportId proto.VarInt
 	if err := pkt.Decode(&teleportId); err != nil {

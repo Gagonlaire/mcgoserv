@@ -16,3 +16,8 @@ type Ticker interface {
 	BlockEntity
 	Tick(ctx *BETickContext)
 }
+
+type Networked interface {
+	BlockEntity
+	NetworkData() any
+}

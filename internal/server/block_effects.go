@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"math/rand"
 	"time"
 
@@ -30,6 +31,45 @@ func (c *Connection) applyPlaceResult(primary world.BlockPos, result world.Place
 	}
 	soundPos, soundState := representativeWrite(primary, result.Writes)
 	c.broadcastPlaceSound(dim, soundPos, soundState)
+
+	if result.OpenSignEdit != nil {
+		c.sendOpenSignEditor(*result.OpenSignEdit, true)
+	}
+}
+
+func (c *Connection) applyInteractResult(result world.PlaceResult) {
+	if !result.OK {
+		return
+	}
+	if result.OpenSignEdit != nil {
+		c.sendOpenSignEditor(*result.OpenSignEdit, true)
+	}
+}
+
+func (c *Connection) sendOpenSignEditor(pos world.BlockPos, front bool) {
+	// TODO(packet 1.21.10)
+	pkt := c.NewPacket(
+		packet.PlayClientboundOpenSignEditor,
+		toProtoPosition(pos),
+		proto.Boolean(front),
+	)
+	c.Send(pkt)
+}
+
+func (c *Connection) broadcastBlockEntityData(dim *world.Dimension, be world.Networked) {
+	data, ok := be.NetworkData().(io.WriterTo)
+	if !ok {
+		return
+	}
+	pos := be.Pos()
+	// TODO(packet 1.21.10)
+	pkt := c.NewPacket(
+		packet.PlayClientboundBlockEntityData,
+		toProtoPosition(pos),
+		proto.VarInt(int(be.Type())),
+		data,
+	)
+	c.Server.BroadcastChunkWatchers(dim, pos.X>>4, pos.Z>>4, pkt)
 }
 
 func (c *Connection) applyBreakResult(primary world.BlockPos, result world.BreakResult) {

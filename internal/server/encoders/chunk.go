@@ -97,7 +97,7 @@ type blockEntityWire struct {
 	PackedXZ proto.UnsignedByte
 	Y        proto.Short
 	Type     proto.VarInt
-	// TODO: NBT payload field once NBT encoding lands.
+	NBT      io.WriterTo // network-format NBT compound (from Networked.NetworkData)
 }
 
 func (b *blockEntityWire) ReadFrom(_ io.Reader) (int64, error) {
@@ -117,7 +117,37 @@ func (b *blockEntityWire) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	nn, err = b.Type.WriteTo(w)
 	n += nn
+	if err != nil {
+		return n, err
+	}
+	if b.NBT != nil {
+		nn, err = b.NBT.WriteTo(w)
+		n += nn
+	}
 	return n, err
+}
+
+func chunkBlockEntities(c *world.Chunk) []blockEntityWire {
+	var wires []blockEntityWire
+	for pos, be := range c.BlockEntities() {
+		nd, ok := be.(world.Networked)
+		if !ok {
+			continue
+		}
+		data, ok := nd.NetworkData().(io.WriterTo)
+		if !ok {
+			continue
+		}
+		localX := pos.X & 15
+		localZ := pos.Z & 15
+		wires = append(wires, blockEntityWire{
+			PackedXZ: proto.UnsignedByte((localX << 4) | localZ),
+			Y:        proto.Short(pos.Y),
+			Type:     proto.VarInt(int32(be.Type())),
+			NBT:      data,
+		})
+	}
+	return wires
 }
 
 // NewChunkData TODO: build the wire DataArray directly from the Section impl's palette
@@ -173,7 +203,7 @@ func NewChunkData(c *world.Chunk) *LevelChunkWithLight {
 		HeightMaps:       proto.NewPrefixedArray[heightmapEntry, *heightmapEntry](nil),
 		Size:             proto.VarInt(dataSize),
 		Data:             proto.Array[chunkSectionWire, *chunkSectionWire]{Data: sections},
-		BlockEntities:    proto.NewPrefixedArray[blockEntityWire, *blockEntityWire](nil),
+		BlockEntities:    proto.NewPrefixedArray[blockEntityWire, *blockEntityWire](chunkBlockEntities(c)),
 		SkyLightMask:     skyMask,
 		SkyLightArrays:   proto.NewPrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray](skyArrays),
 		BlockLightArrays: proto.NewPrefixedArray[proto.PrefixedByteArray, *proto.PrefixedByteArray](nil),

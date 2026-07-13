@@ -30,14 +30,12 @@ type Container interface {
 
 type Interactable interface {
 	world.BlockEntity
-	OnInteract(ctx world.InteractContext) world.InteractResult
+	OnInteract(ctx world.InteractContext) world.PlaceResult
 }
 
-// Networked is implemented by BEs that store data
-type Networked interface {
-	world.BlockEntity
-	NetworkData() any
-}
+// Networked aliases world.Networked so world.Chunk can hold them without an
+// import cycle, mirroring Ticker.
+type Networked = world.Networked
 
 // Persistent is the seam for region-file save/load.
 type Persistent interface {

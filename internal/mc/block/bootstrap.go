@@ -6,6 +6,7 @@ package block
 func RegisterAll() {
 	registerDoors()
 	registerFurnace()
+	registerSigns()
 	registerSlabs()
 	registerDefaultBlocks()
 }

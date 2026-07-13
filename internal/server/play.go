@@ -6,6 +6,7 @@ import (
 
 	"github.com/Gagonlaire/mcgoserv/internal/mc"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/block"
+	"github.com/Gagonlaire/mcgoserv/internal/mc/blockentity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/entity"
 	"github.com/Gagonlaire/mcgoserv/internal/mc/item"
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
@@ -196,10 +197,64 @@ func (c *Connection) HandleSetCreativeModeSlot(data *decoders.SetCreativeModeSlo
 }
 
 func (c *Connection) HandleUseItemOn(data *decoders.UseItemOn) {
-	c.tryPlaceBlock(data)
+	if !c.tryInteractBlock(data) {
+		c.tryPlaceBlock(data)
+	}
 
 	pkt := c.NewPacket(packet.PlayClientboundBlockChangedAck, data.Sequence)
 	c.Send(pkt)
+}
+
+func (c *Connection) tryInteractBlock(data *decoders.UseItemOn) bool {
+	if c.Player.Flags&entity.FlagCrouching != 0 {
+		return false
+	}
+	clicked := world.BlockPos{X: int(data.Location.X), Y: int(data.Location.Y), Z: int(data.Location.Z)}
+	dim := c.Server.World.GetEntityDimension(c.Player)
+	chunk := dim.GetChunk(clicked.X>>4, clicked.Z>>4)
+	if chunk == nil {
+		return false
+	}
+	interactable, ok := chunk.BlockEntity(clicked).(blockentity.Interactable)
+	if !ok {
+		return false
+	}
+
+	state, _ := dim.GetState(clicked)
+	ctx := world.InteractContext{
+		Pos:      clicked,
+		State:    state,
+		Player:   c.Player,
+		Hand:     entity.Hand(data.Hand),
+		UsedItem: heldStack(c.Player),
+		Hit:      [3]float32{float32(data.CursorPosX), float32(data.CursorPosY), float32(data.CursorPosZ)},
+		Face:     world.Direction(data.Face),
+		View:     dim,
+	}
+	result := interactable.OnInteract(ctx)
+	c.applyInteractResult(result)
+	return result.OK
+}
+
+func (c *Connection) HandleSignUpdate(data *decoders.SignUpdate) {
+	pos := world.BlockPos{X: int(data.Location.X), Y: int(data.Location.Y), Z: int(data.Location.Z)}
+	dim := c.Server.World.GetEntityDimension(c.Player)
+	chunk := dim.GetChunk(pos.X>>4, pos.Z>>4)
+	if chunk == nil {
+		return
+	}
+	sign, ok := chunk.BlockEntity(pos).(*blockentity.Sign)
+	if !ok {
+		return
+	}
+	lines := [4]string{
+		string(data.Line1), string(data.Line2),
+		string(data.Line3), string(data.Line4),
+	}
+	if !sign.ApplyEdit(c.Player.EntityID, bool(data.IsFrontText), lines) {
+		return
+	}
+	c.broadcastBlockEntityData(dim, sign)
 }
 
 func (c *Connection) tryPlaceBlock(data *decoders.UseItemOn) {

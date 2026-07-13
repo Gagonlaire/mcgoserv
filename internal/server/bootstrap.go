@@ -227,4 +227,10 @@ func registerPlayHandlers(s *Server) {
 		true,
 		decoders.DecodeUseItemOn, (*Connection).HandleUseItemOn,
 	)
+	RegisterTyped(
+		s.Router,
+		mc.StatePlay, packet.PlayServerboundSignUpdate,
+		true,
+		decoders.DecodeSignUpdate, (*Connection).HandleSignUpdate,
+	)
 }
