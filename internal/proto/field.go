@@ -120,6 +120,13 @@ type (
 	// Notes:
 	//  - Variable-length data encoding a two's complement signed 32-bit integer; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#VarInt_and_VarLong.
 	VarInt int32
+	// VarLong Encodes:
+	//  - An integer between -9223372036854775808 and 9223372036854775807.
+	// Size:
+	//  - ≥ 1 ≤ 10 bytes
+	// Notes:
+	//  - Variable-length data encoding a two's complement signed 64-bit integer; https://minecraft.wiki/w/Java_Edition_protocol/Data_types#VarInt_and_VarLong.
+	VarLong int64
 	// Angle Encodes:
 	//  - A rotation angle in steps of 1/256 of a full turn
 	// Size:
@@ -552,6 +559,53 @@ func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := w.Write(buf[:i])
 	if err != nil {
 		return int64(nn), WrapIOErr(err, "error writing VarInt")
+	}
+	return int64(nn), nil
+}
+
+func (v *VarLong) ReadFrom(r io.Reader) (n int64, err error) {
+	var position uint
+	*v = 0
+	for i := 0; i < 10; i++ {
+		var b byte
+		if br, ok := r.(io.ByteReader); ok {
+			b, err = br.ReadByte()
+		} else {
+			var buf [1]byte
+			_, err = io.ReadFull(r, buf[:])
+			b = buf[0]
+		}
+		if err != nil {
+			return n, WrapIOErr(err, "error reading VarLong")
+		}
+		n++
+		*v |= VarLong(b&0x7F) << position
+		if b&0x80 == 0 {
+			return n, nil
+		}
+		position += 7
+	}
+	return n, fmt.Errorf("error reading VarLong")
+}
+
+func (v VarLong) WriteTo(w io.Writer) (n int64, err error) {
+	var buf [10]byte
+	i := 0
+	val := uint64(v)
+	for {
+		buf[i] = byte(val & 0x7F)
+		val >>= 7
+		if val != 0 {
+			buf[i] |= 0x80
+		}
+		i++
+		if val == 0 {
+			break
+		}
+	}
+	nn, err := w.Write(buf[:i])
+	if err != nil {
+		return int64(nn), WrapIOErr(err, "error writing VarLong")
 	}
 	return int64(nn), nil
 }

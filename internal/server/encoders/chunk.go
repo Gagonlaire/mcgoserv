@@ -48,7 +48,9 @@ func (l *LevelChunkWithLight) WriteTo(w io.Writer) (n int64, err error) {
 
 // TODO: check if can be move to the field generator
 type chunkSectionWire struct {
-	BlockCount  proto.Short
+	BlockCount proto.Short
+	// FluidCount is the number of waterlogged blocks and water/lava blocks in the section. Always 0 until the fluid subsystem lands.
+	FluidCount  proto.Short
 	BlockStates proto.PalettedContainer
 	Biomes      proto.PalettedContainer
 }
@@ -59,6 +61,11 @@ func (s *chunkSectionWire) ReadFrom(_ io.Reader) (int64, error) {
 
 func (s *chunkSectionWire) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := s.BlockCount.WriteTo(w)
+	n += nn
+	if err != nil {
+		return n, err
+	}
+	nn, err = s.FluidCount.WriteTo(w)
 	n += nn
 	if err != nil {
 		return n, err
@@ -146,7 +153,7 @@ func NewChunkData(c *world.Chunk) *LevelChunkWithLight {
 			BlockStates: states,
 			Biomes:      emptyBiomes,
 		}
-		dataSize += 2 + sections[i].BlockStates.Size() + sections[i].Biomes.Size()
+		dataSize += 4 + sections[i].BlockStates.Size() + sections[i].Biomes.Size()
 	}
 
 	// fow now: fully light up data, dummy.

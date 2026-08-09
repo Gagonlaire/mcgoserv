@@ -109,11 +109,12 @@ type Login struct {
 	HasDeathLocation    proto.Boolean
 	PortalCooldown      proto.VarInt
 	SeaLevel            proto.VarInt
+	OnlineMode          proto.Boolean
 	EnforceSecureChat   proto.Boolean
 }
 
 func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
-	fields := [20]io.WriterTo{
+	fields := [21]io.WriterTo{
 		l.EntityID, l.IsHardcore, l.DimensionNames,
 		l.MaxPlayers, l.ViewDistance, l.SimulationDistance,
 		l.ReducedDebugInfo, l.EnableRespawnScreen, l.DoLimitedCrafting,
@@ -122,7 +123,7 @@ func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
 		l.GameMode, l.PreviousGameMode,
 		l.IsDebug, l.IsFlat, l.HasDeathLocation,
 		l.PortalCooldown, l.SeaLevel,
-		l.EnforceSecureChat,
+		l.OnlineMode, l.EnforceSecureChat,
 	}
 	for _, f := range fields {
 		nn, err := f.WriteTo(w)
@@ -132,6 +133,76 @@ func (l *Login) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 	return n, nil
+}
+
+// Clock IDs follow the entry order of the generated minecraft:world_clock
+// registry data (sorted entry names).
+const (
+	ClockOverworld = 0
+	ClockTheEnd    = 1
+)
+
+type ClockUpdate struct {
+	ClockID        proto.VarInt
+	Time           proto.VarLong
+	FractionalTime proto.Float
+	// Rate is the clock ticks the client advances per client tick; 0 freezes
+	// the clock.
+	Rate proto.Float
+}
+
+func (c *ClockUpdate) ReadFrom(r io.Reader) (n int64, err error) {
+	fields := [4]io.ReaderFrom{&c.ClockID, &c.Time, &c.FractionalTime, &c.Rate}
+	for _, f := range fields {
+		nn, err := f.ReadFrom(r)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
+}
+
+func (c *ClockUpdate) WriteTo(w io.Writer) (n int64, err error) {
+	fields := [4]io.WriterTo{c.ClockID, c.Time, c.FractionalTime, c.Rate}
+	for _, f := range fields {
+		nn, err := f.WriteTo(w)
+		n += nn
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
+}
+
+type SetTime struct {
+	WorldAge proto.Long
+	Clocks   proto.PrefixedArray[ClockUpdate, *ClockUpdate]
+}
+
+// NewSetTime updates every world clock to dayTime; rate 1 when the daylight
+// cycle advances, 0 when frozen.
+func NewSetTime(worldAge, dayTime int64, advancing bool) *SetTime {
+	rate := proto.Float(0)
+	if advancing {
+		rate = 1
+	}
+	return &SetTime{
+		WorldAge: proto.Long(worldAge),
+		Clocks: proto.NewPrefixedArray[ClockUpdate, *ClockUpdate]([]ClockUpdate{
+			{ClockID: ClockOverworld, Time: proto.VarLong(dayTime), Rate: rate},
+			{ClockID: ClockTheEnd, Time: proto.VarLong(dayTime), Rate: rate},
+		}),
+	}
+}
+
+func (s *SetTime) WriteTo(w io.Writer) (n int64, err error) {
+	n, err = s.WorldAge.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	nn, err := s.Clocks.WriteTo(w)
+	return n + nn, err
 }
 
 type Respawn struct {

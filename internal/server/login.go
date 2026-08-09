@@ -120,8 +120,14 @@ func (c *Connection) HandleEncryptionResponse(data *decoders.EncryptionResponse)
 		return
 	}
 
-	realUUID, _ := uuid.Parse(session.ID)
-	c.ContextData["loginUUID"] = realUUID
+	// session.ID is the player's profile UUID (undashed hex), not a session identifier.
+	profileUUID, err := uuid.Parse(session.ID)
+	if err != nil {
+		logger.Error("Session server returned a malformed profile UUID %q: %v", session.ID, err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectUnverifiedUsername))
+		return
+	}
+	c.ContextData["loginUUID"] = profileUUID
 	c.ContextData["loginName"] = session.Name
 	c.FinishLogin(session.Properties)
 }
@@ -144,6 +150,14 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 	})
 	loginUUID := c.ContextData["loginUUID"].(uuid.UUID)
 	loginName := c.ContextData["loginName"].(string)
+	// the purpose of this session id is still unknown
+	sessionID, err := uuid.NewRandom()
+	if err != nil {
+		logger.Error("Error generating session ID: %v", err)
+		c.Disconnect(tc.Translatable(mcdata.MultiplayerDisconnectGeneric))
+		return
+	}
+	c.SessionID = sessionID
 	logger.Info("UUID of player %s is %s", logger.Identity(loginName), logger.Identity(loginUUID))
 
 	c.Player = entity.NewPlayer(
@@ -166,6 +180,7 @@ func (c *Connection) FinishLogin(properties []api.MojangSessionProperty) {
 		proto.UUID(loginUUID),
 		proto.String(loginName),
 		pArraySession,
+		proto.UUID(sessionID),
 	)
 	c.SendSync(pkt)
 	delete(c.ContextData, "loginName")

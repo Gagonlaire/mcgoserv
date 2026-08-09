@@ -21,7 +21,8 @@ func (c *Connection) HandleServerboundKnownPacks(knownPacks *proto.PrefixedArray
 		c.Send(pkt)
 	}
 
-	// todo: send the update tags (optional but cause enchantment registry to not work)
+	c.Send(c.NewPacket(packet.ConfigurationClientboundUpdateTags, &mc.RegistriesTags))
+
 	pkt := c.NewPacket(packet.ConfigurationClientboundFinishConfiguration)
 	c.Send(pkt)
 }
@@ -67,6 +68,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 		HasDeathLocation:    false,
 		PortalCooldown:      100,
 		SeaLevel:            64,
+		OnlineMode:          proto.Boolean(c.Server.Config.Security.OnlineMode),
 		EnforceSecureChat:   proto.Boolean(c.Server.EnforceSecureChat), // apparently, always false in offline mode
 	}))
 
@@ -105,9 +107,7 @@ func (c *Connection) HandleAcknowledgeFinishConfiguration(_ *packet.InboundPacke
 
 	_ = c.SendSync(c.NewPacket(
 		packet.PlayClientboundSetTime,
-		proto.Long(c.Server.World.Time),
-		proto.Long(c.Server.World.DayTime),
-		proto.Boolean(true),
+		encoders.NewSetTime(c.Server.World.Time, c.Server.World.DayTime, true),
 	))
 
 	_ = c.SendSync(c.NewPacket(

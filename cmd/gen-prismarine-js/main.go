@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	basePrismaJSURl    = "https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data/"
+	prismaJSRepoURL    = "https://raw.githubusercontent.com/PrismarineJS/minecraft-data/"
+	defaultPrismaJSRef = "master"
 	projectVersionFile = "version.json"
 	cacheDir           = ".cache"
 )
@@ -26,6 +27,9 @@ type DataPaths struct {
 type VersionData struct {
 	ProtocolVersion int    `json:"protocol_version"`
 	Version         string `json:"game_version"`
+	// PrismarineRef is an optional branch/tag/commit of PrismarineJS/minecraft-data
+	// to pull data from, for versions not merged into master yet (early releases).
+	PrismarineRef string `json:"prismarine_ref"`
 }
 
 type Generator struct {
@@ -49,17 +53,6 @@ func main() {
 		panic(err)
 	}
 
-	dataPathReader, err := getReader(basePrismaJSURl+"dataPaths.json", "dataPaths.json", true)
-	if err != nil {
-		panic("Cannot fetch dataPaths.json: " + err.Error())
-	}
-
-	var dataPaths DataPaths
-	if err := json.NewDecoder(dataPathReader).Decode(&dataPaths); err != nil {
-		panic("Cannot decode dataPaths.json")
-	}
-	_ = dataPathReader.Close()
-
 	fileContent, err := os.ReadFile(projectVersionFile)
 	if err != nil {
 		panic(err)
@@ -70,11 +63,29 @@ func main() {
 		panic(err)
 	}
 
+	ref := versionData.PrismarineRef
+	if ref == "" {
+		ref = defaultPrismaJSRef
+	}
+	baseURL := prismaJSRepoURL + ref + "/data/"
+	log.Println("Using minecraft-data ref:", ref)
+
+	dataPathReader, err := getReader(baseURL+"dataPaths.json", "dataPaths.json", true)
+	if err != nil {
+		panic("Cannot fetch dataPaths.json: " + err.Error())
+	}
+
+	var dataPaths DataPaths
+	if err := json.NewDecoder(dataPathReader).Decode(&dataPaths); err != nil {
+		panic("Cannot decode dataPaths.json")
+	}
+	_ = dataPathReader.Close()
+
 	data := make(map[string]any)
 	if versionInfo, ok := dataPaths.Pc[versionData.Version]; ok {
 		for _, generator := range generators {
-			url := fmt.Sprintf("%s%s/%s.json", basePrismaJSURl, versionInfo[generator.ResourceKey], generator.ResourceKey)
-			fileName := fmt.Sprintf("%s_%s.json", versionData.Version, generator.ResourceKey)
+			url := fmt.Sprintf("%s%s/%s.json", baseURL, versionInfo[generator.ResourceKey], generator.ResourceKey)
+			fileName := fmt.Sprintf("%s_%s_%s.json", cacheRefKey(ref), versionData.Version, generator.ResourceKey)
 			reader, err := getReader(url, fileName, false)
 
 			if err != nil {
@@ -87,8 +98,19 @@ func main() {
 			_ = reader.Close()
 		}
 	} else {
-		panic("Version " + versionData.Version + " not found in dataPaths.json")
+		panic("Version " + versionData.Version + " not found in dataPaths.json (ref " + ref + ")")
 	}
+}
+
+// cacheRefKey makes a ref usable as part of a cache file name, so data pulled
+// from different refs never collides for the same game version.
+func cacheRefKey(ref string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' {
+			return '-'
+		}
+		return r
+	}, ref)
 }
 
 func getReader(url string, cacheFileName string, skipCache bool) (io.ReadCloser, error) {

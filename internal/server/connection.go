@@ -17,6 +17,7 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
+	"github.com/google/uuid"
 )
 
 type QueuedPacket struct {
@@ -26,10 +27,13 @@ type QueuedPacket struct {
 }
 
 type Connection struct {
-	Conn            net.Conn
-	ctx             context.Context
-	ContextData     map[string]interface{}
-	Player          *entity.Player
+	Conn        net.Conn
+	ctx         context.Context
+	ContextData map[string]interface{}
+	Player      *entity.Player
+	// SessionID identifies this login session, and is distinct from the player's
+	// profile UUID so that successive connections by the same player differ.
+	SessionID       uuid.UUID
 	Server          *Server
 	InboundPackets  chan QueuedPacket
 	OutboundPackets chan *packet.OutboundPacket
