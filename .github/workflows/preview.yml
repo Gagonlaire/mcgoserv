@@ -1,0 +1,130 @@
+name: 'PR preview server'
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '^1.25'
+  JAVA_VERSION: '21'
+
+jobs:
+  deploy:
+    name: Deploy preview
+    # Fork PRs cannot see repository secrets, and deploying fork code would run
+    # untrusted binaries on the preview host. Same-repo branches only.
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Read game version
+        run: |
+          VERSION=$(jq -r '.game_version' version.json)
+          echo "MC_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "JAR_FILENAME=server-$VERSION.jar" >> "$GITHUB_ENV"
+
+      - name: Cache Minecraft jar
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.JAR_FILENAME }}
+          key: mc-server-jar-${{ env.MC_VERSION }}
+
+      - name: Derive preview identity
+        id: preview
+        env:
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.number }}
+        run: |
+          HASH=$(printf '%s#%s' "$REPO" "$PR" | sha256sum | cut -c1-8)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Preview channel: pr-$HASH.velkoz.ovh"
+
+      - name: Generate code
+        run: make gen
+
+      - name: Build preview binary
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: |
+          make build BINARY_NAME=server BRANCH="pr-${{ github.event.number }}"
+          ls -lh server
+
+      - name: Deploy to preview host
+        env:
+          N8N_DEPLOY_URL: ${{ secrets.N8N_DEPLOY_URL }}
+          N8N_PREVIEW_TOKEN: ${{ secrets.N8N_PREVIEW_TOKEN }}
+        run: |
+          RESPONSE=$(curl -sS --fail-with-body -X POST "$N8N_DEPLOY_URL" \
+            -H "X-Preview-Token: $N8N_PREVIEW_TOKEN" \
+            -F "file=@server" \
+            -F "repo=${{ github.repository }}" \
+            -F "pr=${{ github.event.number }}" \
+            -F "sha=${{ github.event.pull_request.head.sha }}" \
+            -F "hash=${{ steps.preview.outputs.hash }}")
+          echo "$RESPONSE"
+          {
+            echo "### Preview server deployed"
+            echo ""
+            echo '```json'
+            echo "$RESPONSE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  teardown:
+    name: Tear down preview
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive preview identity
+        id: preview
+        env:
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.number }}
+        run: |
+          HASH=$(printf '%s#%s' "$REPO" "$PR" | sha256sum | cut -c1-8)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Tear down preview host
+        env:
+          N8N_TEARDOWN_URL: ${{ secrets.N8N_TEARDOWN_URL }}
+          N8N_PREVIEW_TOKEN: ${{ secrets.N8N_PREVIEW_TOKEN }}
+        run: |
+          curl -sS --fail-with-body -X POST "$N8N_TEARDOWN_URL" \
+            -H "X-Preview-Token: $N8N_PREVIEW_TOKEN" \
+            -H 'content-type: application/json' \
+            -d "$(jq -n \
+                  --arg repo "${{ github.repository }}" \
+                  --arg pr "${{ github.event.number }}" \
+                  --arg hash "${{ steps.preview.outputs.hash }}" \
+                  '{repo: $repo, pr: $pr, hash: $hash, reason: "closed"}')"
