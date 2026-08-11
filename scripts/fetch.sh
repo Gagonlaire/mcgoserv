@@ -1,12 +1,14 @@
 #!/bin/sh
+set -eu
+
+if ! command -v jq > /dev/null; then
+  echo "Error: jq is not installed. Please install it to run this script." >&2
+  exit 1
+fi
 
 MC_VERSION=$(jq -r '.game_version' version.json)
 JAR_FILE="server-$MC_VERSION.jar"
 OUTPUT_DIR="internal/mcdata"
-
-if ! command -v jq > /dev/null; then
-  error "jq is not installed. Please install it to run this script."
-fi
 
 if [ ! -f "$JAR_FILE" ]; then
     echo "Fetching metadata for Minecraft $MC_VERSION..."
@@ -20,10 +22,21 @@ if [ ! -f "$JAR_FILE" ]; then
         exit 1
     fi
 
-    DOWNLOAD_URL=$(curl -s "$MANIFEST_URL" | jq -r '.downloads.server.url')
+    DOWNLOAD_URL=$(curl -s "$MANIFEST_URL" | jq -r '.downloads.server.url // empty')
+
+    if [ -z "$DOWNLOAD_URL" ]; then
+        echo "Error: Manifest for $MC_VERSION has no server download." >&2
+        exit 1
+    fi
 
     echo "Downloading server.jar..."
-    curl -o "$JAR_FILE" "$DOWNLOAD_URL"
+    # Without --fail curl happily writes an HTTP error page into the jar, which
+    # then poisons every later run (and the CI cache) as an "existing" jar.
+    if ! curl -fSL -o "$JAR_FILE" "$DOWNLOAD_URL"; then
+        rm -f "$JAR_FILE"
+        echo "Error: Failed to download $DOWNLOAD_URL" >&2
+        exit 1
+    fi
 else
     echo "server.jar already exists, skipping download."
 fi
