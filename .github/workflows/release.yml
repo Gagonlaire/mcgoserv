@@ -10,7 +10,6 @@ permissions:
 
 env:
   GO_VERSION: '^1.25'
-  JAVA_VERSION: '21'
 
 jobs:
   build:
@@ -34,22 +33,17 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Read game version
+        run: ./scripts/ci-versions.sh
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Read game version
-        id: cfg
-        run: |
-          VERSION=$(jq -r '.game_version' version.json)
-          echo "MC_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "JAR_FILENAME=server-$VERSION.jar" >> "$GITHUB_ENV"
-          echo "Game version: $VERSION"
 
       - name: Cache Minecraft jar
         uses: actions/cache@v4
