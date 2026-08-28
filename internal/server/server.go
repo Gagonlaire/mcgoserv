@@ -29,9 +29,10 @@ import (
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
 	"github.com/Gagonlaire/mcgoserv/internal/proto"
+	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 	"github.com/Gagonlaire/mcgoserv/internal/systems"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander"
-	"github.com/Gagonlaire/mcgoserv/internal/systems/player-registry"
+	player_registry "github.com/Gagonlaire/mcgoserv/internal/systems/player-registry"
 	"github.com/Gagonlaire/mcgoserv/internal/world"
 )
 
@@ -351,7 +352,7 @@ func updateTime(s *Server) {
 	}
 
 	if s.World.Time >= s.World.NextTimeUpdate {
-		timePacket, err := packet.NewPacket(packet.PlayClientboundSetTime, proto.Long(s.World.Time), proto.Long(s.World.DayTime), proto.Boolean(true))
+		timePacket, err := packet.NewPacket(packet.PlayClientboundSetTime, encoders.NewSetTime(s.World.Time, s.World.DayTime, true))
 		if err != nil {
 			logger.Error("error encoding time packet: %v", err)
 			return

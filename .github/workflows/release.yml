@@ -12,18 +12,12 @@ env:
   GO_VERSION: '^1.25'
 
 jobs:
+  # Code generation is platform-independent and costs a jar download plus a full
+  # Java data-generator run, so it happens once here and every target is then
+  # cross-compiled from the same generated tree.
   build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    name: Build all targets
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { goos: linux,   goarch: amd64, ext: ''     }
-          - { goos: linux,   goarch: arm64, ext: ''     }
-          - { goos: darwin,  goarch: amd64, ext: ''     }
-          - { goos: darwin,  goarch: arm64, ext: ''     }
-          - { goos: windows, goarch: amd64, ext: '.exe' }
     steps:
       - uses: actions/checkout@v4
 
@@ -54,23 +48,27 @@ jobs:
       - name: Generate code
         run: make gen
 
-      - name: Build optimized binary
+      - name: Build optimized binaries
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
+          TAG: ${{ github.ref_name }}
         run: |
-          BIN="mcgoserv-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          echo "Building $BIN (GOOS=$GOOS GOARCH=$GOARCH)"
-          make build BINARY_NAME="$BIN" BRANCH="${{ github.ref_name }}"
-          ls -lh "$BIN"
-          echo "ARTIFACT=$BIN" >> "$GITHUB_ENV"
+          mkdir -p dist
+          for TARGET in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            GOOS="${TARGET%/*}"
+            GOARCH="${TARGET#*/}"
+            case "$GOOS" in windows) EXT='.exe' ;; *) EXT='' ;; esac
+            BIN="mcgoserv-$TAG-$GOOS-$GOARCH$EXT"
+            echo "Building $BIN"
+            GOOS="$GOOS" GOARCH="$GOARCH" make build BINARY_NAME="dist/$BIN" BRANCH="$TAG"
+          done
+          ls -lh dist/
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ env.ARTIFACT }}
+          name: binaries
+          path: dist/*
           if-no-files-found: error
           retention-days: 7
 

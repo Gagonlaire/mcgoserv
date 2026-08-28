@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"text/template"
 )
@@ -92,6 +93,11 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 	blockIDMap := make(map[string]int)
 	var processedBlocks []GenBlock
 
+	// Blocks with no sound group are collected rather than reported one at a
+	// time: a game version bump usually adds several, and failing on the first
+	// would mean one full generate cycle per missing block.
+	var ungrouped []string
+
 	maxBlockID := 0
 	maxStateID := 0
 
@@ -120,7 +126,8 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 
 		groupPascal, ok := blockGroupPascal[b.Name]
 		if !ok {
-			return fmt.Errorf("block %q has no entry in blockToGroup; add one in cmd/gen-prismarine-js/sounds.go", b.Name)
+			ungrouped = append(ungrouped, b.Name)
+			continue
 		}
 
 		processedBlocks = append(processedBlocks, GenBlock{
@@ -145,6 +152,11 @@ func generateBlocks(rawBlockDefinitions io.ReadCloser, data map[string]any) erro
 			States:           genStates,
 			SoundGroupPascal: groupPascal,
 		})
+	}
+
+	if len(ungrouped) > 0 {
+		return fmt.Errorf("%d block(s) have no entry in blockToGroup; add them in cmd/gen-prismarine-js/sounds.go:\n\t%s",
+			len(ungrouped), strings.Join(ungrouped, "\n\t"))
 	}
 
 	outFile, err := os.Create(outputFile)

@@ -7,8 +7,8 @@ import (
 	tc "github.com/Gagonlaire/mcgoserv/internal/mc/textcomponent"
 	"github.com/Gagonlaire/mcgoserv/internal/mcdata"
 	"github.com/Gagonlaire/mcgoserv/internal/packet"
-	"github.com/Gagonlaire/mcgoserv/internal/proto"
 	"github.com/Gagonlaire/mcgoserv/internal/server"
+	"github.com/Gagonlaire/mcgoserv/internal/server/encoders"
 	. "github.com/Gagonlaire/mcgoserv/internal/systems/commander"
 	"github.com/Gagonlaire/mcgoserv/internal/systems/commander/parsers"
 )
@@ -41,7 +41,7 @@ func setDaylightCycleTime(s *server.Server, total int64) int64 {
 	s.World.DayTime = total % mc.TicksPerDay
 
 	pkt, err := packet.NewPacket(packet.PlayClientboundSetTime,
-		proto.Long(s.World.Time), proto.Long(s.World.DayTime), proto.Boolean(true))
+		encoders.NewSetTime(s.World.Time, s.World.DayTime, true))
 	if err == nil {
 		s.World.NextTimeUpdate = s.World.Time + 20
 		s.BroadcastAll(pkt)

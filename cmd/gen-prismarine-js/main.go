@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 )
 
 const (
-	basePrismaJSURl    = "https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data/"
+	prismaJSRepoURL    = "https://raw.githubusercontent.com/PrismarineJS/minecraft-data/"
+	defaultPrismaJSRef = "master"
 	projectVersionFile = "version.json"
 	cacheDir           = ".cache"
 )
@@ -26,6 +28,13 @@ type DataPaths struct {
 type VersionData struct {
 	ProtocolVersion int    `json:"protocol_version"`
 	Version         string `json:"game_version"`
+	// PrismarineRef is an optional branch/tag/commit of PrismarineJS/minecraft-data
+	// to pull data from, for versions not merged into master yet (early releases).
+	//
+	// A branch is the normal choice while a version is pre-release: upstream keeps
+	// landing fixes there and we want them. Because a branch moves, cached data is
+	// revalidated against upstream on every run rather than trusted on sight
+	PrismarineRef string `json:"prismarine_ref"`
 }
 
 type Generator struct {
@@ -49,17 +58,6 @@ func main() {
 		panic(err)
 	}
 
-	dataPathReader, err := getReader(basePrismaJSURl+"dataPaths.json", "dataPaths.json", true)
-	if err != nil {
-		panic("Cannot fetch dataPaths.json: " + err.Error())
-	}
-
-	var dataPaths DataPaths
-	if err := json.NewDecoder(dataPathReader).Decode(&dataPaths); err != nil {
-		panic("Cannot decode dataPaths.json")
-	}
-	_ = dataPathReader.Close()
-
 	fileContent, err := os.ReadFile(projectVersionFile)
 	if err != nil {
 		panic(err)
@@ -70,12 +68,34 @@ func main() {
 		panic(err)
 	}
 
+	ref := versionData.PrismarineRef
+	if ref == "" {
+		ref = defaultPrismaJSRef
+	}
+	baseURL := prismaJSRepoURL + ref + "/data/"
+	immutable := immutableRef(ref)
+	log.Printf("Using minecraft-data ref: %s (immutable: %t)", ref, immutable)
+
+	// Keyed by ref like every other cache entry: two refs can map the same game
+	// version to different data paths.
+	dataPathsFile := fmt.Sprintf("%s_dataPaths.json", cacheRefKey(ref))
+	dataPathReader, err := getReader(baseURL+"dataPaths.json", dataPathsFile, immutable)
+	if err != nil {
+		panic("Cannot fetch dataPaths.json: " + err.Error())
+	}
+
+	var dataPaths DataPaths
+	if err := json.NewDecoder(dataPathReader).Decode(&dataPaths); err != nil {
+		panic("Cannot decode dataPaths.json")
+	}
+	_ = dataPathReader.Close()
+
 	data := make(map[string]any)
 	if versionInfo, ok := dataPaths.Pc[versionData.Version]; ok {
 		for _, generator := range generators {
-			url := fmt.Sprintf("%s%s/%s.json", basePrismaJSURl, versionInfo[generator.ResourceKey], generator.ResourceKey)
-			fileName := fmt.Sprintf("%s_%s.json", versionData.Version, generator.ResourceKey)
-			reader, err := getReader(url, fileName, false)
+			url := fmt.Sprintf("%s%s/%s.json", baseURL, versionInfo[generator.ResourceKey], generator.ResourceKey)
+			fileName := fmt.Sprintf("%s_%s_%s.json", cacheRefKey(ref), versionData.Version, generator.ResourceKey)
+			reader, err := getReader(url, fileName, immutable)
 
 			if err != nil {
 				panic("Cannot fetch " + url + ": " + err.Error())
@@ -87,37 +107,113 @@ func main() {
 			_ = reader.Close()
 		}
 	} else {
-		panic("Version " + versionData.Version + " not found in dataPaths.json")
+		panic("Version " + versionData.Version + " not found in dataPaths.json (ref " + ref + ")")
 	}
 }
 
-func getReader(url string, cacheFileName string, skipCache bool) (io.ReadCloser, error) {
-	cachePath := filepath.Join(cacheDir, cacheFileName)
+// cacheRefKey makes a ref usable as part of a cache file name, so data pulled
+// from different refs never collides for the same game version.
+func cacheRefKey(ref string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' {
+			return '-'
+		}
+		return r
+	}, ref)
+}
 
-	if !skipCache {
-		if _, err := os.Stat(cachePath); err == nil {
-			log.Println("Using cached file:", cacheFileName)
-			return os.Open(cachePath)
+// immutableRef reports whether a ref can never point at different content, which
+// is true only of a full commit SHA. Branches and tags can both be moved.
+func immutableRef(ref string) bool {
+	return commitSHA.MatchString(ref)
+}
+
+var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// getReader returns the contents of url, backed by a file in cacheDir.
+//
+// Refs are usually branches that upstream keeps fixing, so a cached file is not
+// trusted just because it exists — that is how a machine ends up generating from
+// months-old data while CI, starting empty, sees something different. Instead the
+// stored ETag is replayed as If-None-Match: a 304 means the cache is current and
+// costs one small request, a 200 replaces it. Only a commit SHA, which cannot
+// change, is served from disk without asking.
+//
+// If the network is unreachable, a stale cache beats failing outright, so it is
+// used with a warning.
+func getReader(url string, cacheFileName string, immutable bool) (io.ReadCloser, error) {
+	cachePath := filepath.Join(cacheDir, cacheFileName)
+	etagPath := cachePath + ".etag"
+
+	_, err := os.Stat(cachePath)
+	cached := err == nil
+
+	if cached && immutable {
+		log.Println("Using cached file:", cacheFileName)
+		return os.Open(cachePath)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if cached {
+		// Trimmed because an unusable header value fails the whole request, which
+		// would silently pin generation to the stale cache below.
+		if raw, err := os.ReadFile(etagPath); err == nil {
+			if etag := strings.TrimSpace(string(raw)); etag != "" {
+				req.Header.Set("If-None-Match", etag)
+			}
 		}
 	}
 
-	log.Println("Downloading:", url)
-	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch url %s", url)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if cached {
+			log.Printf("Cannot reach %s (%v), falling back to cached %s", url, err, cacheFileName)
+			return os.Open(cachePath)
+		}
+		return nil, fmt.Errorf("failed to fetch url %s: %w", url, err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified && cached {
+		log.Println("Cache is up to date:", cacheFileName)
+		return os.Open(cachePath)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if cached {
+			log.Printf("Unexpected status %s for %s, falling back to cached %s", resp.Status, url, cacheFileName)
+			return os.Open(cachePath)
+		}
+		return nil, fmt.Errorf("failed to fetch url %s: unexpected status %s", url, resp.Status)
+	}
+
+	log.Println("Downloading:", url)
 
 	file, err := os.Create(cachePath)
 	if err != nil {
-		_ = resp.Body.Close()
 		return nil, err
 	}
 
 	_, err = io.Copy(file, resp.Body)
-	_ = resp.Body.Close()
 	_ = file.Close()
 	if err != nil {
+		// A half-written file must not survive as a valid-looking cache entry.
+		_ = os.Remove(cachePath)
+		_ = os.Remove(etagPath)
 		return nil, err
+	}
+
+	if tag := resp.Header.Get("ETag"); tag != "" {
+		if err := os.WriteFile(etagPath, []byte(tag), 0644); err != nil {
+			// Losing the ETag only costs a re-download next run.
+			log.Printf("Cannot store ETag for %s: %v", cacheFileName, err)
+		}
+	} else {
+		_ = os.Remove(etagPath)
 	}
 
 	return os.Open(cachePath)

@@ -1,3 +1,5 @@
+//go:generate go run ../../cmd/gen-field
+
 package mc
 
 import (
@@ -22,6 +24,18 @@ type RegistryDataEntry struct {
 type RegistryData struct {
 	ID      proto.String
 	Entries proto.PrefixedArray[RegistryDataEntry, *RegistryDataEntry]
+}
+
+//field:encode mode=both
+type TagEntry struct {
+	Name    proto.String
+	Entries proto.PrefixedArray[proto.VarInt, *proto.VarInt]
+}
+
+//field:encode mode=both
+type RegistryTags struct {
+	ID   proto.String
+	Tags proto.PrefixedArray[TagEntry, *TagEntry]
 }
 
 var ServerDataPacks = proto.NewPrefixedArray[DataPackIdentifier, *DataPackIdentifier]([]DataPackIdentifier{

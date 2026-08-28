@@ -1,6 +1,7 @@
 ### Generators related
 /internal/**/*_gen.go
 /internal/mcdata
+/.cache
 logs/
 versions/
 libraries/
